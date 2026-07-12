@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanjian.rulebase.rule.v0",
+  "title": "三鉴规则条目（draft v0）",
+  "description": "条件谓词语言的表达力评估进行中；字段变更须走 RFC（docs/specs/）。",
+  "type": "object",
+  "required": ["id", "school", "condition", "claim", "strength", "provenance", "review"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^R-[a-z0-9]+(-[a-z0-9]+)*-[0-9]{4}$",
+      "description": "条目 ID，如 R-ziping-shishen-0001"
+    },
+    "school": {
+      "type": "string",
+      "description": "流派标识（如 ziping / mangpai）"
+    },
+    "condition": {
+      "type": "string",
+      "description": "条件谓词表达式（谓词语言 v0：命盘特征的布尔组合）"
+    },
+    "claim": {
+      "type": "string",
+      "description": "论断文本；必须使用概率化措辞（倾向/提示/或有）"
+    },
+    "strength": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "强度权重；调整仅经贝叶斯建议 + 人工评审通道"
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source_type", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": {
+          "enum": ["classic_public_domain", "licensed", "consultant"],
+          "description": "公版古籍 / 授权著作 / 顾问经验"
+        },
+        "source": { "type": "string", "description": "出处（书名·篇目 或 顾问标识）" },
+        "license_ref": { "type": "string", "description": "授权凭证编号；source_type=licensed 时必填" }
+      }
+    },
+    "draft_by_ai": {
+      "type": "boolean",
+      "default": false,
+      "description": "AI 录入辅助产生的草稿标记；顾问逐条确认后仍保留以留痕"
+    },
+    "review": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["draft", "confirmed"] },
+        "reviewed_by": { "type": "string", "description": "确认顾问标识；status=confirmed 时必填" },
+        "reviewed_at": { "type": "string", "description": "确认日期 YYYY-MM-DD" }
+      }
+    }
+  }
+}
