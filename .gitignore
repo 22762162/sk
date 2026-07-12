@@ -1,0 +1,21 @@
+# Rust（Cargo.lock 保留提交：本仓库产出二进制，锁定依赖）
+target/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# 对拍与评测产物
+golden-tests/reports/
+consult-engine/eval/out/
+
+# 编辑器与系统
+.DS_Store
+.idea/
+.vscode/
+
+# 本地环境
+.env
+.env.*
