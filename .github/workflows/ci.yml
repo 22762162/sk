@@ -1,0 +1,70 @@
+# 三鉴 CI 四道闸：rust / duipai（对拍）/ redline / rulebase（+ ref 测试）
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    name: Rust（fmt + clippy pedantic + test）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine-paipan
+      - run: cargo fmt --manifest-path engine-paipan/Cargo.toml --all -- --check
+      - run: cargo clippy --manifest-path engine-paipan/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --manifest-path engine-paipan/Cargo.toml
+
+  ref:
+    name: Python 参考实现测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pytest
+      - run: cd engine-paipan-ref && python -m pytest -q tests
+
+  duipai:
+    name: 双实现对拍（黄金集 + 1 万随机时刻）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine-paipan
+      - run: cargo build --release --manifest-path engine-paipan/Cargo.toml
+      # seed 取 run_id：每次运行覆盖不同随机域，且记录在报告中可复现
+      - run: |
+          python3 golden-tests/runner/diff_runner.py \
+            --rust-cmd "${{ github.workspace }}/engine-paipan/target/release/paipan-cli" \
+            --random 10000 --seed ${{ github.run_id }}
+      - name: 上传对拍差异报告（discrepancy issue 归档素材）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duipai-discrepancy-report
+          path: golden-tests/reports/
+
+  redline:
+    name: 红线词扫描
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .claude/hooks/redline-scan.sh
+
+  rulebase:
+    name: 规则库校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 rulebase/tools/validate.py
