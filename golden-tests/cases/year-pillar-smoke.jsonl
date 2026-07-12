@@ -1,0 +1,14 @@
+# source: spec-math —— 期望值全部由 docs/paipan-spec.md 条款 YP-1/YP-2/YP-3 的数学定义推出（锚点 1984=甲子 + 取模公式 + 判界规则），未使用任何凭记忆的历法事实。
+# note: lichun_unix 为合成占位数值（流水线彩排用），非真实立春时刻；真实历源用例待 sources/ 权威数据就位后生成。
+{"case_id": "yp-anchor-0001", "op": "year_pillar", "input": {"civil_year": 1984, "t_unix": 460000000, "lichun_unix": 444444444}, "expected": {"ok": true, "output": {"bazi_year": 1984, "stem": "甲", "branch": "子", "ganzhi": "甲子"}}}
+{"case_id": "yp-anchor-0002", "op": "year_pillar", "input": {"civil_year": 2026, "t_unix": 1780000000, "lichun_unix": 1770000000}, "expected": {"ok": true, "output": {"bazi_year": 2026, "stem": "丙", "branch": "午", "ganzhi": "丙午"}}}
+{"case_id": "yp-boundary-0001", "op": "year_pillar", "input": {"civil_year": 2000, "t_unix": 948999999, "lichun_unix": 949000000}, "expected": {"ok": true, "output": {"bazi_year": 1999, "stem": "己", "branch": "卯", "ganzhi": "己卯"}}}
+{"case_id": "yp-boundary-0002", "op": "year_pillar", "input": {"civil_year": 2000, "t_unix": 949000000, "lichun_unix": 949000000}, "expected": {"ok": true, "output": {"bazi_year": 2000, "stem": "庚", "branch": "辰", "ganzhi": "庚辰"}}}
+{"case_id": "yp-boundary-0003", "op": "year_pillar", "input": {"civil_year": 2000, "t_unix": 949000001, "lichun_unix": 949000000}, "expected": {"ok": true, "output": {"bazi_year": 2000, "stem": "庚", "branch": "辰", "ganzhi": "庚辰"}}}
+{"case_id": "yp-mod-0001", "op": "year_pillar", "input": {"civil_year": 3, "t_unix": -1, "lichun_unix": 0}, "expected": {"ok": true, "output": {"bazi_year": 2, "stem": "壬", "branch": "戌", "ganzhi": "壬戌"}}}
+{"case_id": "yp-mod-0002", "op": "year_pillar", "input": {"civil_year": 4, "t_unix": 0, "lichun_unix": 0}, "expected": {"ok": true, "output": {"bazi_year": 4, "stem": "甲", "branch": "子", "ganzhi": "甲子"}}}
+{"case_id": "yp-cycle-0001", "op": "year_pillar", "input": {"civil_year": 1924, "t_unix": -1440000000, "lichun_unix": -1449000000}, "expected": {"ok": true, "output": {"bazi_year": 1924, "stem": "甲", "branch": "子", "ganzhi": "甲子"}}}
+{"case_id": "yp-cycle-0002", "op": "year_pillar", "input": {"civil_year": 1900, "t_unix": -2200000000, "lichun_unix": -2206000000}, "expected": {"ok": true, "output": {"bazi_year": 1900, "stem": "庚", "branch": "子", "ganzhi": "庚子"}}}
+{"case_id": "yp-neg-0001", "op": "year_pillar", "input": {"civil_year": 1950, "t_unix": -628000001, "lichun_unix": -628000000}, "expected": {"ok": true, "output": {"bazi_year": 1949, "stem": "己", "branch": "丑", "ganzhi": "己丑"}}}
+{"case_id": "yp-err-0001", "op": "month_pillar", "input": {}, "expected": {"ok": false}}
+{"case_id": "yp-err-0002", "op": "year_pillar", "input": {"civil_year": 2000}, "expected": {"ok": false}}
