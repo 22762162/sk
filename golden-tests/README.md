@@ -5,7 +5,8 @@
 ```
 golden-tests/
 ├── cases/        # 黄金用例（JSONL；# 开头为注释行）
-├── sources/      # 三方权威历源比对数据（待采购入库，见下）
+├── sources/      # 权威历源比对数据（节气时刻已入库，详见 sources/README.md）
+├── tools/        # 历源生成、交叉核对与用例生成脚本
 ├── runner/       # 对拍 runner
 └── reports/      # 对拍差异报告（gitignored，CI 以 artifact 上传）
 ```
@@ -21,12 +22,13 @@ golden-tests/
 - 每个用例文件头部必须有 `# source:` 注释注明期望值来源。
 - 合法来源：**spec 数学定义**（如干支取模公式）、**权威历源数据文件**（`sources/` 下，采购后入库）。
 - **禁止**以模型记忆作为期望值来源。
-- 当前 `cases/year-pillar-smoke.jsonl` 中的 `lichun_unix` 均为**合成占位数值**（判界逻辑只依赖大小关系，与真实立春无关）；涉及真实节气时刻的用例必须等 `sources/` 权威数据就位后生成。
+- `cases/year-pillar-smoke.jsonl` 中的 `lichun_unix` 为**合成占位数值**（判界逻辑只依赖大小关系，流水线彩排用）；`cases/year-pillar-lichun.jsonl` 使用 `sources/` 真实立春时刻，由 `tools/gen_year_pillar_cases.py` 生成。
 
-## 待办（行动清单第 5 项，需人工采购）
+## 待办（行动清单第 5 项）
 
-- [ ] 采购/获取三方权威历源比对数据（候选：中科院紫金山天文台《中国天文年历》、寿星万年历导出数据、HORIZONS/VSOP87 自算校验），入 `sources/`，附来源与许可说明。
-- [ ] 基于权威数据生成万例黄金集（含附录 B 八类边界的系统性覆盖）。
+- [x] 权威历源首批入库：JPL DE440s 自算 1900–2100 节气 + HKO 分钟级交叉核对（72 条最大偏差 30 秒），见 `sources/README.md`。
+- [ ] 采购紫金山天文台《中国天文年历》补齐三方比对的第三方（历史年份目前仅日期级抽查）。
+- [ ] 基于权威数据生成万例黄金集（含附录 B 八类边界的系统性覆盖）——待 spec v0.2 月柱/日柱/时柱规格就位后展开。
 
 ## 运行
 
