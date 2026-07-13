@@ -2,7 +2,7 @@
 """由 JPL 星历自算 1900–2100 年二十四节气时刻(定气法)。
 
 历源候选方案之三「HORIZONS/VSOP87 自算校验」的实现(见 golden-tests/README.md)。
-本脚本产出 sources/ 下的权威历源数据文件;它本身不属于排盘引擎,
+本脚本产出 oracle-sources/ 下的权威历源数据文件;它本身不属于排盘引擎,
 不受 engine-paipan「仅注入数据」红线约束,但所有天文事实均来自:
 
   - 星历: JPL DE440s(ephemeris/de440s.bsp,NAIF 官方分发,公有领域)
@@ -16,8 +16,8 @@
 
 运行(需网络下载依赖,星历文件须已就位):
     uv run --with skyfield python3 gen_solar_terms.py \
-        --bsp ../ephemeris/de440s.bsp --start 1900 --end 2100 \
-        --out ../solar_terms_de440s_1900_2100.jsonl
+        --bsp ../oracle-sources/ephemeris/de440s.bsp --start 1900 --end 2100 \
+        --out ../oracle-sources/solar_terms_de440s_1900_2100.jsonl
 
 输出 JSONL 逐行:
     {"term":"立春","lambda_deg":315,"civil_year":1984,

@@ -1,0 +1,30 @@
+# 角色 → 工具/模型路由(dev-plan V2.1 第 1、2A 节)。当前写死,留升级口:
+# 换模型 = 改本文件 + 走 PR,不改变角色结构。
+version: "2.1"
+development:
+  main_implementer:        # 高难与高风险:L1 Rust、规格、会诊状态机、提示词起草、差分证据
+    tool: claude-code
+    model: claude-fable-5
+  evidence_analyst:
+    tool: claude-code
+    model: claude-fable-5
+    constraint: 涉及自身实现的差分事件,Codex 并行独立报告为强制项(RS-2)
+  cost_implementer:        # 常规模块:Web 前端、后端 CRUD、脚本、测试补写
+    tool: codex
+    model: gpt-codex
+  cross_reviewer:          # PR 风险分诊、严重问题提示、提示词偏袒审计、对抗测试
+    tool: codex
+    model: gpt-codex
+  ref_implementer:         # 参考实现盲写(独立仓库、独立会话)
+    tool: codex
+    model: gpt-codex
+    isolation: 独立环境;不挂载主仓库;无主仓库凭据;不复用主仓工作会话
+  trivial_tasks:           # 琐碎任务可临时降档,不改变角色结构
+    tool: claude-code
+    model: claude-haiku-4-5
+runtime:                   # 运行态三师会诊(与开发态严格分离,见 INV-10)
+  debater_a: { provider: anthropic, model_tier: sonnet, school: 子平格局派 }
+  debater_b: { provider: openai,   model_tier: gpt-5x,  school: 旺衰扶抑派 }
+  debater_c: { provider: deepseek, model_tier: v-series, school: 调候派 }
+  arbiter:   { policy: 轮换制, note: 每场从三家取一路未参与本场辩论的新实例,盲身份裁决 }
+final_signer: human        # 本人,唯一责任主体

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 大陆版红线词扫描：扫描用户可见文案目录，命中即失败。
+# 输出文案红线扫描（INV-04 私用底线）：扫描可见文案目录，命中即失败。
 # 词表：infra/compliance/redline-words.txt（一行一词，# 开头为注释）
 # 豁免：infra/compliance/redline-allowlist.txt（一行一个 "路径:词"，用于评审过的例外）
 set -euo pipefail
@@ -8,7 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORDS_FILE="$ROOT/infra/compliance/redline-words.txt"
 ALLOW_FILE="$ROOT/infra/compliance/redline-allowlist.txt"
 # 扫描范围：用户可见文案所在目录（源代码字符串与本地化文件）
-SCAN_DIRS=("app" "backend")
+SCAN_DIRS=("backend" "web")
 
 if [[ ! -f "$WORDS_FILE" ]]; then
   echo "redline-scan: 词表缺失 $WORDS_FILE" >&2

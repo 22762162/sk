@@ -10,8 +10,8 @@ __pycache__/
 # 对拍与评测产物
 golden-tests/reports/
 
-# JPL 星历二进制（31MB，不入库；下载方式见 golden-tests/sources/README.md）
-golden-tests/sources/ephemeris/*.bsp
+# JPL 星历二进制（31MB，不入库；下载方式见 golden-tests/oracle-sources/README.md）
+golden-tests/oracle-sources/ephemeris/*.bsp
 consult-engine/eval/out/
 
 # 编辑器与系统

@@ -1,4 +1,4 @@
-# source: spec-math(YP-1/YP-2/YP-3 公式推期望值)+ sources/solar_terms_de440s_1900_2100.jsonl(真实立春时刻,JPL 自算、经 HKO 交叉核对)
+# source: spec-math(YP-1/YP-2/YP-3 公式推期望值)+ oracle-sources/solar_terms_de440s_1900_2100.jsonl(真实立春时刻,JPL 自算、经 HKO 交叉核对)
 # generated-by: tools/gen_year_pillar_cases.py;禁止手改本文件
 {"case_id": "yp-lichun-0001", "op": "year_pillar", "input": {"civil_year": 1900, "t_unix": -2206030156, "lichun_unix": -2206030155}, "expected": {"ok": true, "output": {"bazi_year": 1899, "stem": "己", "branch": "亥", "ganzhi": "己亥"}}}
 {"case_id": "yp-lichun-0002", "op": "year_pillar", "input": {"civil_year": 1900, "t_unix": -2206030155, "lichun_unix": -2206030155}, "expected": {"ok": true, "output": {"bazi_year": 1900, "stem": "庚", "branch": "子", "ganzhi": "庚子"}}}

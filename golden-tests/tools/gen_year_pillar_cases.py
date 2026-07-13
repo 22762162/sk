@@ -3,13 +3,13 @@
 
 期望值来源(黄金集数据来源纪律,见 golden-tests/README.md):
   - 判界与干支:paipan-spec 条款 YP-1/YP-2/YP-3 的数学定义(spec-math);
-  - 立春时刻:sources/solar_terms_de440s_1900_2100.jsonl(JPL 自算,
+  - 立春时刻:oracle-sources/solar_terms_de440s_1900_2100.jsonl(JPL 自算,
     经 HKO 分钟级交叉核对),非模型记忆。
 
 用法(仅标准库):
     python3 gen_year_pillar_cases.py \
-        --sources ../sources/solar_terms_de440s_1900_2100.jsonl \
-        --out ../cases/year-pillar-lichun.jsonl
+        --sources ../oracle-sources/solar_terms_de440s_1900_2100.jsonl \
+        --out ../boundary/year-pillar-lichun.jsonl
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ YEARS = [1900, 1924, 1949, 1984, 2000, 2026, 2044, 2100]
 
 HEADER = (
     "# source: spec-math(YP-1/YP-2/YP-3 公式推期望值)+ "
-    "sources/solar_terms_de440s_1900_2100.jsonl(真实立春时刻,JPL 自算、经 HKO 交叉核对)\n"
+    "oracle-sources/solar_terms_de440s_1900_2100.jsonl(真实立春时刻,JPL 自算、经 HKO 交叉核对)\n"
     "# generated-by: tools/gen_year_pillar_cases.py;禁止手改本文件\n"
 )
 

@@ -6,7 +6,7 @@
   python3 golden-tests/runner/diff_runner.py --random 10000 --seed 42  # 全量对拍
   python3 golden-tests/runner/diff_runner.py --rust-cmd <bin路径> ...   # CI 用预编译产物
 
-协议见 docs/paipan-spec.md 附录 A。判定规则：
+协议见 contracts/paipan-spec.md 附录 A。判定规则：
   * 双实现输出逐字段严格相等（错误用例只比对 ok 标志，错误文案允许不同）；
   * 有 expected 的黄金用例，双实现还须各自与期望一致。
 任何不一致 → 退出码 1，细节写入 golden-tests/reports/（归档为 discrepancy issue 交 Opus 仲裁）。
@@ -22,18 +22,22 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CASES_DIR = ROOT / "golden-tests" / "cases"
+# 用例目录(dev-plan V2.1 第 5 节):固定黄金集 / 边界集 / 缺陷回归集。
+# stratified(分层随机)由本 runner 在线生成;metamorphic 由专用测试承载。
+CASE_DIRS = [ROOT / "golden-tests" / d for d in ("fixed", "boundary", "regression")]
 REPORTS_DIR = ROOT / "golden-tests" / "reports"
 
 DEFAULT_RUST_CMD = (
     f"cargo run --quiet --manifest-path {ROOT / 'engine-paipan' / 'Cargo.toml'} --bin paipan-cli"
 )
 DEFAULT_REF_CMD = f"{sys.executable} -m paipan_ref.cli"
+# 参考实现在独立仓库(盲隔离,INV-09);默认取主仓的同级目录,CI 显式传 --ref-dir。
+DEFAULT_REF_DIR = ROOT.parent / "sk-paipan-reference"
 
 
 def load_golden_cases() -> list[dict]:
     cases = []
-    for path in sorted(CASES_DIR.glob("*.jsonl")):
+    for path in sorted(p for d in CASE_DIRS if d.is_dir() for p in d.glob("*.jsonl")):
         for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             line = raw.strip()
             if not line or line.startswith("#"):
@@ -130,19 +134,33 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=20260712, help="随机种子（写入报告，保证可复现）")
     ap.add_argument("--rust-cmd", default=DEFAULT_RUST_CMD, help="Rust 主实现 CLI 命令")
     ap.add_argument("--ref-cmd", default=DEFAULT_REF_CMD, help="Python 参考实现 CLI 命令")
+    ap.add_argument(
+        "--ref-dir", default=str(DEFAULT_REF_DIR),
+        help="参考实现仓库路径(独立仓库;默认主仓同级 sk-paipan-reference)",
+    )
     args = ap.parse_args()
+
+    ref_dir = Path(args.ref_dir)
+    if not ref_dir.is_dir():
+        print(
+            f"参考实现仓库未就位:{ref_dir}\n"
+            "克隆:git clone https://github.com/22762162/sk-paipan-reference.git "
+            f"{ref_dir}",
+            file=sys.stderr,
+        )
+        return 1
 
     cases = load_golden_cases()
     n_golden = len(cases)
     if not args.golden_only and args.random > 0:
         cases += gen_random_cases(args.random, args.seed)
     if not cases:
-        print("没有可用用例（golden-tests/cases/ 为空？）", file=sys.stderr)
+        print("没有可用用例（golden-tests/{fixed,boundary,regression}/ 均为空？）", file=sys.stderr)
         return 1
 
     print(f"对拍开始：黄金集 {n_golden} 例 + 随机 {len(cases) - n_golden} 例（seed={args.seed}）")
     rust_outputs = run_impl(shlex.split(args.rust_cmd), ROOT, cases)
-    ref_outputs = run_impl(shlex.split(args.ref_cmd), ROOT / "engine-paipan-ref", cases)
+    ref_outputs = run_impl(shlex.split(args.ref_cmd), ref_dir, cases)
 
     discrepancies = []
     for case in cases:
