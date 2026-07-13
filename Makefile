@@ -4,13 +4,17 @@
 build:
 	cargo build --manifest-path engine-paipan/Cargo.toml
 
+# 参考实现在独立仓库(盲隔离,INV-09);本地默认取主仓同级目录
+REF_DIR ?= ../sk-paipan-reference
+
 test: test-rust test-ref
 
 test-rust:
 	cargo test --manifest-path engine-paipan/Cargo.toml
 
 test-ref:
-	cd engine-paipan-ref && python3 -m pytest -q tests
+	@if [ -d "$(REF_DIR)" ]; then cd "$(REF_DIR)" && python3 -m pytest -q tests; \
+	else echo "跳过参考实现测试:$(REF_DIR) 未就位(git clone https://github.com/22762162/sk-paipan-reference.git)"; fi
 
 lint:
 	cargo fmt --manifest-path engine-paipan/Cargo.toml --all -- --check
@@ -24,7 +28,7 @@ golden-smoke:
 duipai:
 	python3 golden-tests/runner/diff_runner.py --random 10000 --seed 20260712
 
-# 大陆版红线词扫描（app/ + backend/ 用户可见文案）
+# 输出文案红线扫描（backend/ + web/,INV-04 私用底线）
 redline:
 	bash .claude/hooks/redline-scan.sh
 

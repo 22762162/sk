@@ -16,7 +16,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 ## 纪律
 
 - 禁止修改 `prompts/` 下的提示词内容（那是 Opus 会话 + prompt-engineer 的职责范围）；你只消费提示词版本号。
-- 禁止修改 `rulebase/entries/`。
+- 禁止修改 `rulebase/approved/`。
 - 会诊测试一律用合成命盘与录制的模型响应（fixture），单元测试不得真实调用 LLM API。
 
 ## 交付格式

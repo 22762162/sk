@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""规则库校验器：校验 rulebase/entries/ 下全部条目（CI 阻断项）。
+"""规则库校验器：校验 rulebase/approved/ 下全部条目（CI 阻断项）。
 
 零第三方依赖：针对 rule.schema.json（draft v0）的约束手写校验，
 schema 演进时本校验器与 schema 文件必须同 PR 更新。
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ENTRIES_DIR = ROOT / "rulebase" / "entries"
+ENTRIES_DIR = ROOT / "rulebase" / "approved"
 
 ID_PATTERN = re.compile(r"^R-[a-z0-9]+(-[a-z0-9]+)*-[0-9]{4}$")
 REQUIRED = ["id", "school", "condition", "claim", "strength", "provenance", "review"]

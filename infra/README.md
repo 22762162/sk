@@ -11,7 +11,7 @@ infra/
 
 1. **rust**：rustfmt + clippy pedantic（-D warnings）+ 单元/属性测试
 2. **duipai**：双实现对拍（黄金集 + 1 万随机时刻；夜间任务跑 10 万，见 nightly-duipai.yml）
-3. **redline**：红线词扫描（app/ + backend/）
+3. **redline**：红线词扫描（backend/ + web/）
 4. **rulebase**：规则条目 schema 校验
 
 另有 **ref**（Python 参考实现测试）。任何一道闸失败即阻断合入。

@@ -25,4 +25,4 @@
 
 1. **civil_year 的时区语境**:1.1/3.1 把公历年号解析交给调用方,跨年深夜时刻(civil_year 与 UTC 年不一致)存在误用空间。v0.2 定义节气数据文件注入格式(4.1)后,建议把「时刻 → civil_year」的解析收进引擎,消除该调用方陷阱。
 2. **对拍协议编码**:附录 A 建议明示「输出为 UTF-8 编码 JSON,干支字段为汉字字符串」。
-3. **真实历源用例**:评审时黄金集立春均为占位数值;已随本次评审补入真实立春边界用例(`cases/year-pillar-lichun.jsonl`,数据来源见 `golden-tests/sources/README.md`)。
+3. **真实历源用例**:评审时黄金集立春均为占位数值;已随本次评审补入真实立春边界用例(`boundary/year-pillar-lichun.jsonl`,数据来源见 `golden-tests/oracle-sources/README.md`)。

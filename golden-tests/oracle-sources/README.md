@@ -23,7 +23,7 @@
 JPL DE440s 星历二进制,31MB 不入库。复现下载:
 
 ```bash
-curl -fL -o golden-tests/sources/ephemeris/de440s.bsp \
+curl -fL -o golden-tests/oracle-sources/ephemeris/de440s.bsp \
   https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp
 # SHA-256: c1c7feeab882263fc493a9d5a5b2ddd71b54826cdf65d8d17a76126b260a49f2
 ```
