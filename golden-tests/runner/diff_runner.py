@@ -33,9 +33,9 @@ DEFAULT_RUST_CMD = (
 DEFAULT_REF_CMD = f"{sys.executable} -m paipan_ref.cli"
 # 参考实现在独立仓库(盲隔离,INV-09);默认取主仓的同级目录,CI 显式传 --ref-dir。
 DEFAULT_REF_DIR = ROOT.parent / "sk-paipan-reference"
-# 参考实现当前能力域:仅这些 op 做双实现对拍,其余 op 只做主实现 vs 期望值比对。
-# Codex 盲写扩展参考实现后同步更新(参考仓 TASK.md);扩后新 op 自动进入对拍。
-DEFAULT_REF_OPS = "year_pillar"
+# 参考实现当前能力域(Codex 盲写 v0.2:年柱+四柱):域内 op 做双实现对拍,域外仅主实现 vs 期望值。
+# 参考实现跟进 v0.3 后加入 four_pillars_uncertainty。
+DEFAULT_REF_OPS = "year_pillar,four_pillars"
 
 
 def load_golden_cases() -> list[dict]:

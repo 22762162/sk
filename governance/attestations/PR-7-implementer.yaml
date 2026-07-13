@@ -1,0 +1,24 @@
+artifact_id: PR-7-implementer
+timestamp: "2026-07-14T04:40:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(契约 v0.3 会话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 0d70803(main,PR #6 合并点)
+generated_files:
+  - docs/specs/rfc-0001-contracts-v0.3.md
+  - contracts/**(sk-contracts@v0.3.0 vendored)+ contracts.lock
+  - engine-paipan/src/four_pillars.rs(uncertainty,AMB-1…5)
+  - engine-paipan/src/bin/paipan_cli.rs(four_pillars_uncertainty op)
+  - engine-paipan/tests/four_pillars.rs(AMB 单测+属性测试)
+  - golden-tests/tools/gen_four_pillars_cases.py + boundary/four-pillars-amb.jsonl
+  - backend/app.py(候选盘协议)+ web/index.html(双盘提示)
+  - docs/DESIGN.md(工作区更新)
+reviewed_files: []
+notes: >-
+  契约 v0.3.0 已在 sk-contracts 发 tag(820a7cf);本 PR 为主仓钉版跟进与实现。
+  交叉评审 attestation 由本人全量审阅替代(Codex 评审接入前);本人签署由合并动作承载。
+  同期 Codex 独立会话正在参考仓盲写 v0.2 实现(其 attestation 随参考仓提交)。

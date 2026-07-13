@@ -78,36 +78,67 @@ def paipan(req: PaipanReq) -> JSONResponse:
     if i < 0 or i + 1 >= len(_jie_unix):
         return JSONResponse({"ok": False, "error": "超出节气数据覆盖范围"}, status_code=422)
 
-    case = {
-        "case_id": "web",
-        "op": "four_pillars",
-        "input": {
-            "t_unix": t,
-            "lichun_unix": _lichun[std.year],
-            "local": {"y": std.year, "m": std.month, "d": std.day,
-                      "hh": std.hour, "mm": std.minute, "ss": std.second},
-            "month_ctx": {"jie_seq": _jie_seq[i], "jie_unix": _jie_unix[i],
-                          "next_jie_unix": _jie_unix[i + 1]},
+    def engine_input(tt: int, op: str, extra: dict | None = None) -> dict | None:
+        """按时刻 tt 组装引擎注入(标准北京时间上下文);超出数据覆盖返回 None。"""
+        loc = datetime.fromtimestamp(tt, timezone(timedelta(hours=8)))
+        j = bisect.bisect_right(_jie_unix, tt) - 1
+        if j < 0 or j + 1 >= len(_jie_unix) or loc.year not in _lichun:
+            return None
+        inp = {
+            "t_unix": tt,
+            "lichun_unix": _lichun[loc.year],
+            "local": {"y": loc.year, "m": loc.month, "d": loc.day,
+                      "hh": loc.hour, "mm": loc.minute, "ss": loc.second},
+            "month_ctx": {"jie_seq": _jie_seq[j], "jie_unix": _jie_unix[j],
+                          "next_jie_unix": _jie_unix[j + 1]},
             "zi_hour_mode": req.zi_hour_mode,
-        },
-    }
-    proc = subprocess.run(
-        [str(CLI)], input=json.dumps(case, ensure_ascii=False) + "\n",
-        capture_output=True, text=True, timeout=10, check=False,
-    )
-    if proc.returncode != 0:
+        }
+        if extra:
+            inp.update(extra)
+        return {"case_id": f"web-{op}-{tt}", "op": op, "input": inp}
+
+    def run_engine(cases: list[dict]) -> list[dict] | None:
+        payload = "\n".join(json.dumps(c, ensure_ascii=False) for c in cases) + "\n"
+        proc = subprocess.run(
+            [str(CLI)], input=payload,
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        if proc.returncode != 0:
+            return None
+        return [json.loads(line) for line in proc.stdout.strip().splitlines()]
+
+    # 时间输入到分 → 精度 60 秒(spec 4.5 调用方候选盘协议)
+    precision = 60
+    case = engine_input(t, "four_pillars_uncertainty",
+                        {"input_time_precision_seconds": precision})
+    results = run_engine([case]) if case else None
+    if results is None:
         return JSONResponse({"ok": False, "error": "引擎进程异常"}, status_code=500)
-    result = json.loads(proc.stdout.strip().splitlines()[-1])
+    result = results[0]
     if not result.get("ok"):
         return JSONResponse({"ok": False, "error": result.get("error", "引擎拒绝该输入")},
                             status_code=422)
 
     out = result["output"]
+    candidates = []
+    if out.get("result_status") == "ambiguous":
+        side_cases = [c for c in
+                      (engine_input(t - precision, "four_pillars"),
+                       engine_input(t + precision, "four_pillars")) if c]
+        side = run_engine(side_cases) or []
+        seen = []
+        for r in side:
+            if r.get("ok") and r["output"] not in seen:
+                seen.append(r["output"])
+        candidates = seen
     dst = bool(aware.dst())
     return JSONResponse({
         "ok": True,
         "claim_type": "computed_fact",  # contracts/claim.schema.json 分层验收
         "output": out,
+        "result_status": out.get("result_status", "exact"),
+        "uncertainty_sources": out.get("uncertainty_sources", []),
+        "candidate_charts": candidates,
         "meta": {
             "timezone": "Asia/Shanghai(IANA tzdata)",
             "dst_applied": dst,

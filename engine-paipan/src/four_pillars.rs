@@ -178,6 +178,66 @@ pub fn four_pillars(
     })
 }
 
+/// 不确定性来源名(spec AMB-5 固定顺序)。
+pub const UNCERTAINTY_SOURCE_NAMES: [&str; 4] = [
+    "lichun_boundary",
+    "jie_boundary",
+    "hour_boundary",
+    "day_boundary",
+];
+
+/// 不确定性判定结果(spec 4.5)。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Uncertainty {
+    /// 是否 ambiguous(任一来源距离 < precision)。
+    pub ambiguous: bool,
+    /// 四类边界距离的最小值(秒)。
+    pub boundary_distance_seconds: i64,
+    /// 距离 < precision 的来源,按 AMB-5 固定顺序。
+    pub sources: Vec<&'static str>,
+}
+
+/// 边界距离与不确定性判定(spec 条款 AMB-1…5)。
+///
+/// 前置条件与 [`four_pillars`] 相同;本函数不重复校验,调用方应先通过 [`four_pillars`]。
+#[must_use]
+pub fn uncertainty(
+    t_unix: i64,
+    lichun_unix: i64,
+    local: LocalTime,
+    month_ctx: MonthCtx,
+    mode: ZiHourMode,
+    precision_seconds: i64,
+) -> Uncertainty {
+    let d_lichun = (t_unix - lichun_unix).abs();
+    let d_jie = (t_unix - month_ctx.jie_unix)
+        .abs()
+        .min((t_unix - month_ctx.next_jie_unix).abs());
+    let s = i64::from(local.hh) * 3600 + i64::from(local.mm) * 60 + i64::from(local.ss);
+    let x = (s + 3600) % 7200;
+    let d_hour = x.min(7200 - x);
+    let d_day = match mode {
+        ZiHourMode::Split => s.min(86_400 - s),
+        ZiHourMode::Unified => {
+            let v = (s - 82_800).abs();
+            v.min(86_400 - v)
+        }
+    };
+
+    let distances = [d_lichun, d_jie, d_hour, d_day];
+    let sources: Vec<&'static str> = UNCERTAINTY_SOURCE_NAMES
+        .iter()
+        .zip(distances)
+        .filter(|&(_, d)| d < precision_seconds)
+        .map(|(&name, _)| name)
+        .collect();
+    Uncertainty {
+        ambiguous: !sources.is_empty(),
+        boundary_distance_seconds: distances.into_iter().min().unwrap_or(0),
+        sources,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

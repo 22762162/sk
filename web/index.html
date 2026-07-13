@@ -60,6 +60,8 @@
       <div class="pillar"><div class="t">时 柱</div><div class="g" id="ph">—</div></div>
     </div>
     <div class="metaline" id="meta"></div>
+    <div id="amb" style="display:none; margin-top:18px; padding:14px 16px; border:1px solid #d8b56a;
+         border-radius:8px; background:#fdf6e3; font-size:13px; line-height:1.9;"></div>
   </section>
 
   <footer>
@@ -91,6 +93,21 @@ document.getElementById('f').addEventListener('submit', async (e) => {
       `八字年:${o.bazi_year} · 节气月:${j.meta.jie_window.name}起 · 子时口径:` +
       (j.meta.zi_hour_mode === 'split' ? '早晚子时' : '子时换日') +
       (j.meta.dst_applied ? ' · 该时刻处于历史夏令时,已按 tzdata 换算' : '');
+    const amb = document.getElementById('amb');
+    if (j.result_status === 'ambiguous') {
+      const srcName = {lichun_boundary: '立春交节', jie_boundary: '节气交接',
+                       hour_boundary: '时辰交界', day_boundary: '日界'};
+      const srcs = (j.uncertainty_sources || []).map(s => srcName[s] || s).join('、');
+      const fmt = c => [c.year, c.month, c.day, c.hour].map(p => p.ganzhi).join(' ');
+      let html = `此出生时间距 <b>${srcs}</b> 不足一分钟,按分钟精度存在两种可能的命盘,倾向于都列出供比对:`;
+      (j.candidate_charts || []).forEach((c, i) => {
+        html += `<br>候选 ${i + 1}:<b>${fmt(c)}</b>(八字年 ${c.bazi_year})`;
+      });
+      amb.innerHTML = html;
+      amb.style.display = 'block';
+    } else {
+      amb.style.display = 'none';
+    }
     res.style.display = 'block';
   } catch (_) {
     err.textContent = '请求失败:请确认本地服务已启动(make v1-serve)';

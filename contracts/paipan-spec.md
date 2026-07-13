@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| 版本 | v0.2 · **DRAFT**（v0.1 年柱条款已于 2026-07-14 评审通过；本版新增四柱条款待评审） |
+| 版本 | v0.3（v0.1/v0.2 条款已评审通过并经实现验收；v0.3 新增 4.5 不确定性 op 与第 5 章分级承诺,依 RFC-0001 由本人指示起草） |
 | 状态 | v0.1 评审报告：`docs/reviews/paipan-spec-v0.1-review.md`；v0.2 新增条款依据：`docs/research-notes/calendar-facts-sources-2026-07-14.md`（日柱锚点经 KASI+中研院双源证实；五虎遁/五鼠遁经公版古籍与多源核实；早晚子时转流派配置项） |
 | 定位 | `engine-paipan`（Rust）与 `engine-paipan-ref`（Python）双实现的**唯一共享契约**。两实现互不可见对方代码，只依据本文档。 |
 
@@ -78,11 +78,44 @@
 
 输入：`{t_unix, lichun_unix, local, month_ctx, zi_hour_mode}`；其中 `civil_year := local.y`（供 YP-1 使用）。输出：`bazi_year` 与四柱 `year/month/day/hour` 各 `{stem, branch, ganzhi}`。任何字段缺失、类型不符（含浮点/布尔混入整型字段）、非法 `zi_hour_mode`、LT-1/MP-1 校验失败 → `ok:false`，进程不得崩溃。前置条件汇总（调用方责任）：`lichun_unix` 为 `local.y` 年立春；`month_ctx` 与历源一致且含 t；`local` 与 `t_unix` 同刻。
 
-### 4.5 留待后续版本（实现方不得先行猜测实现）
+### 4.5 不确定性 op `four_pillars_uncertainty`（v0.3 新增；`four_pillars` 保持 v0.2 语义不变）
 
-- **真太阳时**（v0.3）：均时差与经度修正、跨日对日柱影响、平/真流派开关；
-- **大运**（v0.3）：顺逆判定（年干阴阳×性别）、「三天折一岁」精确到天、出生即交节边界；
-- **节气注入文件格式**（v0.3）：数据文件 schema、±1 秒精度、三方比对协议（当前由调用方逐 case 注入）。
+当输入时刻本身有精度限制（如出生时间只记到分）且落在判界附近时，单一命盘不可靠
+（DESIGN V3.0 §5.2）。本 op = `four_pillars` 全部输入外加**必填** `input_time_precision_seconds`
+（整数 ≥ 0），输出 = `four_pillars` 全部输出外加以下三个字段：
+
+- **AMB-1（立春距离）**：`d_lichun = |t_unix − lichun_unix|`。
+- **AMB-2（节界距离）**：`d_jie = min(|t_unix − jie_unix|, |t_unix − next_jie_unix|)`。
+- **AMB-3（时辰界距离）**：设 `s = hh·3600 + mm·60 + ss`，`x = (s + 3600) mod 7200`，
+  则 `d_hour = min(x, 7200 − x)`（当地墙钟秒；时支界在各奇数整点）。
+- **AMB-4（日界距离）**：`split` 模式界在当地 00:00:00：`d_day = min(s, 86400 − s)`；
+  `unified` 模式界在 23:00:00：`d_day = min(|s − 82800|, 86400 − |s − 82800|)`。
+- **AMB-5（判定）**：`uncertainty_sources` = 距离**严格小于** `input_time_precision_seconds`
+  的来源列表，元素取自 `["lichun_boundary","jie_boundary","hour_boundary","day_boundary"]`
+  （按此固定顺序）；`boundary_distance_seconds = min(d_lichun, d_jie, d_hour, d_day)`;
+  `result_status` = 列表非空时 `"ambiguous"`，否则 `"exact"`。precision = 0 恒为 exact。
+- 负的 `input_time_precision_seconds` 或缺失 → `ok:false`。其余校验与错误路径同 4.4。
+
+**调用方候选盘协议（呈现层责任，引擎不承担）**：`result_status = ambiguous` 时，调用方
+应对 `t − p` 与 `t + p` 各自重新解析上下文（各自的 civil_year、lichun、month_ctx）并调用
+`four_pillars`,将去重后的结果作为 `candidate_charts` 与 `uncertainty_sources` 一并呈现,
+不得只给单一命盘。
+
+## 5 分级承诺（DESIGN V3.0 §5.1;天文可算 ≠ 民用时间可换算 ≠ 时刻转换无误差）
+
+| 承诺层 | 当前值 | 说明 |
+| --- | --- | --- |
+| 天文计算范围 | 1900–2100（数据）/ 1901–2099（呈现层开放） | 以已入库并经交叉核对的节气数据为准；扩到 1600–2200 须新历源入库并重新审计 |
+| 节气时刻容差 | 标称 ±1 秒（自算求根精度 ≈0.009 s,输出取整到秒） | 外部核对:HKO 分钟级(2026–2028 全量)+ 1984 日期级;分钟级以下的绝对真值以《中国天文年历》入库后为准 |
+| ΔT 不确定性 | 2030 年前 ≪1 秒;远期(2040+)随实测更新可能漂移±数秒 | 未来年份节气为**暂定值**(future_provisional),数据再生成即更新 |
+| 民用时间(tzdb) | pinned IANA tzdata(呈现层 zoneinfo) | 1970 年前为 historical_best_effort:tzdb 不保证可靠,结果须携带不确定性提示;中国近现代时区/夏令时的人工核验区间随历源逐步登记 |
+| 判界归属 | 全部条款闭下界(1.3) | 恰好等于界点不属于不确定性,归界点之后区间 |
+
+### 5.1 留待后续版本（实现方不得先行猜测实现）
+
+- **真太阳时**（v0.4）：均时差与经度修正、跨日对日柱影响、平/真流派开关；
+- **大运**（v0.4）：顺逆判定（年干阴阳×性别）、「三天折一岁」精确到天、出生即交节边界；
+- **节气注入文件格式**（v0.4）：数据文件 schema、三方比对协议（当前由调用方逐 case 注入）。
 
 ## 附录 A 对拍 I/O 协议（JSONL）
 
@@ -154,7 +187,8 @@
 | HP-1 | `hp-branch-*` |
 | HP-2 | `hp-wushu-*`、`hp-latezi-*` |
 | four_pillars 错误路径 | `fp-err-*` |
+| AMB-1…5 | `fp-amb-*` |
 
 ---
 
-*变更记录：v0.1（2026-07-12）首版，仅含年柱（作为双实现对拍全流程彩排的最小算法）。v0.1 评审通过（2026-07-14），内容无改动。v0.2（2026-07-14）新增 LT-1、MP-1/2、DP-1/2/3/4、HP-1/2、four_pillars op、附录 B 扩充与附录 C 条款-测试映射；依据见 docs/research-notes/calendar-facts-sources-2026-07-14.md。*
+*变更记录：v0.1（2026-07-12）首版，仅含年柱（作为双实现对拍全流程彩排的最小算法）。v0.1 评审通过（2026-07-14），内容无改动。v0.2（2026-07-14）新增 LT-1、MP-1/2、DP-1/2/3/4、HP-1/2、four_pillars op、附录 B 扩充与附录 C 条款-测试映射；依据见 docs/research-notes/calendar-facts-sources-2026-07-14.md。v0.3（2026-07-14）新增 four_pillars_uncertainty op（AMB-1…5,独立 op 保持 v0.2 位级兼容）与第 5 章分级承诺。*

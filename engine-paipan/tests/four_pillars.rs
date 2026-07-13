@@ -1,7 +1,7 @@
 //! 四柱集成测试与属性测试。规格条款:contracts/paipan-spec.md v0.2 第 4 章。
 
 use engine_paipan::four_pillars::{
-    day_ganzhi_index, four_pillars, jdn, LocalTime, MonthCtx, ZiHourMode,
+    day_ganzhi_index, four_pillars, jdn, uncertainty, LocalTime, MonthCtx, ZiHourMode,
 };
 use proptest::prelude::*;
 
@@ -98,6 +98,67 @@ fn invalid_local_rejected() {
             four_pillars(1, 0, bad, CTX, ZiHourMode::Split).is_err(),
             "{bad:?}"
         );
+    }
+}
+
+/// AMB-1…5:边界距离与不确定性判定。
+#[test]
+fn uncertainty_boundaries() {
+    // 恰好立春(亦为节界):p=60 → ambiguous,来源含 lichun 与 jie;p=0 恒 exact(严格小于)。
+    let noon = lt(2000, 6, 1, 12, 0, 0);
+    let u = uncertainty(0, 0, noon, CTX, ZiHourMode::Split, 60);
+    assert!(u.ambiguous);
+    assert_eq!(u.sources, vec!["lichun_boundary", "jie_boundary"]);
+    assert_eq!(u.boundary_distance_seconds, 0);
+    let u0 = uncertainty(0, 0, noon, CTX, ZiHourMode::Split, 0);
+    assert!(!u0.ambiguous && u0.sources.is_empty());
+
+    // 01:00:30:距时辰界 30 秒(AMB-3)。
+    let u = uncertainty(
+        500_000,
+        0,
+        lt(2000, 6, 1, 1, 0, 30),
+        CTX,
+        ZiHourMode::Split,
+        60,
+    );
+    assert_eq!(u.sources, vec!["hour_boundary"]);
+
+    // split 23:59:30:距日界(00:00)30 秒(AMB-4)。
+    let u = uncertainty(
+        500_000,
+        0,
+        lt(2000, 6, 1, 23, 59, 30),
+        CTX,
+        ZiHourMode::Split,
+        60,
+    );
+    assert_eq!(u.sources, vec!["day_boundary"]);
+
+    // unified 22:59:40:23:00 同时是时辰界与日界 → 两个来源,固定顺序。
+    let u = uncertainty(
+        500_000,
+        0,
+        lt(2000, 6, 1, 22, 59, 40),
+        CTX,
+        ZiHourMode::Unified,
+        60,
+    );
+    assert_eq!(u.sources, vec!["hour_boundary", "day_boundary"]);
+    assert_eq!(u.boundary_distance_seconds, 20);
+}
+
+proptest! {
+    /// AMB 距离恒非负,且时辰/日界距离有界(≤ 43200)。
+    #[test]
+    fn uncertainty_distances_sane(
+        hh in 0u8..24, mm in 0u8..60, ss in 0u8..60,
+        dt in -100_000i64..100_000, unified in proptest::bool::ANY,
+    ) {
+        let mode = if unified { ZiHourMode::Unified } else { ZiHourMode::Split };
+        let u = uncertainty(dt, 0, lt(2000, 6, 1, hh, mm, ss), CTX, mode, 0);
+        prop_assert!(u.boundary_distance_seconds >= 0);
+        prop_assert!(!u.ambiguous);
     }
 }
 

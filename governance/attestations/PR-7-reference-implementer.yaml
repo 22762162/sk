@@ -1,0 +1,18 @@
+artifact_id: PR-7-reference-implementer
+timestamp: "2026-07-14T04:55:00+07:00"
+provider: openai
+model_id: gpt-5.6-sol
+model_release: Codex CLI 0.144.3
+agent_role: reference_implementer
+session_id: 019f5d4a-5524-79a1-8ec6-058f065d6b6b
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk-paipan-reference
+source_commit: f6f2254
+generated_files:
+  - paipan_ref/**(盲写重写,仅见 contracts@v0.2.0 镜像)
+  - tests/**(102 项)
+  - SPEC-QUESTIONS.md(未发现需消歧问题)
+reviewed_files: []
+notes: >-
+  独立 Codex 会话,工作目录限定参考仓,未挂载主仓;Claude 未读取其实现代码,
+  验证仅通过其测试套件与 CLI 级对拍(10092 例一致,seed=20260714)。
