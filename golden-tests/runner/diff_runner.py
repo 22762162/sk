@@ -6,7 +6,7 @@
   python3 golden-tests/runner/diff_runner.py --random 10000 --seed 42  # 全量对拍
   python3 golden-tests/runner/diff_runner.py --rust-cmd <bin路径> ...   # CI 用预编译产物
 
-协议见 docs/paipan-spec.md 附录 A。判定规则：
+协议见 contracts/paipan-spec.md 附录 A。判定规则：
   * 双实现输出逐字段严格相等（错误用例只比对 ok 标志，错误文案允许不同）；
   * 有 expected 的黄金用例，双实现还须各自与期望一致。
 任何不一致 → 退出码 1，细节写入 golden-tests/reports/（归档为 discrepancy issue 交 Opus 仲裁）。

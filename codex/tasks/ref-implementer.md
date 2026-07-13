@@ -4,7 +4,7 @@
 
 ## 任务
 
-依据 `docs/paipan-spec.md` 第 {{SPEC_SECTION}} 节，在 `engine-paipan-ref/` 中用 Python 实现 {{FEATURE_NAME}}。
+依据 `contracts/paipan-spec.md` 第 {{SPEC_SECTION}} 节，在 `engine-paipan-ref/` 中用 Python 实现 {{FEATURE_NAME}}。
 
 ## 硬性约束
 

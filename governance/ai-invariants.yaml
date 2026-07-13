@@ -1,0 +1,64 @@
+# 共同铁律唯一事实源(dev-plan V2.1 第 4 节)。
+# CLAUDE.md 与 AGENTS.md 由本文件 + 各自 overlay 渲染生成(tools/render_ai_docs.py),
+# 生成文件勿手改;改铁律 = 改本文件 + 重渲染,走 PR 评审。
+version: "2.1"
+invariants:
+  - id: INV-01
+    title: L1 确定性与历法事实注入
+    text: >-
+      排盘引擎(主实现 engine-paipan/Rust 与参考实现/Python)是零 AI 依赖的确定性计算库:
+      禁止 LLM 调用、网络请求、非确定性逻辑(系统时钟、随机数、按环境变量分支)。
+      历法事实——节气时刻、时区规则、夏令时、ΔT——一律由调用方以数据文件或参数注入
+      (以 IANA tzdata 与权威历源数据文件为准),禁止凭模型记忆硬编码历法常量。
+  - id: INV-02
+    title: 黄金集冒烟闸门
+    text: >-
+      修改任何 L1 计算路径后必须运行 `make golden-smoke`,失败禁止提交;
+      pre-commit 闸门与 CI required check 强制执行,任何人(含仓库管理员)不得绕过;
+      确需绕过须在 commit message 记录原因。
+  - id: INV-03
+    title: 规则库治理
+    text: >-
+      `rulebase/approved/` 对所有 AI 与自动化流程只读,合入仅经本人签署;
+      AI 可在 `rulebase/staging/` 写结构化草稿(标记 draft_by_ai: true);
+      每条规则的 `rulebase/provenance/` 来源链记录不可省略;
+      强度权重调整走贝叶斯建议 + 本人评审通道,不得直接改数值。
+  - id: INV-04
+    title: 输出文案底线
+    text: >-
+      面向阅读者的解读文案保留概率化措辞(倾向/提示/或有)与免责标注,
+      禁用词表 `infra/compliance/redline-words.txt`(私用研究底线,见 dev-plan 第 9.2 节);
+      `make redline` 扫描 backend/ 与 web/ 的可见字符串。
+  - id: INV-05
+    title: contracts 变更闸门
+    text: >-
+      `contracts/`(排盘规格、命盘/claim/run-manifest schema)的任何变更属跨层破坏性变更:
+      必须先在 docs/specs/ 出 RFC,经证据评审后由本人批准方可实施。
+  - id: INV-06
+    title: Run manifest
+    text: >-
+      每次托管模型调用保存完整 run manifest(schema 见 contracts/run-manifest.schema.json);
+      对模型输出只追求可审计、可回放、统计稳定,不承诺位级可复现。
+  - id: INV-07
+    title: 数据卫生与密钥边界
+    text: >-
+      开发与测试一律使用合成命盘;真实生日等个人数据与 API 密钥不得进入任何 AI 会话
+      (分级清单见 security/data-classification.md);密钥经环境注入,不进仓库。
+  - id: INV-08
+    title: 差分事件与裁决权
+    text: >-
+      任何双实现不一致生成差分事件:AI 只整理证据与提出根因假设,最终裁决由本人依据
+      规范条款、原始历源与 ADR 签署;参与实现或规格起草的模型不得担任该事件的唯一分析者;
+      纯推理型、无客观 Oracle 可依的分歧一律升级本人查证。
+  - id: INV-09
+    title: 双实现盲隔离
+    text: >-
+      主实现(主仓库 Rust)与参考实现(独立仓库 Python)互不可见,唯一共享物是 contracts 包;
+      双实现与多历源构成多重佐证信号,一致仅表示当前观测范围内未发现差异,
+      不单独构成正确性证明。
+  - id: INV-10
+    title: 提示词与两平面单向阀
+    text: >-
+      运行态辩手/仲裁提示词:Fable 5 起草 → Codex 偏袒盲审计 → Change Eval 闸门 → 本人批准;
+      运行态模型(DeepSeek/GPT/Claude 辩手)永不参与写代码;
+      开发会话中的临时 prompt 片段禁止直接上线。

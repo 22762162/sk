@@ -5,7 +5,7 @@
 //! 时刻、时区规则、夏令时——一律由调用方以参数或数据文件注入，代码
 //! 中不得出现任何历法常量。
 //!
-//! 双实现契约：`docs/paipan-spec.md`（与 `engine-paipan-ref` 互不可见）。
+//! 双实现契约：`contracts/paipan-spec.md`（与 `engine-paipan-ref` 互不可见）。
 
 pub mod ganzhi;
 pub mod year_pillar;

@@ -1,0 +1,19 @@
+# 角色隔离硬规则(dev-plan V2.1 第 1 节);CI 依据本文件校验 PR 元数据。
+version: "2.1"
+rules:
+  - id: RS-1
+    rule: author_model != reviewer_model
+    note: Fable 5 写的代码由 Codex 评审,反之亦然;PR 描述须声明双方身份。
+  - id: RS-2
+    rule: implementer != sole_analyst
+    note: 差分事件不由单一实现方模型独家分析;涉及 Fable 5 自身实现时 Codex 独立报告为强制项。
+  - id: RS-3
+    rule: final_signer == human
+    note: 一切裁决(差分事件、规格批准、规则库合入、发布)由本人签署,AI 只出证据。
+isolation:
+  - id: ISO-1
+    rule: 参考实现会话独立
+    note: 触碰过主仓库 L1 代码的 Codex 会话不得承接参考实现;参考仓环境不挂载主仓库、无主仓库凭据。
+  - id: ISO-2
+    rule: Claude 不读参考仓
+    note: Claude Code 会话禁止读取或修改参考实现代码;差分证据只使用 CLI 输出与中间推导链。

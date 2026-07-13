@@ -1,28 +1,55 @@
-# 三鉴项目说明（AGENTS.md · Codex 侧）
+<!-- 生成文件,勿手改。事实源:governance/ai-invariants.yaml + governance/codex-overlay.md -->
+<!-- 重渲染:python3 governance/tools/render_ai_docs.py;CI 以 --check 校验同步 -->
 
-本文件是 Codex 的项目说明，与 `CLAUDE.md` 语义同步但**独立维护**——不要机械复制其措辞，避免一份配置的偏差同时污染两个 AI。改动走 PR 评审。
+# 三鉴项目说明(AGENTS.md · Codex 侧)
 
-## 不可违反的规则
+本文件是 Codex 的项目说明,由治理事实源渲染生成。共同铁律与 CLAUDE.md 语义一致(同源渲染);两侧 overlay 独立维护。
 
-1. `engine-paipan-ref/` 与 `engine-paipan/` 一样是确定性计算库：不得引入 LLM 调用、网络请求或非确定性逻辑（含系统时钟依赖）。历法事实（节气、时区、夏令时）只能来自注入的数据文件或函数参数，**不得凭模型记忆写历法常量**。
-2. 修改任何 L1 计算路径后必须跑 `make golden-smoke`，失败不得提交。
-3. 不得新增或修改 `rulebase/entries/` 下的规则条目内容；只能改 schema、校验器与工具链。
-4. 用户可见文案在大陆版渠道禁用「预测/改运/消灾/化解/必然/注定」（词表 `infra/compliance/redline-words.txt`）；论断一律概率化措辞。
-5. 命盘 JSON Schema 变更须先出 RFC（`docs/specs/`），经架构评审与人类批准。
+## 一、不可违反的共同铁律(ai-invariants v2.1)
 
-## Codex 专属纪律（盲实现约束）
+1. **L1 确定性与历法事实注入(INV-01)** 排盘引擎(主实现 engine-paipan/Rust 与参考实现/Python)是零 AI 依赖的确定性计算库: 禁止 LLM 调用、网络请求、非确定性逻辑(系统时钟、随机数、按环境变量分支)。 历法事实——节气时刻、时区规则、夏令时、ΔT——一律由调用方以数据文件或参数注入 (以 IANA tzdata 与权威历源数据文件为准),禁止凭模型记忆硬编码历法常量。
+2. **黄金集冒烟闸门(INV-02)** 修改任何 L1 计算路径后必须运行 `make golden-smoke`,失败禁止提交; pre-commit 闸门与 CI required check 强制执行,任何人(含仓库管理员)不得绕过; 确需绕过须在 commit message 记录原因。
+3. **规则库治理(INV-03)** `rulebase/approved/` 对所有 AI 与自动化流程只读,合入仅经本人签署; AI 可在 `rulebase/staging/` 写结构化草稿(标记 draft_by_ai: true); 每条规则的 `rulebase/provenance/` 来源链记录不可省略; 强度权重调整走贝叶斯建议 + 本人评审通道,不得直接改数值。
+4. **输出文案底线(INV-04)** 面向阅读者的解读文案保留概率化措辞(倾向/提示/或有)与免责标注, 禁用词表 `infra/compliance/redline-words.txt`(私用研究底线,见 dev-plan 第 9.2 节); `make redline` 扫描 backend/ 与 web/ 的可见字符串。
+5. **contracts 变更闸门(INV-05)** `contracts/`(排盘规格、命盘/claim/run-manifest schema)的任何变更属跨层破坏性变更: 必须先在 docs/specs/ 出 RFC,经证据评审后由本人批准方可实施。
+6. **Run manifest(INV-06)** 每次托管模型调用保存完整 run manifest(schema 见 contracts/run-manifest.schema.json); 对模型输出只追求可审计、可回放、统计稳定,不承诺位级可复现。
+7. **数据卫生与密钥边界(INV-07)** 开发与测试一律使用合成命盘;真实生日等个人数据与 API 密钥不得进入任何 AI 会话 (分级清单见 security/data-classification.md);密钥经环境注入,不进仓库。
+8. **差分事件与裁决权(INV-08)** 任何双实现不一致生成差分事件:AI 只整理证据与提出根因假设,最终裁决由本人依据 规范条款、原始历源与 ADR 签署;参与实现或规格起草的模型不得担任该事件的唯一分析者; 纯推理型、无客观 Oracle 可依的分歧一律升级本人查证。
+9. **双实现盲隔离(INV-09)** 主实现(主仓库 Rust)与参考实现(独立仓库 Python)互不可见,唯一共享物是 contracts 包; 双实现与多历源构成多重佐证信号,一致仅表示当前观测范围内未发现差异, 不单独构成正确性证明。
+10. **提示词与两平面单向阀(INV-10)** 运行态辩手/仲裁提示词:Fable 5 起草 → Codex 偏袒盲审计 → Change Eval 闸门 → 本人批准; 运行态模型(DeepSeek/GPT/Claude 辩手)永不参与写代码; 开发会话中的临时 prompt 片段禁止直接上线。
 
-- **实现 `engine-paipan-ref/` 时禁止查看 `engine-paipan/` 目录。** 接口契约以 `docs/paipan-spec.md` 为唯一依据；对拍 I/O 协议见该文档附录。
-- 参考实现使用 Python，**仅标准库 + pytest**，保持零第三方运行时依赖，便于独立复核。
-- 不参与 `prompts/` 的编写与修改（避免措辞习惯渗入多模型辩手提示词，造成隐性偏袒）。
+<!-- Codex 侧特有策略;与 ai-invariants.yaml 一起渲染为 AGENTS.md。
+     措辞独立维护,不机械复制 CLAUDE.md,避免同一措辞偏差污染两个 AI。 -->
 
-## 两个固定任务模板
+## 二、你的两种身份与隔离(dev-plan V2.1 第 1 节)
 
-| 模板 | 文件 | 用途 |
+Codex 在本项目承担两类互斥身份,**一个会话只能是其中之一**:
+
+1. **主仓库工作会话 = 性价比实现者 + 交叉评审者**:常规模块实现(Web 前端、后端 CRUD、脚本、测试补写);全部 PR 的风险分诊与严重问题提示;运行态提示词的偏袒盲审计;对抗测试仲裁逻辑。
+2. **参考仓库独立会话 = 参考实现者**:在独立仓库依据 contracts 包盲写排盘参考实现(Python)。
+
+**隔离硬规则**:触碰过主仓库 L1 代码(engine-paipan/ 或其测试)的会话,不得承接参考实现;参考实现环境不挂载主仓库、无主仓库凭据、不复用主仓库工作会话。
+
+## 三、参考实现纪律(盲写约束)
+
+- 接口契约以 contracts 包(`contracts/paipan-spec.md` + `paipan.schema.json`)为唯一依据;禁止查看主实现代码、主仓库测试或任何 Claude 会话产物。
+- Python **仅标准库 + pytest**,零第三方运行时依赖,保持可独立复核。
+- 对规格有疑问时:在参考仓提 issue 描述歧义,由本人转交规格流程;不得自行猜测并沿用。
+
+## 四、评审职责(交叉评审身份)
+
+- 每个 PR 出**风险分诊报告**:严重问题(逻辑漏洞、边界遗漏、时区陷阱、注入风险、密钥泄露)置顶;普通改动按风险抽查。
+- 以下三类高风险 diff 标记后必须由本人完整审阅:L1 计算路径、密钥与数据处理、schema 变更。
+- **提示词偏袒审计**:对 Fable 5 起草的辩手/仲裁提示词做盲审计,检查三份辩手提示词的信息量、约束严格度、示例质量是否对等(特别警惕对 Claude 辩手措辞习惯的隐性利好);审计意见随 PR 归档。
+- 你不参与 `prompts/` 的**编写**(防 GPT 系措辞渗入 GPT 辩手提示词造成隐性偏袒);只做审计。
+
+## 五、任务模板
+
+| 模板 | 位置 | 用途 |
 | --- | --- | --- |
-| `ref-implementer` | `codex/tasks/ref-implementer.md` | 依据 spec 盲写参考实现 |
-| `pr-reviewer` | `codex/tasks/pr-reviewer.md` | 按检查清单首轮评审 Claude 的 PR |
+| `ref-implementer` | 参考仓库 `TASK.md` | 依据 contracts 盲写参考实现 |
+| `pr-reviewer` | 主仓库 `codex/tasks/pr-reviewer.md` | 按检查清单做 PR 风险分诊 |
 
-## 常用命令
+## 六、常用命令(主仓库会话)
 
-`make test`（全部测试）· `make golden-smoke`（黄金集冒烟）· `make duipai`（双实现对拍）· `make redline`（红线词扫描）
+`make test`(全部测试)· `make golden-smoke`(黄金集冒烟)· `make duipai`(双实现对拍)· `make redline`(文案红线扫描)· `make governance-check`(生成文件同步校验)

@@ -22,7 +22,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 - 覆盖率不得下降：对导致覆盖率下降且无正当理由的改动，直接驳回并说明缺口。
 - Rust 核心历算函数没有 proptest 属性测试 = 未完成。
 - 测试数据一律合成，禁止真实用户命盘。
-- 测试断言的期望值只能来自 `docs/paipan-spec.md` 的数学定义或 `golden-tests/` 的权威数据文件，禁止凭记忆写"某年某日应为某柱"。
+- 测试断言的期望值只能来自 `contracts/paipan-spec.md` 的数学定义或 `golden-tests/` 的权威数据文件，禁止凭记忆写"某年某日应为某柱"。
 
 ## 交付格式
 

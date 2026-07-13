@@ -1,4 +1,4 @@
-# 三鉴 CI 四道闸：rust / duipai（对拍）/ redline / rulebase（+ ref 测试）
+# 三鉴 CI 闸门：rust / duipai（对拍）/ redline / rulebase / governance（+ ref 测试）
 name: CI
 
 on:
@@ -68,3 +68,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 rulebase/tools/validate.py
+
+  governance:
+    name: 治理校验（生成文件同步）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pyyaml
+      - run: python3 governance/tools/render_ai_docs.py --check

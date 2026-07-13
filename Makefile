@@ -1,5 +1,5 @@
-# 三鉴 monorepo 常用命令（CLAUDE.md 第四节）
-.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks
+# 三鉴 monorepo 常用命令（CLAUDE.md 常用命令表）
+.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check
 
 build:
 	cargo build --manifest-path engine-paipan/Cargo.toml
@@ -30,6 +30,13 @@ redline:
 
 rulebase-check:
 	python3 rulebase/tools/validate.py
+
+# 治理:CLAUDE.md / AGENTS.md 由 governance/ 事实源渲染生成（dev-plan V2.1 第 4 节）
+render-ai-docs:
+	python3 governance/tools/render_ai_docs.py
+
+governance-check:
+	python3 governance/tools/render_ai_docs.py --check
 
 # 人类工程师本机执行一次，启用 git pre-commit 闸门
 install-hooks:

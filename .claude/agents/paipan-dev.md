@@ -20,7 +20,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 2. 每次改动计算路径后运行 `make golden-smoke`，失败不得交付。
 3. 每个新增/修改的计算函数必须附：单元测试 + proptest 属性测试 + 边界用例（节气交接 ±1 秒、跨日、跨年、极端年份）。
 4. clippy pedantic 零警告、rustfmt 干净后才算完成。
-5. 禁止读取 `engine-paipan-ref/`（对拍独立性）；接口契约以 `docs/paipan-spec.md` 为唯一依据，规格不清时停下来要求出 RFC，不要自行猜测。
+5. 禁止读取 `engine-paipan-ref/`（对拍独立性）；接口契约以 `contracts/paipan-spec.md` 为唯一依据，规格不清时停下来要求出 RFC，不要自行猜测。
 
 ## 交付格式
 
