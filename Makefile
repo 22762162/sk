@@ -1,5 +1,5 @@
 # 三鉴 monorepo 常用命令（CLAUDE.md 常用命令表）
-.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check
+.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve
 
 build:
 	cargo build --manifest-path engine-paipan/Cargo.toml
@@ -41,6 +41,11 @@ render-ai-docs:
 
 governance-check:
 	python3 governance/tools/render_ai_docs.py --check
+
+# V1.0 本地测试页:构建 release 引擎后起 FastAPI(http://127.0.0.1:8788)
+v1-serve:
+	cargo build --release --manifest-path engine-paipan/Cargo.toml
+	uv run --with fastapi --with uvicorn -- uvicorn backend.app:app --host 127.0.0.1 --port 8788
 
 # 人类工程师本机执行一次，启用 git pre-commit 闸门
 install-hooks:

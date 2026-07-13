@@ -21,6 +21,76 @@ struct YearPillarInput {
     lichun_unix: i64,
 }
 
+#[derive(Deserialize)]
+struct LocalIn {
+    y: i32,
+    m: u8,
+    d: u8,
+    hh: u8,
+    mm: u8,
+    ss: u8,
+}
+
+#[derive(Deserialize)]
+struct MonthCtxIn {
+    jie_seq: u8,
+    jie_unix: i64,
+    next_jie_unix: i64,
+}
+
+#[derive(Deserialize)]
+struct FourPillarsInput {
+    t_unix: i64,
+    lichun_unix: i64,
+    local: LocalIn,
+    month_ctx: MonthCtxIn,
+    zi_hour_mode: String,
+}
+
+fn pillar_json(gz: engine_paipan::ganzhi::GanZhi) -> Value {
+    json!({"stem": gz.stem_name(), "branch": gz.branch_name(), "ganzhi": gz.name()})
+}
+
+fn four_pillars_response(case_id: &str, input: Value) -> Value {
+    let inp: FourPillarsInput = match serde_json::from_value(input) {
+        Ok(v) => v,
+        Err(e) => {
+            return json!({"case_id": case_id, "ok": false, "error": format!("bad input: {e}")});
+        }
+    };
+    let mode = match inp.zi_hour_mode.as_str() {
+        "split" => engine_paipan::four_pillars::ZiHourMode::Split,
+        "unified" => engine_paipan::four_pillars::ZiHourMode::Unified,
+        other => {
+            return json!({"case_id": case_id, "ok": false,
+                "error": format!("bad zi_hour_mode: {other}")});
+        }
+    };
+    let local = engine_paipan::four_pillars::LocalTime {
+        y: inp.local.y,
+        m: inp.local.m,
+        d: inp.local.d,
+        hh: inp.local.hh,
+        mm: inp.local.mm,
+        ss: inp.local.ss,
+    };
+    let ctx = engine_paipan::four_pillars::MonthCtx {
+        jie_seq: inp.month_ctx.jie_seq,
+        jie_unix: inp.month_ctx.jie_unix,
+        next_jie_unix: inp.month_ctx.next_jie_unix,
+    };
+    match engine_paipan::four_pillars::four_pillars(inp.t_unix, inp.lichun_unix, local, ctx, mode) {
+        Ok(fp) => json!({"case_id": case_id, "ok": true, "output": {
+            "bazi_year": fp.bazi_year,
+            "year": pillar_json(fp.year),
+            "month": pillar_json(fp.month),
+            "day": pillar_json(fp.day),
+            "hour": pillar_json(fp.hour),
+        }}),
+        Err(e) => json!({"case_id": case_id, "ok": false, "error": e}),
+    }
+}
+
 fn year_pillar_response(case_id: &str, input: Value) -> Value {
     match serde_json::from_value::<YearPillarInput>(input) {
         Ok(inp) => {
@@ -53,6 +123,7 @@ fn handle_line(line: &str) -> Value {
     };
     match case.op.as_str() {
         "year_pillar" => year_pillar_response(&case.case_id, case.input),
+        "four_pillars" => four_pillars_response(&case.case_id, case.input),
         other => {
             json!({"case_id": case.case_id, "ok": false, "error": format!("unknown op: {other}")})
         }

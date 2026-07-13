@@ -33,6 +33,9 @@ DEFAULT_RUST_CMD = (
 DEFAULT_REF_CMD = f"{sys.executable} -m paipan_ref.cli"
 # 参考实现在独立仓库(盲隔离,INV-09);默认取主仓的同级目录,CI 显式传 --ref-dir。
 DEFAULT_REF_DIR = ROOT.parent / "sk-paipan-reference"
+# 参考实现当前能力域:仅这些 op 做双实现对拍,其余 op 只做主实现 vs 期望值比对。
+# Codex 盲写扩展参考实现后同步更新(参考仓 TASK.md);扩后新 op 自动进入对拍。
+DEFAULT_REF_OPS = "year_pillar"
 
 
 def load_golden_cases() -> list[dict]:
@@ -91,23 +94,30 @@ def run_impl(cmd: list[str], cwd: Path, cases: list[dict]) -> dict[str, dict]:
     return outputs
 
 
-def compare_case(case: dict, rust_out: dict | None, ref_out: dict | None) -> dict | None:
-    """一致返回 None，否则返回差异记录（含双方原始输出，供仲裁看推导链）。"""
+def compare_case(
+    case: dict, rust_out: dict | None, ref_out: dict | None, in_ref_scope: bool
+) -> dict | None:
+    """一致返回 None，否则返回差异记录（含双方原始输出，供仲裁看推导链）。
+
+    `in_ref_scope=False`（op 不在参考实现能力域）时只做主实现 vs 期望值比对。
+    """
     problems = []
-    if rust_out is None or ref_out is None:
+    if rust_out is None or (in_ref_scope and ref_out is None):
         problems.append({"kind": "missing_output", "rust": rust_out, "ref": ref_out})
     else:
-        if rust_out.get("ok") != ref_out.get("ok"):
-            problems.append({"kind": "ok_flag_mismatch", "rust": rust_out, "ref": ref_out})
-        elif rust_out.get("ok") and rust_out.get("output") != ref_out.get("output"):
-            problems.append({
-                "kind": "output_mismatch",
-                "rust": rust_out["output"],
-                "ref": ref_out["output"],
-            })
+        if in_ref_scope:
+            if rust_out.get("ok") != ref_out.get("ok"):
+                problems.append({"kind": "ok_flag_mismatch", "rust": rust_out, "ref": ref_out})
+            elif rust_out.get("ok") and rust_out.get("output") != ref_out.get("output"):
+                problems.append({
+                    "kind": "output_mismatch",
+                    "rust": rust_out["output"],
+                    "ref": ref_out["output"],
+                })
         expected = case.get("expected")
         if expected is not None:
-            for name, out in (("rust", rust_out), ("ref", ref_out)):
+            impls = (("rust", rust_out), ("ref", ref_out)) if in_ref_scope else (("rust", rust_out),)
+            for name, out in impls:
                 if out.get("ok") != expected.get("ok"):
                     problems.append({
                         "kind": f"{name}_vs_expected_ok", "got": out, "expected": expected,
@@ -138,7 +148,12 @@ def main() -> int:
         "--ref-dir", default=str(DEFAULT_REF_DIR),
         help="参考实现仓库路径(独立仓库;默认主仓同级 sk-paipan-reference)",
     )
+    ap.add_argument(
+        "--ref-ops", default=DEFAULT_REF_OPS,
+        help="参考实现能力域(逗号分隔 op 列表);域外 op 仅做主实现 vs 期望值比对",
+    )
     args = ap.parse_args()
+    ref_ops = {op.strip() for op in args.ref_ops.split(",") if op.strip()}
 
     ref_dir = Path(args.ref_dir)
     if not ref_dir.is_dir():
@@ -158,13 +173,23 @@ def main() -> int:
         print("没有可用用例（golden-tests/{fixed,boundary,regression}/ 均为空？）", file=sys.stderr)
         return 1
 
-    print(f"对拍开始：黄金集 {n_golden} 例 + 随机 {len(cases) - n_golden} 例（seed={args.seed}）")
+    ref_cases = [c for c in cases if c["op"] in ref_ops]
+    print(
+        f"对拍开始：黄金集 {n_golden} 例 + 随机 {len(cases) - n_golden} 例（seed={args.seed}）；"
+        f"双实现对拍 {len(ref_cases)} 例，能力域外主实现-期望值比对 {len(cases) - len(ref_cases)} 例"
+    )
     rust_outputs = run_impl(shlex.split(args.rust_cmd), ROOT, cases)
-    ref_outputs = run_impl(shlex.split(args.ref_cmd), ref_dir, cases)
+    ref_outputs = run_impl(shlex.split(args.ref_cmd), ref_dir, ref_cases) if ref_cases else {}
 
     discrepancies = []
     for case in cases:
-        d = compare_case(case, rust_outputs.get(case["case_id"]), ref_outputs.get(case["case_id"]))
+        in_scope = case["op"] in ref_ops
+        d = compare_case(
+            case,
+            rust_outputs.get(case["case_id"]),
+            ref_outputs.get(case["case_id"]) if in_scope else None,
+            in_scope,
+        )
         if d:
             discrepancies.append(d)
 
@@ -192,7 +217,10 @@ def main() -> int:
         )
         return 1
 
-    print(f"对拍通过：{len(cases)} 例全部一致（黄金集 {n_golden} 例含期望值比对）")
+    print(
+        f"对拍通过：{len(cases)} 例全部一致"
+        f"（黄金集 {n_golden} 例含期望值比对；双实现对拍 {len(ref_cases)} 例）"
+    )
     return 0
 
 

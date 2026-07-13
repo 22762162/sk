@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三鉴 · 四柱排盘(V1.0 私人研究测试页)</title>
+<style>
+  :root { --ink:#2b2620; --paper:#faf6ef; --accent:#8c4a2f; --line:#d8cfc0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Songti SC","Noto Serif CJK SC",serif; background:var(--paper); color:var(--ink); }
+  main { max-width:720px; margin:0 auto; padding:48px 20px 64px; }
+  h1 { font-size:28px; letter-spacing:.12em; margin:0 0 6px; }
+  .sub { color:#7a6f5f; font-size:13px; margin-bottom:32px; }
+  form { display:flex; flex-wrap:wrap; gap:12px; align-items:end; padding:20px;
+         border:1px solid var(--line); border-radius:10px; background:#fffdf8; }
+  label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:#5d5346; }
+  input, select { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  button { font:inherit; padding:10px 26px; border:none; border-radius:6px; background:var(--accent);
+           color:#fff; letter-spacing:.2em; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  #result { margin-top:36px; display:none; }
+  .pillars { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .pillar { border:1px solid var(--line); border-radius:10px; background:#fff; text-align:center; padding:18px 6px; }
+  .pillar .t { font-size:12px; color:#8a7f6e; letter-spacing:.3em; }
+  .pillar .g { font-size:34px; margin-top:8px; letter-spacing:.1em; }
+  .metaline { margin-top:14px; font-size:12px; color:#7a6f5f; line-height:1.8; }
+  .err { margin-top:20px; color:#a33; display:none; }
+  footer { margin-top:48px; font-size:12px; color:#8a7f6e; border-top:1px solid var(--line); padding-top:16px; line-height:1.9; }
+  @media (max-width:560px){ .pillars{grid-template-columns:repeat(2,1fr);} }
+</style>
+</head>
+<body>
+<main>
+  <h1>三鉴 · 四柱排盘</h1>
+  <div class="sub">V1.0 私人研究测试页 —— 只做历法换算,不含任何解读</div>
+
+  <form id="f">
+    <label>出生日期(公历)
+      <input type="date" id="d" required min="1901-01-01" max="2099-12-31" value="1990-06-15">
+    </label>
+    <label>出生时间(北京时间)
+      <input type="time" id="t" required step="60" value="08:30">
+    </label>
+    <label>子时归属(流派配置)
+      <select id="mode">
+        <option value="split" selected>早晚子时(晚子时不换日柱)</option>
+        <option value="unified">子时换日(23 点起算次日)</option>
+      </select>
+    </label>
+    <button type="submit">排 盘</button>
+  </form>
+
+  <div id="err" class="err"></div>
+
+  <section id="result">
+    <div class="pillars">
+      <div class="pillar"><div class="t">年 柱</div><div class="g" id="py">—</div></div>
+      <div class="pillar"><div class="t">月 柱</div><div class="g" id="pm">—</div></div>
+      <div class="pillar"><div class="t">日 柱</div><div class="g" id="pd">—</div></div>
+      <div class="pillar"><div class="t">时 柱</div><div class="g" id="ph">—</div></div>
+    </div>
+    <div class="metaline" id="meta"></div>
+  </section>
+
+  <footer>
+    本页面为私人研究工具,不对外提供服务。展示内容仅为「出生时刻 → 干支历法」的确定性换算结果
+    (claim 类型:computed_fact),不构成任何命理论断或生活建议;历法数据或有误差,结论倾向于
+    仅供研究比对。数据来源:节气时刻由 JPL DE440s 星历自算并经香港天文台公开资料核对;
+    日柱锚点经韩国天文研究院与台湾中研院双源核实;时区换算依 IANA tzdata(含历史夏令时)。
+  </footer>
+</main>
+<script>
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = document.getElementById('err'), res = document.getElementById('result');
+  err.style.display = 'none'; res.style.display = 'none';
+  const birth = document.getElementById('d').value + 'T' + document.getElementById('t').value;
+  try {
+    const r = await fetch('/api/paipan', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value})
+    });
+    const j = await r.json();
+    if (!j.ok) { err.textContent = '无法排盘:' + (j.error || '未知错误'); err.style.display = 'block'; return; }
+    const o = j.output;
+    document.getElementById('py').textContent = o.year.ganzhi;
+    document.getElementById('pm').textContent = o.month.ganzhi;
+    document.getElementById('pd').textContent = o.day.ganzhi;
+    document.getElementById('ph').textContent = o.hour.ganzhi;
+    document.getElementById('meta').textContent =
+      `八字年:${o.bazi_year} · 节气月:${j.meta.jie_window.name}起 · 子时口径:` +
+      (j.meta.zi_hour_mode === 'split' ? '早晚子时' : '子时换日') +
+      (j.meta.dst_applied ? ' · 该时刻处于历史夏令时,已按 tzdata 换算' : '');
+    res.style.display = 'block';
+  } catch (_) {
+    err.textContent = '请求失败:请确认本地服务已启动(make v1-serve)';
+    err.style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>
