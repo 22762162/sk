@@ -1,6 +1,6 @@
 # 契约钉版锁(DESIGN V3.0 §4):contracts/ 为 sk-contracts 在下述 tag 的精确副本。
 # CI 校验副本一致性(governance/tools/check_contracts_lock.py);更新契约 = 升 tag + 重新 vendored。
 repo: https://github.com/22762162/sk-contracts
-contract_version: v0.2.0
-contract_commit: bf59b09c50dabb4975f8f905b624bbaa013487c9
-contract_content_hash: 3b6ce31e2e5f393e4cf2b6fb69ee8606053675617e44ca0140149c11099e61dc
+contract_version: v0.3.0
+contract_commit: 820a7cf80840455c18c898d267ca452e8e983a5b
+contract_content_hash: a83fbb97e0411e86a0426e0624d6f5264280d6e05a30300b370e3757d232bd64

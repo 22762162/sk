@@ -5,110 +5,402 @@
   "$defs": {
     "request": {
       "type": "object",
-      "required": ["case_id", "op", "input"],
+      "required": [
+        "case_id",
+        "op",
+        "input"
+      ],
       "properties": {
-        "case_id": { "type": "string" },
-        "op": { "type": "string", "enum": ["year_pillar", "four_pillars"] },
-        "input": { "type": "object" }
+        "case_id": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "year_pillar",
+            "four_pillars",
+            "four_pillars_uncertainty"
+          ]
+        },
+        "input": {
+          "type": "object"
+        }
       },
       "additionalProperties": false
     },
     "year_pillar_input": {
       "type": "object",
-      "required": ["civil_year", "t_unix", "lichun_unix"],
+      "required": [
+        "civil_year",
+        "t_unix",
+        "lichun_unix"
+      ],
       "properties": {
-        "civil_year": { "type": "integer" },
-        "t_unix": { "type": "integer" },
-        "lichun_unix": { "type": "integer" }
+        "civil_year": {
+          "type": "integer"
+        },
+        "t_unix": {
+          "type": "integer"
+        },
+        "lichun_unix": {
+          "type": "integer"
+        }
       },
       "additionalProperties": false
     },
     "response_ok": {
       "type": "object",
-      "required": ["case_id", "ok", "output"],
+      "required": [
+        "case_id",
+        "ok",
+        "output"
+      ],
       "properties": {
-        "case_id": { "type": "string" },
-        "ok": { "const": true },
-        "output": { "type": "object" }
+        "case_id": {
+          "type": "string"
+        },
+        "ok": {
+          "const": true
+        },
+        "output": {
+          "type": "object"
+        }
       },
       "additionalProperties": false
     },
     "response_err": {
       "type": "object",
-      "required": ["case_id", "ok", "error"],
+      "required": [
+        "case_id",
+        "ok",
+        "error"
+      ],
       "properties": {
-        "case_id": { "type": ["string", "null"] },
-        "ok": { "const": false },
-        "error": { "type": "string" }
+        "case_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
     "four_pillars_input": {
       "type": "object",
-      "required": ["t_unix", "lichun_unix", "local", "month_ctx", "zi_hour_mode"],
+      "required": [
+        "t_unix",
+        "lichun_unix",
+        "local",
+        "month_ctx",
+        "zi_hour_mode"
+      ],
       "properties": {
-        "t_unix": { "type": "integer" },
-        "lichun_unix": { "type": "integer" },
+        "t_unix": {
+          "type": "integer"
+        },
+        "lichun_unix": {
+          "type": "integer"
+        },
         "local": {
           "type": "object",
-          "required": ["y", "m", "d", "hh", "mm", "ss"],
+          "required": [
+            "y",
+            "m",
+            "d",
+            "hh",
+            "mm",
+            "ss"
+          ],
           "properties": {
-            "y": { "type": "integer", "minimum": 1 },
-            "m": { "type": "integer" }, "d": { "type": "integer" },
-            "hh": { "type": "integer" }, "mm": { "type": "integer" }, "ss": { "type": "integer" }
+            "y": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "m": {
+              "type": "integer"
+            },
+            "d": {
+              "type": "integer"
+            },
+            "hh": {
+              "type": "integer"
+            },
+            "mm": {
+              "type": "integer"
+            },
+            "ss": {
+              "type": "integer"
+            }
           },
           "additionalProperties": false
         },
         "month_ctx": {
           "type": "object",
-          "required": ["jie_seq", "jie_unix", "next_jie_unix"],
+          "required": [
+            "jie_seq",
+            "jie_unix",
+            "next_jie_unix"
+          ],
           "properties": {
-            "jie_seq": { "type": "integer", "minimum": 0, "maximum": 11 },
-            "jie_unix": { "type": "integer" },
-            "next_jie_unix": { "type": "integer" }
+            "jie_seq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 11
+            },
+            "jie_unix": {
+              "type": "integer"
+            },
+            "next_jie_unix": {
+              "type": "integer"
+            }
           },
           "additionalProperties": false
         },
-        "zi_hour_mode": { "type": "string", "enum": ["split", "unified"] }
+        "zi_hour_mode": {
+          "type": "string",
+          "enum": [
+            "split",
+            "unified"
+          ]
+        }
       },
       "additionalProperties": false
     },
     "pillar": {
       "type": "object",
-      "required": ["stem", "branch", "ganzhi"],
+      "required": [
+        "stem",
+        "branch",
+        "ganzhi"
+      ],
       "properties": {
-        "stem": { "type": "string" }, "branch": { "type": "string" }, "ganzhi": { "type": "string" }
+        "stem": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "ganzhi": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
     "four_pillars_output": {
       "type": "object",
-      "required": ["bazi_year", "year", "month", "day", "hour"],
+      "required": [
+        "bazi_year",
+        "year",
+        "month",
+        "day",
+        "hour"
+      ],
       "properties": {
-        "bazi_year": { "type": "integer" },
-        "year": { "$ref": "#/$defs/pillar" },
-        "month": { "$ref": "#/$defs/pillar" },
-        "day": { "$ref": "#/$defs/pillar" },
-        "hour": { "$ref": "#/$defs/pillar" }
+        "bazi_year": {
+          "type": "integer"
+        },
+        "year": {
+          "$ref": "#/$defs/pillar"
+        },
+        "month": {
+          "$ref": "#/$defs/pillar"
+        },
+        "day": {
+          "$ref": "#/$defs/pillar"
+        },
+        "hour": {
+          "$ref": "#/$defs/pillar"
+        }
       },
       "additionalProperties": false
     },
     "year_pillar_output": {
       "type": "object",
-      "required": ["bazi_year", "stem", "branch", "ganzhi"],
+      "required": [
+        "bazi_year",
+        "stem",
+        "branch",
+        "ganzhi"
+      ],
       "properties": {
-        "bazi_year": { "type": "integer" },
-        "stem": { "type": "string", "minLength": 1, "maxLength": 3 },
-        "branch": { "type": "string", "minLength": 1, "maxLength": 3 },
-        "ganzhi": { "type": "string", "minLength": 2, "maxLength": 6 }
+        "bazi_year": {
+          "type": "integer"
+        },
+        "stem": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3
+        },
+        "ganzhi": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 6
+        }
+      },
+      "additionalProperties": false
+    },
+    "four_pillars_uncertainty_input": {
+      "type": "object",
+      "required": [
+        "t_unix",
+        "lichun_unix",
+        "local",
+        "month_ctx",
+        "zi_hour_mode",
+        "input_time_precision_seconds"
+      ],
+      "properties": {
+        "t_unix": {
+          "type": "integer"
+        },
+        "lichun_unix": {
+          "type": "integer"
+        },
+        "local": {
+          "type": "object",
+          "required": [
+            "y",
+            "m",
+            "d",
+            "hh",
+            "mm",
+            "ss"
+          ],
+          "properties": {
+            "y": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "m": {
+              "type": "integer"
+            },
+            "d": {
+              "type": "integer"
+            },
+            "hh": {
+              "type": "integer"
+            },
+            "mm": {
+              "type": "integer"
+            },
+            "ss": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "month_ctx": {
+          "type": "object",
+          "required": [
+            "jie_seq",
+            "jie_unix",
+            "next_jie_unix"
+          ],
+          "properties": {
+            "jie_seq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 11
+            },
+            "jie_unix": {
+              "type": "integer"
+            },
+            "next_jie_unix": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "zi_hour_mode": {
+          "type": "string",
+          "enum": [
+            "split",
+            "unified"
+          ]
+        },
+        "input_time_precision_seconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "four_pillars_uncertainty_output": {
+      "type": "object",
+      "required": [
+        "bazi_year",
+        "year",
+        "month",
+        "day",
+        "hour",
+        "result_status",
+        "boundary_distance_seconds",
+        "uncertainty_sources"
+      ],
+      "properties": {
+        "bazi_year": {
+          "type": "integer"
+        },
+        "year": {
+          "$ref": "#/$defs/pillar"
+        },
+        "month": {
+          "$ref": "#/$defs/pillar"
+        },
+        "day": {
+          "$ref": "#/$defs/pillar"
+        },
+        "hour": {
+          "$ref": "#/$defs/pillar"
+        },
+        "result_status": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "ambiguous"
+          ]
+        },
+        "boundary_distance_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uncertainty_sources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "lichun_boundary",
+              "jie_boundary",
+              "hour_boundary",
+              "day_boundary"
+            ]
+          }
+        }
       },
       "additionalProperties": false
     }
   },
   "oneOf": [
-    { "$ref": "#/$defs/request" },
-    { "$ref": "#/$defs/response_ok" },
-    { "$ref": "#/$defs/response_err" }
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/response_ok"
+    },
+    {
+      "$ref": "#/$defs/response_err"
+    }
   ],
   "$comment": "编码 UTF-8;输出字段顺序不作要求,比较按字段语义严格相等;未知 op / 缺字段 / 类型不符(含浮点、布尔混入整型字段)→ ok:false 且进程不得崩溃。op 枚举随规格版本扩充。"
 }

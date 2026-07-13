@@ -189,7 +189,65 @@ def main() -> int:
                 "generated-by: tools/gen_four_pillars_cases.py;禁止手改\n"
                 + "\n".join(lines) + "\n")
 
-    print(f"已生成:节交接 {n_jie} 例 + 核心 {n_core} 例 + 错误路径 {len(lines)} 例")
+    n_err = len(lines)
+
+    # 4) 不确定性 op(spec 4.5 AMB-1…5;独立 op,当前仅主实现 vs 期望值)
+    def amb_expected(t: int, lichun: int, local: dict, ctx: dict, mode: str, p: int) -> dict:
+        exp = four_pillars_expected(t, lichun, local, ctx, mode)
+        s = local["hh"] * 3600 + local["mm"] * 60 + local["ss"]
+        x = (s + 3600) % 7200
+        d = {
+            "lichun_boundary": abs(t - lichun),
+            "jie_boundary": min(abs(t - ctx["jie_unix"]), abs(t - ctx["next_jie_unix"])),
+            "hour_boundary": min(x, 7200 - x),
+            "day_boundary": (min(s, 86400 - s) if mode == "split"
+                             else min(abs(s - 82800), 86400 - abs(s - 82800))),
+        }
+        srcs = [k for k in ("lichun_boundary", "jie_boundary", "hour_boundary", "day_boundary")
+                if d[k] < p]
+        exp["result_status"] = "ambiguous" if srcs else "exact"
+        exp["boundary_distance_seconds"] = min(d.values())
+        exp["uncertainty_sources"] = srcs
+        return exp
+
+    def amb_case(cid: str, t: int, lichun: int, local: dict, ctx: dict, mode: str, p: int) -> str:
+        return json.dumps({
+            "case_id": cid, "op": "four_pillars_uncertainty",
+            "input": {"t_unix": t, "lichun_unix": lichun, "local": local,
+                      "month_ctx": ctx, "zi_hour_mode": mode,
+                      "input_time_precision_seconds": p},
+            "expected": {"ok": True, "output": amb_expected(t, lichun, local, ctx, mode, p)},
+        }, ensure_ascii=False)
+
+    lines = []
+    lc26 = lichun_by_year[2026]
+    lines.append(amb_case("fp-amb-0001", lc26, lc26, local_of(lc26), bracket(lc26), "split", 60))
+    lines.append(amb_case("fp-amb-0002", lc26, lc26, local_of(lc26), bracket(lc26), "split", 0))
+    for i, ((y, m, d, hh, mm, ss), mode, p) in enumerate([
+        ((2000, 6, 1, 1, 0, 30), "split", 60),     # 时辰界 30 秒
+        ((2000, 6, 1, 23, 59, 30), "split", 60),   # 日界(00:00)30 秒
+        ((2000, 6, 1, 22, 59, 40), "unified", 60), # 23:00 双重边界
+        ((1984, 2, 2, 12, 0, 0), "split", 300),    # 远离一切边界 → exact
+    ], 3):
+        t = int(dt.datetime(y, m, d, hh, mm, ss, tzinfo=BJT).timestamp())
+        local = local_of(t)
+        lines.append(amb_case(f"fp-amb-{i:04d}", t, lichun_by_year[y], local, bracket(t), mode, p))
+    # 错误路径:负精度 / 缺精度 / 浮点精度
+    base_in = {"t_unix": t0, "lichun_unix": lc0, "local": dict(good_local),
+               "month_ctx": dict(ctx0), "zi_hour_mode": "split"}
+    for j, patch in enumerate([{"input_time_precision_seconds": -1},
+                               {}, {"input_time_precision_seconds": 0.5}], 1):
+        inp = dict(base_in)
+        inp.update(patch)
+        lines.append(json.dumps({"case_id": f"fp-amb-err-{j:04d}",
+                                 "op": "four_pillars_uncertainty", "input": inp,
+                                 "expected": {"ok": False}}, ensure_ascii=False))
+    with open(f"{args.out_dir}/boundary/four-pillars-amb.jsonl", "w", encoding="utf-8") as f:
+        f.write("# source: spec v0.3 条款 AMB-1…5(spec-math)+ oracle-sources 节气;"
+                "generated-by: tools/gen_four_pillars_cases.py;禁止手改\n"
+                + "\n".join(lines) + "\n")
+
+    print(f"已生成:节交接 {n_jie} 例 + 核心 {n_core} 例 + 错误路径 {n_err} 例 + 不确定性 {len(lines)} 例")
     return 0
 
 
