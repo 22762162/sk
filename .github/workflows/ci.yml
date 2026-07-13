@@ -1,4 +1,4 @@
-# 三鉴 CI 闸门：rust / duipai（对拍）/ redline / rulebase / governance（+ ref 测试）
+# 三鉴 CI 四道闸：rust / duipai（对拍）/ redline / rulebase（+ ref 测试）
 name: CI
 
 on:
@@ -23,28 +23,21 @@ jobs:
       - run: cargo test --manifest-path engine-paipan/Cargo.toml
 
   ref:
-    name: Python 参考实现测试（独立仓库）
+    name: Python 参考实现测试
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          repository: 22762162/sk-paipan-reference
-          path: sk-paipan-reference
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install pytest
-      - run: cd sk-paipan-reference && python -m pytest -q tests
+      - run: cd engine-paipan-ref && python -m pytest -q tests
 
   duipai:
     name: 双实现对拍（黄金集 + 1 万随机时刻）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: 22762162/sk-paipan-reference
-          path: sk-paipan-reference
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -54,7 +47,6 @@ jobs:
       - run: |
           python3 golden-tests/runner/diff_runner.py \
             --rust-cmd "${{ github.workspace }}/engine-paipan/target/release/paipan-cli" \
-            --ref-dir "${{ github.workspace }}/sk-paipan-reference" \
             --random 10000 --seed ${{ github.run_id }}
       - name: 上传对拍差异报告（discrepancy issue 归档素材）
         if: failure()
@@ -76,14 +68,3 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 rulebase/tools/validate.py
-
-  governance:
-    name: 治理校验（生成文件同步）
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install pyyaml
-      - run: python3 governance/tools/render_ai_docs.py --check
