@@ -1,17 +1,17 @@
 # 三鉴(SanJian)· 私人研究项目
 
 研究「确定性排盘 + 多模型互证」技术架构:**开发态** Fable 5(Claude Code)× Codex 双模型,
-**运行态** DeepSeek × GPT × Claude 三师会诊。工程设计见 `docs/dev-plan.md`(V2.1)。
-本项目不上架、不收费、不向第三方提供服务;性质变更闸门见 dev-plan 第 9.3 节。
+**运行态** DeepSeek × GPT × Claude 三师会诊。工程设计见 `docs/DESIGN.md`(V2.1)。
+本项目不上架、不收费、不向第三方提供服务;性质变更闸门见 DESIGN 第 9.3 节。
 
-## 仓库结构(dev-plan V2.1 第 4 节,三仓之主仓)
+## 仓库结构(DESIGN V3.0 第 4 节,三仓之主仓)
 
 ```
 sk/                            # 主仓库(Fable 5 via Claude Code 工作区)
 ├── CLAUDE.md / AGENTS.md      # 生成文件勿手改(事实源 governance/,make render-ai-docs)
 ├── governance/                # ai-invariants(铁律唯一事实源)、角色隔离、模型路由、渲染脚本
 ├── contracts/                 # 双实现唯一共享物:排盘规格 + I/O/claim/run-manifest schema
-├── docs/{dev-plan,adr,specs,reviews,research-notes}
+├── docs/{DESIGN,adr,specs,reviews,research-notes}
 ├── engine-paipan/             # L1 排盘引擎(Rust 主实现)
 ├── golden-tests/              # fixed/boundary/stratified/metamorphic/regression + oracle-sources
 ├── evals/                     # smoke/change/monthly/frozen-holdout/safety(运行态评测)

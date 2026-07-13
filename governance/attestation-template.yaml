@@ -1,0 +1,16 @@
+# Attestation 模板(DESIGN V3.0 §1.2):每次代理工作生成一份,随 PR 归档到
+# governance/attestations/PR-<编号>-<角色>.yaml;高风险 PR 合入条件由 CI 校验
+# (author + 异厂商 reviewer + 本人签署三者齐备;见 role-separation.yaml)。
+artifact_id:            # 唯一标识,建议 PR-<n>-<role>
+timestamp:              # ISO8601
+provider:               # anthropic | openai | …
+model_id:               # resolved model id
+model_release:          # 能取到什么记什么
+agent_role:             # implementer | reviewer | reference_implementer
+session_id:             # 工具侧会话标识(可为摘要)
+run_manifest_id:        # 如适用
+source_repository:      # 本仓库 URL
+source_commit:          # 工作基于的 commit
+generated_files: []     # implementer 填
+reviewed_files: []      # reviewer 填
+notes:                  # 例外情况如实记录(如:交叉评审由本人全量审阅替代)

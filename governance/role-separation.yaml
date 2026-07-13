@@ -1,19 +1,38 @@
-# 角色隔离硬规则(dev-plan V2.1 第 1 节);CI 依据本文件校验 PR 元数据。
-version: "2.1"
+# 角色隔离硬规则(DESIGN V3.0 §1);CI 依据本文件校验 PR 元数据与 attestation。
+version: "3.0"
 rules:
   - id: RS-1
     rule: author_model != reviewer_model
-    note: Fable 5 写的代码由 Codex 评审,反之亦然;PR 描述须声明双方身份。
+    note: Fable 5 写的代码由 Codex 评审,反之亦然;高风险 PR 须双方 attestation。
   - id: RS-2
     rule: implementer != sole_analyst
     note: 差分事件不由单一实现方模型独家分析;涉及 Fable 5 自身实现时 Codex 独立报告为强制项。
   - id: RS-3
     rule: final_signer == human
-    note: 一切裁决(差分事件、规格批准、规则库合入、发布)由本人签署,AI 只出证据。
+    note: 一切裁决(差分、规格、规则库、评测器变更、发布)由本人签署,AI 只出证据。
 isolation:
   - id: ISO-1
     rule: 参考实现会话独立
-    note: 触碰过主仓库 L1 代码的 Codex 会话不得承接参考实现;参考仓环境不挂载主仓库、无主仓库凭据。
+    note: 触碰过主仓 L1 代码的 Codex 会话不得承接参考实现;参考仓不挂载主仓、无主仓凭据。
   - id: ISO-2
-    rule: Claude 不读参考仓
-    note: Claude Code 会话禁止读取或修改参考实现代码;差分证据只使用 CLI 输出与中间推导链。
+    rule: Claude 不读参考仓实现
+    note: 差分证据只使用 CLI 输出与中间推导链。
+  - id: ISO-3
+    rule: 私有评测仓对开发代理不可见
+    note: sk-evals-private 内容不进任何 AI 开发会话;CI 只回传聚合分数。
+attestation:
+  template: governance/attestation-template.yaml
+  archive_dir: governance/attestations/
+  high_risk_merge_requires: [author_attestation, cross_vendor_reviewer_attestation, human_signoff]
+  note: 交叉评审 attestation 在 Codex 接入前由本人全量审阅替代(替代情况在 attestation 中如实记录)。
+high_risk_paths:
+  - engine-paipan/**
+  - contracts/**
+  - contracts.lock
+  - prompts/**
+  - consult-engine/**
+  - rulebase/approved/**
+  - evals/**            # 评测器与指标代码:改评分器比改被评分对象更危险
+  - governance/**
+  - security/**
+  - backend/**          # 密钥与数据处理路径

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""从 ai-invariants.yaml + overlay 渲染 CLAUDE.md 与 AGENTS.md(dev-plan V2.1 第 4 节)。
+"""从 ai-invariants.yaml + overlay 渲染 CLAUDE.md 与 AGENTS.md(DESIGN V3.0 第 4 节)。
 
 用法:
     python3 governance/tools/render_ai_docs.py            # 渲染并写盘

@@ -42,6 +42,10 @@ render-ai-docs:
 governance-check:
 	python3 governance/tools/render_ai_docs.py --check
 
+# 契约钉版校验:contracts/ 必须等于 sk-contracts@contracts.lock 所记 tag(需网络)
+contracts-check:
+	python3 governance/tools/check_contracts_lock.py
+
 # V1.0 本地测试页:构建 release 引擎后起 FastAPI(http://127.0.0.1:8788)
 v1-serve:
 	cargo build --release --manifest-path engine-paipan/Cargo.toml

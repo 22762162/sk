@@ -2,12 +2,15 @@
 
 ```
 prompts/
-├── base/                 # 提示词本体(debaters/、arbiter/),模型无关骨架
-├── provider-adapters/    # 各供应商适配层(输出格式、工具调用差异)
+├── base/                 # 模型无关骨架(debaters/、arbiter/→judge)
+├── schools/              # 流派模块(子平/旺衰/调候…),与模型解耦(拉丁方前提,§2.3)
+├── provider-adapters/    # 各供应商适配层(仅处理格式差异)
 └── manifests/            # 每版提示词的清单与评测基线引用
 ```
 
-**纪律(INV-10 + dev-plan 2A.1)**:
+**骨架必须彻底模型无关**:任何"为某家模型定制"的措辞都会破坏拉丁方比较的有效性。
+
+**纪律(INV-10 + DESIGN 2A.1)**:
 
 1. **提示词视同代码**:改动走 PR;文件头部维护 `version:` 与变更说明。
 2. **起草与审计分离**:Fable 5 起草 → Codex 做偏袒盲审计(三辩手提示词的信息量、约束严格度、示例质量对称性,警惕对 Claude 辩手的隐性利好)→ Change Eval 闸门(含对称性检查)→ 本人批准。Codex 不参与编写。

@@ -1,6 +1,6 @@
 # golden-tests(L1 测试语料 + 对拍)
 
-## 结构(dev-plan V2.1 第 5 节,七类语料)
+## 结构(DESIGN V3.0 第 5 节,七类语料)
 
 ```
 golden-tests/

@@ -1,0 +1,11 @@
+# 高风险路径全部指向本人(DESIGN V3.0 §1.2;与 governance/role-separation.yaml 同步维护)
+engine-paipan/**        @22762162
+contracts/**            @22762162
+contracts.lock          @22762162
+prompts/**              @22762162
+consult-engine/**       @22762162
+rulebase/approved/**    @22762162
+evals/**                @22762162
+governance/**           @22762162
+security/**             @22762162
+backend/**              @22762162
