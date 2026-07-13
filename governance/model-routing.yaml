@@ -1,30 +1,52 @@
-# 角色 → 工具/模型路由(dev-plan V2.1 第 1、2A 节)。当前写死,留升级口:
-# 换模型 = 改本文件 + 走 PR,不改变角色结构。
-version: "2.1"
+# 角色槽位 → 模型路由(DESIGN V3.0 §1.1/§2.1/§3.3)。
+# 架构文档可写槽位泛称;实验配置必须落到 resolved_model_id;
+# thinking / non-thinking 等推理模式视为不同实验条件。换模型 = 改本文件 + 走 PR。
+routing_policy_version: "1.0.0"
+
 development:
-  main_implementer:        # 高难与高风险:L1 Rust、规格、会诊状态机、提示词起草、差分证据
+  main_implementer:            # 高难高风险:L1 Rust、规格、会诊状态机、提示词起草、差分证据
     tool: claude-code
-    model: claude-fable-5
-  evidence_analyst:
+    configured_alias: fable-5
+    resolved_model_id: claude-fable-5
+  cost_implementer:            # 常规模块:React 前端、后端 CRUD、脚本、测试补写
+    tool: codex
+    configured_alias: gpt-codex
+    resolved_model_id: 接入时锁定
+  cross_reviewer:              # PR 风险分诊、提示词偏袒审计、对抗测试
+    tool: codex
+    configured_alias: gpt-codex
+    resolved_model_id: 接入时锁定
+  ref_implementer:             # 参考实现盲写(独立仓库、独立会话,无主仓凭据)
+    tool: codex
+    configured_alias: gpt-codex
+    resolved_model_id: 接入时锁定
+  trivial_tasks:
     tool: claude-code
-    model: claude-fable-5
-    constraint: 涉及自身实现的差分事件,Codex 并行独立报告为强制项(RS-2)
-  cost_implementer:        # 常规模块:Web 前端、后端 CRUD、脚本、测试补写
-    tool: codex
-    model: gpt-codex
-  cross_reviewer:          # PR 风险分诊、严重问题提示、提示词偏袒审计、对抗测试
-    tool: codex
-    model: gpt-codex
-  ref_implementer:         # 参考实现盲写(独立仓库、独立会话)
-    tool: codex
-    model: gpt-codex
-    isolation: 独立环境;不挂载主仓库;无主仓库凭据;不复用主仓工作会话
-  trivial_tasks:           # 琐碎任务可临时降档,不改变角色结构
-    tool: claude-code
-    model: claude-haiku-4-5
-runtime:                   # 运行态三师会诊(与开发态严格分离,见 INV-10)
-  debater_a: { provider: anthropic, model_tier: sonnet, school: 子平格局派 }
-  debater_b: { provider: openai,   model_tier: gpt-5x,  school: 旺衰扶抑派 }
-  debater_c: { provider: deepseek, model_tier: v-series, school: 调候派 }
-  arbiter:   { policy: 轮换制, note: 每场从三家取一路未参与本场辩论的新实例,盲身份裁决 }
-final_signer: human        # 本人,唯一责任主体
+    configured_alias: haiku
+    resolved_model_id: claude-haiku-4-5-20251001
+
+runtime:                       # 观察模式默认绑定;研究评测一律用 §2.3 拉丁方轮换,不以固定绑定下结论
+  debater_a:
+    provider: anthropic
+    configured_alias: claude-sonnet
+    resolved_model_id: 接入时锁定
+    reasoning_effort: 接入时锁定
+    school_default: 子平格局派
+  debater_b:
+    provider: openai
+    configured_alias: gpt-5.x        # 具体 ID 以接入时官方文档为准
+    resolved_model_id: 接入时锁定
+    reasoning_effort: 接入时锁定
+    school_default: 旺衰扶抑派
+  debater_c:
+    provider: deepseek
+    configured_alias: deepseek-v
+    resolved_model_id: 接入时锁定
+    reasoning_effort: 接入时锁定
+    school_default: 调候派
+  judge:
+    policy: 三家轮换盲评            # 每场取一路未参与本场辩论的全新无状态会话;身份脱敏、候选顺序随机
+    allow_unresolved: true          # 证据不足必须允许 unresolved,不得强制选边
+  fallback_policy: fail_closed      # 研究模式禁止静默 fallback:模型不可用 → 该场标记不可比较
+
+final_signer: human                 # 本人,唯一责任主体

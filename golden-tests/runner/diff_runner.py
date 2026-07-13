@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-# 用例目录(dev-plan V2.1 第 5 节):固定黄金集 / 边界集 / 缺陷回归集。
+# 用例目录(DESIGN V3.0 第 5 节):固定黄金集 / 边界集 / 缺陷回归集。
 # stratified(分层随机)由本 runner 在线生成;metamorphic 由专用测试承载。
 CASE_DIRS = [ROOT / "golden-tests" / d for d in ("fixed", "boundary", "regression")]
 REPORTS_DIR = ROOT / "golden-tests" / "reports"

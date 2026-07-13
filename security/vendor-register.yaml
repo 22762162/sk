@@ -1,0 +1,25 @@
+# 供应商数据登记(DESIGN V3.0 §9.2):逐家登记发送内容与数据政策,季度复核。
+# 接入运行态 API 时逐项填实;此为骨架。
+review_cycle: quarterly
+vendors:
+  - name: anthropic
+    data_sent_fields: [最小化命盘结构, 规则引用]      # 禁止:姓名/联系方式/精确地址/账号标识
+    retention_policy_snapshot: 接入时登记
+    training_opt_out: 接入时确认
+    region: 接入时登记
+    account_project_id: 接入时登记
+    terms_checked_at: null
+  - name: openai
+    data_sent_fields: [最小化命盘结构, 规则引用]
+    retention_policy_snapshot: 接入时登记
+    training_opt_out: 接入时确认
+    region: 接入时登记
+    account_project_id: 接入时登记
+    terms_checked_at: null
+  - name: deepseek
+    data_sent_fields: [最小化命盘结构, 规则引用]
+    retention_policy_snapshot: 接入时登记
+    training_opt_out: 接入时确认
+    region: 接入时登记
+    account_project_id: 接入时登记
+    terms_checked_at: null

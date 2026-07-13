@@ -78,12 +78,18 @@ jobs:
       - run: python3 rulebase/tools/validate.py
 
   governance:
-    name: 治理校验（生成文件同步）
+    name: 治理校验（生成文件 / 契约钉版 / attestation）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install pyyaml
       - run: python3 governance/tools/render_ai_docs.py --check
+      - run: python3 governance/tools/check_contracts_lock.py
+      - name: attestation 校验（仅 PR）
+        if: github.event_name == 'pull_request'
+        run: python3 governance/tools/check_attestation.py --base origin/${{ github.base_ref }}
