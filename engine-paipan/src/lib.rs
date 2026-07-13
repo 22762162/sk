@@ -7,5 +7,6 @@
 //!
 //! 双实现契约：`contracts/paipan-spec.md`（与 `engine-paipan-ref` 互不可见）。
 
+pub mod four_pillars;
 pub mod ganzhi;
 pub mod year_pillar;
