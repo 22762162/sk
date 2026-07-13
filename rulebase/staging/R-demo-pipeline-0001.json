@@ -1,0 +1,15 @@
+{
+  "id": "R-demo-pipeline-0001",
+  "school": "demo",
+  "condition": "演示条件(非真实规则)",
+  "claim": "工具链演示条目,倾向于仅用于验证录入-校验-晋升流程",
+  "strength": 0.1,
+  "provenance": {
+    "source_type": "consultant",
+    "source": "工具链演示占位,非命理内容"
+  },
+  "draft_by_ai": true,
+  "review": {
+    "status": "draft"
+  }
+}

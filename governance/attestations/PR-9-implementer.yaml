@@ -1,0 +1,20 @@
+artifact_id: PR-9-implementer
+timestamp: "2026-07-14T06:05:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(P2 规则库工具链会话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 7079254(main,PR #7 合并点)
+generated_files:
+  - rulebase/tools/new_draft.py(草稿生成,强制 draft_by_ai)
+  - rulebase/tools/promote.py(人类签署晋升 + provenance 生成;AI 不得代跑真实条目)
+  - rulebase/tools/validate.py(approved 需 confirmed+来源链;staging 需 draft_by_ai)
+  - rulebase/README.md(新结构与流程)
+  - rulebase/staging/R-demo-pipeline-0001.json(演示草稿,非命理内容)
+reviewed_files: []
+notes: >-
+  未写入任何真实规则条目(INV-03:规则内容属顾问/本人);演示条目明确标注非命理内容。
+  交叉评审由本人全量审阅替代;本人签署由合并动作承载。

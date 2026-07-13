@@ -66,29 +66,52 @@ def validate_entry(entry: dict, where: str) -> list[str]:
     return errors
 
 
-def main() -> int:
-    files = sorted(ENTRIES_DIR.glob("*.json"))
-    all_errors = []
-    n_entries = 0
-    for path in files:
+def _iter_entries(directory):
+    for path in sorted(directory.glob("*.json")):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
-            all_errors.append(f"{path.name}: JSON 解析失败：{exc}")
+            yield path, None, f"{path.name}: JSON 解析失败：{exc}"
             continue
-        entries = data if isinstance(data, list) else [data]
-        for i, entry in enumerate(entries):
-            n_entries += 1
-            if not isinstance(entry, dict):
-                all_errors.append(f"{path.name}[{i}]: 条目必须为对象")
-                continue
-            all_errors.extend(validate_entry(entry, f"{path.name}[{i}]"))
+        for i, entry in enumerate(data if isinstance(data, list) else [data]):
+            yield path, entry, None if isinstance(entry, dict) else f"{path.name}[{i}]: 条目必须为对象"
+
+
+def main() -> int:
+    all_errors = []
+    n = {"approved": 0, "staging": 0}
+
+    # approved/:必须已签署(confirmed)且有 provenance/ 来源链记录(INV-03)
+    for path, entry, err in _iter_entries(ENTRIES_DIR):
+        if err:
+            all_errors.append(err)
+            continue
+        n["approved"] += 1
+        all_errors.extend(validate_entry(entry, path.name))
+        if entry.get("review", {}).get("status") != "confirmed":
+            all_errors.append(f"{path.name}: approved 条目必须 review.status=confirmed")
+        prov = ROOT / "rulebase" / "provenance" / f"{entry.get('id')}.yaml"
+        if not prov.exists():
+            all_errors.append(f"{path.name}: 缺来源链记录 provenance/{entry.get('id')}.yaml(不可省略)")
+
+    # staging/:必须为 AI 草稿标记(draft_by_ai=true)且未签署(draft)
+    staging_dir = ROOT / "rulebase" / "staging"
+    for path, entry, err in _iter_entries(staging_dir):
+        if err:
+            all_errors.append(err)
+            continue
+        n["staging"] += 1
+        all_errors.extend(validate_entry(entry, f"staging/{path.name}"))
+        if entry.get("review", {}).get("status") == "confirmed":
+            all_errors.append(f"staging/{path.name}: 已签署条目不得停留在 staging(用 promote.py 走 PR)")
+        if entry.get("draft_by_ai") is not True:
+            all_errors.append(f"staging/{path.name}: staging 草稿必须标记 draft_by_ai: true")
 
     if all_errors:
         print("\n".join(all_errors), file=sys.stderr)
         print(f"rulebase-check: 失败，{len(all_errors)} 处问题", file=sys.stderr)
         return 1
-    print(f"rulebase-check: 通过（{len(files)} 个文件，{n_entries} 条条目）")
+    print(f"rulebase-check: 通过（approved {n['approved']} 条,staging 草稿 {n['staging']} 条）")
     return 0
 
 
