@@ -62,6 +62,10 @@
     <div class="metaline" id="meta"></div>
     <div id="amb" style="display:none; margin-top:18px; padding:14px 16px; border:1px solid #d8b56a;
          border-radius:8px; background:#fdf6e3; font-size:13px; line-height:1.9;"></div>
+    <div style="margin-top:22px;">
+      <button type="button" id="qr" style="background:#4a5f8c;">AI 速览(研究实验)</button>
+      <div id="qrout" style="display:none; margin-top:14px;"></div>
+    </div>
   </section>
 
   <footer>
@@ -113,6 +117,34 @@ document.getElementById('f').addEventListener('submit', async (e) => {
     err.textContent = '请求失败:请确认本地服务已启动(make v1-serve)';
     err.style.display = 'block';
   }
+});
+
+document.getElementById('qr').addEventListener('click', async () => {
+  const box = document.getElementById('qrout'), btn = document.getElementById('qr');
+  box.style.display = 'block';
+  box.innerHTML = '<span style="color:#7a6f5f;">调用模型中(每次调用计入日熔断上限)…</span>';
+  btn.disabled = true;
+  const birth = document.getElementById('d').value + 'T' + document.getElementById('t').value;
+  try {
+    const r = await fetch('/api/quickread', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value})
+    });
+    const j = await r.json();
+    if (!j.ok) { box.innerHTML = '<span style="color:#a33;">速览失败:' + (j.error || '未知错误') + '</span>'; return; }
+    const tag = t => t === 'computed_fact'
+      ? '<span style="background:#3d6b46;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;">计算事实 · 引擎签名</span>'
+      : '<span style="background:#8c6a2f;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;">模型综合 · 无规则依据</span>';
+    box.innerHTML = j.claims.map(c =>
+      `<div style="border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px 14px;margin-bottom:10px;">
+         ${tag(c.claim_type)} <span style="font-size:11px;color:#8a7f6e;">置信:${c.confidence.confidence_label}</span>
+         <div style="margin-top:8px;line-height:1.9;">${c.claim}</div>
+         ${c.limitations.length ? `<div style="margin-top:6px;font-size:11px;color:#8a7f6e;">限制:${c.limitations.join(';')}</div>` : ''}
+       </div>`).join('') +
+      `<div style="font-size:11px;color:#8a7f6e;">run ${j.run_id} · ${j.model} · 本条速览仅为研究观察,倾向性表述不构成任何论断依据</div>`;
+  } catch (_) {
+    box.innerHTML = '<span style="color:#a33;">请求失败</span>';
+  } finally { btn.disabled = false; }
 });
 </script>
 </body>

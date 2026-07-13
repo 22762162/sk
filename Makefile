@@ -1,5 +1,5 @@
 # 三鉴 monorepo 常用命令（CLAUDE.md 常用命令表）
-.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve
+.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve keys-check
 
 build:
 	cargo build --manifest-path engine-paipan/Cargo.toml
@@ -46,10 +46,17 @@ governance-check:
 contracts-check:
 	python3 governance/tools/check_contracts_lock.py
 
-# V1.0 本地测试页:构建 release 引擎后起 FastAPI(http://127.0.0.1:8788)
+# 本地测试页:构建 release 引擎后起 FastAPI(http://127.0.0.1:8788);.env 中的密钥只进本机进程
 v1-serve:
 	cargo build --release --manifest-path engine-paipan/Cargo.toml
-	uv run --with fastapi --with uvicorn -- uvicorn backend.app:app --host 127.0.0.1 --port 8788
+	set -a; [ -f .env ] && . ./.env; set +a; \
+	uv run --with fastapi --with uvicorn --with httpx -- uvicorn backend.app:app --host 127.0.0.1 --port 8788
+
+# 密钥就位检查:只报告有/无,绝不输出密钥内容(INV-07)
+keys-check:
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	uv run --with httpx python3 -c "import sys; sys.path.insert(0,'consult-engine'); import gateway; \
+	print('\n'.join(f'{p}: ' + ('已配置' if gateway.key_present(p) else '未配置') for p in ('anthropic','openai','deepseek')))"
 
 # 人类工程师本机执行一次，启用 git pre-commit 闸门
 install-hooks:
