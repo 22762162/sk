@@ -41,6 +41,36 @@ def test_cycle_properties():
         assert 0 <= s0 < 10 and 0 <= b0 < 12
 
 
+def test_cli_rejects_non_object_case_line():
+    # 合法 JSON 但非对象：协议要求 ok:false 且不崩溃（Codex 评审 P2-1）
+    from paipan_ref.cli import handle
+
+    for line in ("[]", "42", '"str"', "null"):
+        result = handle(line)
+        assert result["ok"] is False
+        assert result["case_id"] is None
+
+
+def test_cli_rejects_non_integer_field_types():
+    # 类型不符须拒绝而非强转，保持与 Rust 侧行为一致（Codex 评审 P2-2）
+    from paipan_ref.cli import handle
+
+    def case(**inp):
+        return json.dumps({"case_id": "x", "op": "year_pillar", "input": inp})
+
+    bad_inputs = [
+        {"civil_year": "2000", "t_unix": 0, "lichun_unix": 0},   # 字符串
+        {"civil_year": 2000, "t_unix": 0.9, "lichun_unix": 0},   # 浮点
+        {"civil_year": True, "t_unix": 0, "lichun_unix": 0},     # 布尔
+        {"civil_year": 2000, "t_unix": 0, "lichun_unix": None},  # null
+        {"civil_year": 2000, "t_unix": 0},                       # 缺字段
+    ]
+    for inp in bad_inputs:
+        assert handle(case(**inp))["ok"] is False
+
+    assert handle('{"case_id": "y", "op": "year_pillar", "input": []}')["ok"] is False
+
+
 def test_cli_protocol_roundtrip():
     lines = [
         {"case_id": "a", "op": "year_pillar",

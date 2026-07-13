@@ -12,3 +12,6 @@
 {"case_id": "yp-neg-0001", "op": "year_pillar", "input": {"civil_year": 1950, "t_unix": -628000001, "lichun_unix": -628000000}, "expected": {"ok": true, "output": {"bazi_year": 1949, "stem": "己", "branch": "丑", "ganzhi": "己丑"}}}
 {"case_id": "yp-err-0001", "op": "month_pillar", "input": {}, "expected": {"ok": false}}
 {"case_id": "yp-err-0002", "op": "year_pillar", "input": {"civil_year": 2000}, "expected": {"ok": false}}
+{"case_id": "yp-err-0003", "op": "year_pillar", "input": {"civil_year": "2000", "t_unix": 0, "lichun_unix": 0}, "expected": {"ok": false}}
+{"case_id": "yp-err-0004", "op": "year_pillar", "input": {"civil_year": 2000, "t_unix": 0.5, "lichun_unix": 0}, "expected": {"ok": false}}
+{"case_id": "yp-err-0005", "op": "year_pillar", "input": {"civil_year": true, "t_unix": 0, "lichun_unix": 0}, "expected": {"ok": false}}
