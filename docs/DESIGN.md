@@ -476,7 +476,7 @@ human_blind_preference / unresolved_rate / cost_per_report / latency
 - [x] role-separation.yaml（attestation 三件套 + 高风险路径清单）+ attestation 模板 + CODEOWNERS
 - [x] 数据分级清单 + 数据流分层 + vendor-register.yaml 骨架；API 月度预算上限为本人控制台动作项（data-classification.md 第四节,**未完成**）
 - [x] 规格已超出最小范围：spec v0.2（年柱已评审 + 四柱条款,条款-测试映射见附录 C）→ sk-contracts 发 tag v0.2.0；分级承诺与 ambiguous 候选盘条款已入 sk-contracts v0.3.0(spec 4.5/第 5 章,RFC-0001)并经主实现+呈现层落地
-- [x] Fable 5 主仓 Rust 年柱+四柱模块（attestation 自 PR #6 起归档）；Codex 独立环境盲实现**待接入**（参考仓 TASK.md 就绪,当前为彩排占位版,对拍能力域折算一路信号）
+- [x] Fable 5 主仓 Rust 年柱+四柱模块（attestation 自 PR #6 起归档）；Codex 独立环境盲实现已完成（gpt-5.6-sol,双方 attestation 归档;异源双实现信号自此成立）
 - [x] CI：build → 单元/属性 → 契约钉版校验 → 边界 → 差分（能力域）→ 归档；required checks + branch protection 已生效(2026-07-14,管理员不可绕过);失败用例自动最小化待补
 - [x] 红队演练：边界舍入 / 期望值投毒 / 锚点篡改三项注入全部拦截（research-notes/red-team-drill-2026-07-14.md）;错误时区、评审漏报两项按范围顺延并留触发条件
 - [x] 外部 Oracle 首批：JPL DE440s 自算节气 + HKO 分钟级核对 + KASI/中研院日柱锚双源（谱系相互独立）;紫金山《中国天文年历》采购待办
@@ -491,7 +491,7 @@ human_blind_preference / unresolved_rate / cost_per_report / latency
 | 2026-07-14 | V3.0 落地：四仓 + attestation + 契约钉版（PR #6） | sk-contracts@v0.2.0;lock 校验入 CI |
 | 2026-07-14 | main 分支保护生效（六项必过检查,不可绕过） | 启动清单 CI 项闭环 |
 | 2026-07-14 | 契约 v0.3.0：不确定性 op + 分级承诺（RFC-0001,PR #7） | 模糊时刻返回候选双盘;黄金集 102 例 |
-| 2026-07-14 | Codex 盲写参考实现启动（gpt-5.6-sol,独立会话） | 完成后对拍能力域扩至 four_pillars |
+| 2026-07-14 | Codex 盲写参考实现完成（gpt-5.6-sol,独立会话,自带 102 测试） | 对拍能力域扩至 four_pillars;10092 例双实现一致;SPEC-QUESTIONS 零歧义 |
 
 ---
 
