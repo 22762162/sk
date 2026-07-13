@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# 三鉴提交闸门（人类工程师侧；Claude Code 侧由 .claude/hooks/pre-commit-gate.sh 执行同等检查）
+# ① 红线词扫描（始终）② 黄金集冒烟（暂存区触碰 engine-paipan/ 时，CLAUDE.md 规则 2）
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+bash "$ROOT/.claude/hooks/redline-scan.sh"
+
+if git diff --cached --name-only | grep -q '^engine-paipan/'; then
+  echo "检测到 engine-paipan/ 改动，运行黄金集冒烟……"
+  bash "$ROOT/.claude/hooks/golden-smoke.sh"
+fi

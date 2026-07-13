@@ -1,0 +1,30 @@
+# 夜间地毯式对拍：10 万随机时刻（设计方案第 5 节——把边界缺陷发现从"抽检"升级为"地毯式"）
+name: Nightly Duipai
+
+on:
+  schedule:
+    - cron: "0 18 * * *"   # UTC 18:00 = 北京时间凌晨 2:00
+  workflow_dispatch:
+
+jobs:
+  duipai-100k:
+    name: 双实现对拍（10 万随机时刻）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine-paipan
+      - run: cargo build --release --manifest-path engine-paipan/Cargo.toml
+      - run: |
+          python3 golden-tests/runner/diff_runner.py \
+            --rust-cmd "${{ github.workspace }}/engine-paipan/target/release/paipan-cli" \
+            --random 100000 --seed ${{ github.run_id }}
+      - name: 上传差异报告
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-discrepancy-report
+          path: golden-tests/reports/
+      # TODO(P1)：失败时自动创建 discrepancy issue（附报告链接），进入 Opus 仲裁流程
