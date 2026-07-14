@@ -30,6 +30,7 @@ QUICKREAD_PROMPT_FILE = ROOT / "prompts" / "base" / "quickread.md"
 
 sys.path.insert(0, str(ROOT / "consult-engine"))
 import gateway  # noqa: E402  (L3 网关;密钥仅在其进程内使用)
+import consult  # noqa: E402  (L4 会诊编排)
 TZ = ZoneInfo("Asia/Shanghai")
 JIE_NAMES = ["立春", "惊蛰", "清明", "立夏", "芒种", "小暑",
              "立秋", "白露", "寒露", "立冬", "大雪", "小寒"]
@@ -254,6 +255,52 @@ def quickread(req: PaipanReq) -> JSONResponse:
 
     return JSONResponse({"ok": True, "claims": claims, "run_id": result["run_id"],
                          "model": route["model"], "token_usage": result["token_usage"]})
+
+
+class ConsultReq(PaipanReq):
+    arm: str = "D3J"  # S1 | P3 | D3 | D3J
+
+
+@app.post("/api/consult")
+def consult_endpoint(req: ConsultReq) -> JSONResponse:
+    """三模型会诊(DESIGN §2):排盘 → 三辩手质证 → 轮换裁判盲评;观察模式数据。"""
+    chart_resp = paipan(req)
+    if chart_resp.status_code != 200:
+        return chart_resp
+    chart = json.loads(bytes(chart_resp.body))
+    o = chart["output"]
+    chart_line = (f"年柱 {o['year']['ganzhi']},月柱 {o['month']['ganzhi']},"
+                  f"日柱 {o['day']['ganzhi']},时柱 {o['hour']['ganzhi']}(八字年 {o['bazi_year']})")
+    # 种子取命盘哈希,保证同盘同轮换、可复现(DESIGN 可复现:可审计可回放)
+    seed = int(hashlib.sha256(chart_line.encode()).hexdigest(), 16) % 3
+    try:
+        result = consult.run_consultation(o, chart_line, arm=req.arm, seed=seed)
+    except consult.ConsultError as exc:
+        return JSONResponse({"ok": False, "error": f"会诊失败(fail_closed):{exc}"},
+                            status_code=502)
+
+    # 动态文案红线遮蔽(INV-04):对辩手/裁判所有可见文本过滤
+    def scrub(text: str) -> str:
+        return _redline_filter(str(text))[0]
+
+    for d in result["debaters"]:
+        for c in d.get("claims", []):
+            if "claim" in c:
+                c["claim"] = scrub(c["claim"])
+    if result.get("judge"):
+        for it in result["judge"].get("issues", []):
+            it["topic"] = scrub(it.get("topic", ""))
+            it["rationale"] = scrub(it.get("rationale", ""))
+        result["judge"]["summary"] = scrub(result["judge"].get("summary", ""))
+
+    return JSONResponse({
+        "ok": True,
+        "chart": {"line": chart_line, "output": o,
+                  "result_status": chart.get("result_status", "exact")},
+        "consultation": result,
+        "disclaimer": "本会诊为多模型互证的研究观察:计算部分为引擎确定性结果,命理解读均为模型综合、"
+                      "无规则库佐证;分歧透明呈现,不因多模型一致而构成任何论断。",
+    })
 
 
 @app.get("/")

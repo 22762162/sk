@@ -62,10 +62,12 @@
     <div class="metaline" id="meta"></div>
     <div id="amb" style="display:none; margin-top:18px; padding:14px 16px; border:1px solid #d8b56a;
          border-radius:8px; background:#fdf6e3; font-size:13px; line-height:1.9;"></div>
-    <div style="margin-top:22px;">
-      <button type="button" id="qr" style="background:#4a5f8c;">AI 速览(研究实验)</button>
-      <div id="qrout" style="display:none; margin-top:14px;"></div>
+    <div style="margin-top:22px; display:flex; gap:12px; flex-wrap:wrap;">
+      <button type="button" id="qr" style="background:#4a5f8c;">AI 速览(单模型)</button>
+      <button type="button" id="cs" style="background:#6b3f6b;">三模型会诊(观察模式)</button>
     </div>
+    <div id="qrout" style="display:none; margin-top:14px;"></div>
+    <div id="csout" style="display:none; margin-top:18px;"></div>
   </section>
 
   <footer>
@@ -144,6 +146,73 @@ document.getElementById('qr').addEventListener('click', async () => {
       `<div style="font-size:11px;color:#8a7f6e;">run ${j.run_id} · ${j.model} · 本条速览仅为研究观察,倾向性表述不构成任何论断依据</div>`;
   } catch (_) {
     box.innerHTML = '<span style="color:#a33;">请求失败</span>';
+  } finally { btn.disabled = false; }
+});
+
+const SCHOOL_COLORS = {ziping:'#8c4a2f', wangshuai:'#2f6b8c', tiaohou:'#2f8c5a'};
+const VERDICT = {
+  consensus: {t:'共识', c:'#3d6b46'},
+  dissent:   {t:'流派分歧(保留)', c:'#8c6a2f'},
+  unresolved:{t:'证据不足·未决', c:'#7a6f5f'}
+};
+document.getElementById('cs').addEventListener('click', async () => {
+  const box = document.getElementById('csout'), btn = document.getElementById('cs');
+  box.style.display = 'block';
+  box.innerHTML = '<span style="color:#7a6f5f;">三模型会诊进行中(三辩手独立分析 → 匿名质证 → 轮换裁判盲评,约需 20–60 秒,每场约 7 次调用)…</span>';
+  btn.disabled = true;
+  const birth = document.getElementById('d').value + 'T' + document.getElementById('t').value;
+  try {
+    const r = await fetch('/api/consult', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value, arm: 'D3J'})
+    });
+    const j = await r.json();
+    if (!j.ok) { box.innerHTML = '<span style="color:#a33;">会诊失败:' + (j.error || '未知') + '</span>'; return; }
+    const cs = j.consultation;
+    let html = `<div style="font-size:13px;color:#7a6f5f;margin-bottom:12px;">会诊 ${cs.consultation_id} · 实验臂 ${cs.arm} · 三家异构模型互证</div>`;
+
+    // 三辩手
+    html += '<div style="display:grid;grid-template-columns:1fr;gap:12px;">';
+    cs.debaters.forEach(d => {
+      const col = SCHOOL_COLORS[d.school] || '#5d5346';
+      html += `<div style="border:1px solid var(--line);border-left:4px solid ${col};border-radius:8px;background:#fff;padding:14px 16px;">
+        <div style="font-size:13px;"><b style="color:${col};">${d.school_name}</b>
+          <span style="color:#8a7f6e;font-size:11px;">· 辩手 ${d.provider}</span></div>`;
+      d.claims.forEach(c => {
+        html += `<div style="margin-top:8px;line-height:1.85;font-size:14px;">· ${c.claim}
+          ${c.confidence_label ? `<span style="color:#8a7f6e;font-size:11px;">(置信 ${c.confidence_label})</span>`:''}</div>`;
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // 质证
+    if (cs.cross_exam && cs.cross_exam.length) {
+      html += '<div style="margin-top:16px;font-size:13px;color:#5d5346;"><b>匿名质证</b>(各辩手看到另两方隐去身份的观点后互相质疑):</div>';
+      cs.cross_exam.forEach(cx => {
+        const ch = (cx.challenges||[]).filter(x=>x&&x.reason);
+        if (cx.skipped) { html += `<div style="font-size:12px;color:#a88;margin-top:6px;">· ${cx.role}:${cx.skipped}</div>`; return; }
+        if (ch.length) html += `<div style="font-size:13px;color:#7a6f5f;margin-top:6px;line-height:1.8;">· 质疑:${ch.map(x=>x.reason).join('；')}</div>`;
+      });
+    }
+
+    // 裁判
+    if (cs.judge) {
+      html += `<div style="margin-top:18px;border:1px solid #cbb; border-radius:8px;background:#faf7fa;padding:14px 16px;">
+        <div style="font-size:13px;"><b>裁判裁决</b> <span style="color:#8a7f6e;font-size:11px;">· ${cs.judge.by}</span></div>`;
+      (cs.judge.issues||[]).forEach(it => {
+        const v = VERDICT[it.verdict] || {t:it.verdict, c:'#5d5346'};
+        html += `<div style="margin-top:10px;line-height:1.8;font-size:14px;">
+          <span style="background:${v.c};color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;">${v.t}</span>
+          ${it.topic}${it.rationale?`<span style="color:#8a7f6e;font-size:12px;"> — ${it.rationale}</span>`:''}</div>`;
+      });
+      if (cs.judge.summary) html += `<div style="margin-top:12px;font-size:13px;color:#5d5346;line-height:1.9;"><b>小结:</b>${cs.judge.summary}</div>`;
+      html += '</div>';
+    }
+    html += `<div style="margin-top:12px;font-size:11px;color:#8a7f6e;line-height:1.8;">${j.disclaimer}</div>`;
+    box.innerHTML = html;
+  } catch (_) {
+    box.innerHTML = '<span style="color:#a33;">请求失败(会诊耗时较长,请确认服务运行)</span>';
   } finally { btn.disabled = false; }
 });
 </script>
