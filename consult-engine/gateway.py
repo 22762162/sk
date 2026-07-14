@@ -80,7 +80,9 @@ def call(provider: str, model_id: str, system: str, user: str,
                    "system": system, "messages": [{"role": "user", "content": user}]}
     else:  # openai 兼容协议(openai / deepseek)
         headers = {"Authorization": f"Bearer {key}", "content-type": "application/json"}
-        payload = {"model": model_id, "max_tokens": max_tokens,
+        # OpenAI 新模型(gpt-5.x/o 系)只认 max_completion_tokens;DeepSeek 用 max_tokens。
+        token_field = "max_completion_tokens" if provider == "openai" else "max_tokens"
+        payload = {"model": model_id, token_field: max_tokens,
                    "messages": [{"role": "system", "content": system},
                                 {"role": "user", "content": user}]}
     if send_temp:
