@@ -1,0 +1,22 @@
+artifact_id: PR-24-implementer
+timestamp: "2026-07-15T12:30:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(会诊记录存档 + 历史查看)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 46a1f6e(main,PR #23 合并点)
+generated_files:
+  - consult-engine/records.py(存档 save/listing/get/append_chat;JSONL 单文件每记录;id 白名单正则防路径注入)
+  - backend/app.py(会诊成功自动存档;/api/records/list·get;追问成功追加到记录 record_id)
+  - web/index.html(「历史记录」按钮+列表+查看;renderConsult 抽为通用函数,回填四柱、回放追问、可继续追问)
+  - .gitignore(consult-engine/records/ 本机私有)+ docs/DESIGN.md §13
+reviewed_files: []
+notes: >-
+  用户反馈「一刷新就没了,要能查看之前的记录」。存档含命盘/出生时间/个人背景,属敏感本机数据,
+  gitignored 不入库;记录 id 经 ^[A-Za-z0-9._-]+$ 白名单校验防路径穿越。存档失败不影响会诊返回(OSError 吞)。
+  零成本端到端验证:用既有真实会诊载荷 save → list(1 条,含追问轮数)→ get(完整载荷+chats)→ append_chat 均通过;
+  web JS 重构(renderConsult 抽出)经 node --check;红线扫描通过。未动提示词与 metrics(INV-10/12 无涉)。
+  密钥仅经 gateway。交叉评审由本人全量审阅替代;本人签署由合并动作承载。

@@ -35,6 +35,7 @@ import gateway  # noqa: E402  (L3 网关;密钥仅在其进程内使用)
 import consult  # noqa: E402  (L4 会诊编排)
 import predictions  # noqa: E402  (预测记录与命中率验证)
 import luck  # noqa: E402  (流年/大运推算)
+import records  # noqa: E402  (会诊记录存档,刷新不丢)
 TZ = ZoneInfo("Asia/Shanghai")
 JIE_NAMES = ["立春", "惊蛰", "清明", "立夏", "芒种", "小暑",
              "立秋", "白露", "寒露", "立冬", "大雪", "小寒"]
@@ -335,7 +336,7 @@ def _run_consult_payload(req: ConsultReq) -> dict:
             if isinstance(yr, dict):
                 yr["reading"] = scrub(yr.get("reading", ""))
 
-    return {
+    payload = {
         "ok": True,
         "chart": {"line": chart_line, "output": o,
                   "result_status": chart.get("result_status", "exact"),
@@ -344,6 +345,11 @@ def _run_consult_payload(req: ConsultReq) -> dict:
         "disclaimer": "本会诊为多模型互证的研究观察:计算部分为引擎确定性结果;命理解读为模型综合、"
                       "概率化措辞,准不准以事后命中率为准,不因多模型一致即为真。分歧透明保留。",
     }
+    try:  # 自动存档(本机私有);存档失败不影响会诊返回
+        records.save(payload, req.birth, profile)
+    except OSError:
+        pass
+    return payload
 
 
 @app.post("/api/consult")
@@ -399,8 +405,14 @@ def chat_start(req: ChatReq) -> JSONResponse:
             obj = consult.chat_followup(req.context or {}, req.history or [], q)
             for k in ("answer", "revised", "suggestion"):
                 obj[k] = _redline_filter(str(obj.get(k, "")))[0]
-            payload, status = {"ok": True, "chat": {k: obj.get(k, "") for k in
-                                                    ("answer", "revised", "suggestion")}}, "done"
+            chat = {k: obj.get(k, "") for k in ("answer", "revised", "suggestion")}
+            rid = (req.context or {}).get("record_id", "")
+            if rid:  # 追问也进存档,回看时对话不丢
+                try:
+                    records.append_chat(str(rid), {"question": q, **chat})
+                except OSError:
+                    pass
+            payload, status = {"ok": True, "chat": chat}, "done"
         except Exception as exc:  # noqa: BLE001
             payload, status = {"ok": False, "error": f"追问失败:{exc}"}, "error"
         with _JOBS_LOCK:
@@ -408,6 +420,21 @@ def chat_start(req: ChatReq) -> JSONResponse:
 
     threading.Thread(target=worker, daemon=True).start()
     return JSONResponse({"ok": True, "job_id": job_id})
+
+
+@app.get("/api/records/list")
+def records_list() -> JSONResponse:
+    """历史会诊记录摘要(新→旧)。"""
+    return JSONResponse({"ok": True, "records": records.listing()})
+
+
+@app.get("/api/records/get")
+def records_get(rid: str) -> JSONResponse:
+    """取一条完整记录(含会诊载荷与追问对话)。"""
+    r = records.get(rid)
+    if not r:
+        return JSONResponse({"ok": False, "error": "记录不存在"}, status_code=404)
+    return JSONResponse({"ok": True, "record": r})
 
 
 @app.get("/api/consult/result")

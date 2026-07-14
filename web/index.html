@@ -93,8 +93,10 @@
     <div style="margin-top:26px; border-top:1px solid var(--line); padding-top:20px;">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <button type="button" id="pv" style="background:#2c6a66;">我的预测 · 命中率</button>
-        <span style="font-size:12px;color:#8a7f6e;">记录预测 → 到期回访 → 看命中率。数据越多越准。</span>
+        <button type="button" id="hist" style="background:#6b5b3f;">历史记录</button>
+        <span style="font-size:12px;color:#8a7f6e;">会诊自动存档,刷新不丢;预测到期回访看命中率。</span>
       </div>
+      <div id="histout" style="display:none; margin-top:14px;"></div>
       <div id="pvout" style="display:none; margin-top:14px;"></div>
     </div>
   </section>
@@ -214,6 +216,18 @@ document.getElementById('cs').addEventListener('click', async () => {
       box.innerHTML = '<span style="color:#a33;">会诊任务丢失,请重试</span>'; return;
     }
     if (!j.ok) { box.innerHTML = '<span style="color:#a33;">会诊失败:' + (j.error || '未知') + '</span>'; return; }
+    renderConsult(j);
+  } catch (_) {
+    box.innerHTML = '<span style="color:#a33;">请求失败(会诊耗时较长,请确认服务运行)</span>';
+  } finally { btn.disabled = false; }
+});
+
+// 渲染一场会诊(实时结果与历史记录通用);j 可带 _profile(记录存的背景)与 _chats(历史追问)
+function renderConsult(j) {
+  const box = document.getElementById('csout');
+  document.getElementById('result').style.display = 'block';
+  box.style.display = 'block';
+  {
     const cs = j.consultation;
     window.LASTC = {line: (j.chart && j.chart.line) || '', hash: cs.consultation_id || ''};
     let html = `<div style="font-size:13px;color:#7a6f5f;margin-bottom:12px;">会诊 ${cs.consultation_id} · 实验臂 ${cs.arm} · 三家异构模型互证</div>`;
@@ -335,7 +349,8 @@ document.getElementById('cs').addEventListener('click', async () => {
     const duC = j.chart && j.chart.dayun;
     window.CHATCTX = {
       chart_line: (j.chart && j.chart.line) || '',
-      profile: ['行业:' + (document.getElementById('industry').value || '未填'),
+      record_id: cs.consultation_id || '',
+      profile: j._profile || ['行业:' + (document.getElementById('industry').value || '未填'),
                 '职业:' + (document.getElementById('occupation').value || '未填'),
                 '性别:' + (document.getElementById('gender').value === 'male' ? '男' : '女'),
                 document.getElementById('situation').value ? '补充:' + document.getElementById('situation').value : ''].filter(Boolean).join('；'),
@@ -346,10 +361,22 @@ document.getElementById('cs').addEventListener('click', async () => {
     window.CHATHIST = [];
     document.getElementById('chatsend').onclick = sendChat;
     document.getElementById('chatq').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
-  } catch (_) {
-    box.innerHTML = '<span style="color:#a33;">请求失败(会诊耗时较长,请确认服务运行)</span>';
-  } finally { btn.disabled = false; }
-});
+    // 回放历史追问(查看记录时对话不丢)
+    if (j._chats && j._chats.length) {
+      const log = document.getElementById('chatlog');
+      j._chats.forEach(c => {
+        log.innerHTML += `<div style="margin-top:10px;text-align:right;"><span style="display:inline-block;background:#2c6a66;color:#fff;border-radius:10px 10px 2px 10px;padding:8px 12px;font-size:14px;max-width:85%;text-align:left;line-height:1.7;">${esc(c.question||'')}</span></div>`;
+        let h = `<div style="background:#fff;border:1px solid var(--line);border-radius:10px 10px 10px 2px;padding:10px 14px;font-size:14px;line-height:1.85;max-width:92%;">${esc(c.answer||'')}`;
+        if (c.revised) h += `<div style="margin-top:8px;padding:8px 10px;background:#fbf3e6;border-radius:6px;font-size:13px;"><b style="color:#b5762a;">修正:</b>${esc(c.revised)}</div>`;
+        if (c.suggestion) h += `<div style="margin-top:8px;font-size:13px;color:#2c6a66;"><b>可验证:</b>${esc(c.suggestion)}</div>`;
+        h += '</div>';
+        log.innerHTML += `<div style="margin-top:8px;">${h}</div>`;
+        window.CHATHIST.push({role:'user',text:c.question||''},{role:'assistant',text:c.answer||''});
+      });
+      if (window.CHATHIST.length > 16) window.CHATHIST = window.CHATHIST.slice(-16);
+    }
+  }
+}
 
 // —— 预测 → 回访 → 命中率 ——
 function ym(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
@@ -427,6 +454,46 @@ async function reviewPred(id, status){
   try{
     const j=await (await fetch('/api/predict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status,note:''})})).json();
     if(j.ok) loadPreds();
+  }catch(_){}
+}
+
+// —— 历史记录:会诊自动存档,随时回看并继续追问 ——
+document.getElementById('hist').addEventListener('click', loadHist);
+async function loadHist(){
+  const box=document.getElementById('histout');
+  if(box.style.display==='block'){ box.style.display='none'; return; }
+  box.style.display='block'; box.innerHTML='加载中…';
+  try{
+    const j=await (await fetch('/api/records/list')).json();
+    if(!j.ok){ box.innerHTML='加载失败'; return; }
+    if(!j.records.length){ box.innerHTML='<div style="font-size:13px;color:#8a7f6e;">还没有会诊记录。做一次三模型会诊后自动存档,刷新也不丢。</div>'; return; }
+    box.innerHTML = j.records.map(r=>{
+      const t=(r.saved_at||'').replace('T',' ').slice(0,16);
+      return `<div style="border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px 14px;margin-top:8px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div style="font-size:13px;line-height:1.7;"><b>${esc(r.birth||'')}</b> · ${esc(r.chart_line||'')}<br>
+          <span style="font-size:11px;color:#8a7f6e;">${t}(UTC)${r.profile?' · '+esc(r.profile.slice(0,42)):''}${r.n_chats?` · 追问${r.n_chats}轮`:''}</span></div>
+        <button type="button" data-rid="${esc(r.id||'')}" class="viewrec" style="font-size:12px;background:#6b5b3f;">查看</button></div>`;
+    }).join('');
+    box.querySelectorAll('.viewrec').forEach(b=>b.onclick=()=>viewRecord(b.dataset.rid));
+  }catch(_){ box.innerHTML='请求失败'; }
+}
+async function viewRecord(rid){
+  try{
+    const j=await (await fetch('/api/records/get?rid='+encodeURIComponent(rid))).json();
+    if(!j.ok) return;
+    const rec=j.record, p=rec.payload;
+    try{ // 回填四柱头部(刷新后排盘区是空的)
+      const o=p.chart.output;
+      document.getElementById('py').textContent=o.year.ganzhi;
+      document.getElementById('pm').textContent=o.month.ganzhi;
+      document.getElementById('pd').textContent=o.day.ganzhi;
+      document.getElementById('ph').textContent=o.hour.ganzhi;
+      document.getElementById('meta').textContent=`历史记录 · ${rec.birth||''} · 存档 ${(rec.saved_at||'').replace('T',' ').slice(0,16)}(UTC)`;
+    }catch(e){}
+    p._profile = rec.profile || '';
+    p._chats = rec.chats || [];
+    renderConsult(p);
+    document.getElementById('csout').scrollIntoView({behavior:'smooth'});
   }catch(_){}
 }
 
