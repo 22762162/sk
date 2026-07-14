@@ -1,0 +1,20 @@
+artifact_id: PR-12-implementer
+timestamp: "2026-07-14T11:30:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(P2 评测基建会话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 983c779(main,PR #11 合并点)
+generated_files:
+  - evals/datasets/smoke.jsonl(2 合成盘,标注 synthetic)
+  - evals/metrics.py(自动指标:hedge/redline/confidence/unresolved/calls/latency)
+  - evals/runner/run_eval.py(四臂 runner + 跨盘聚合 + JSON/markdown 对照报告)
+  - Makefile(eval-smoke);evals/README.md(runner 说明)
+reviewed_files: []
+notes: >-
+  真实 smoke 跑通(2 盘 × S1/P3/D3/D3J);报告 gitignored(主仓 evals 只存框架,DESIGN §4)。
+  诚实标注:小样本仅验证框架与观察差异,不构成统计结论;规则依据类指标待规则库启用。
+  密钥仅经 gateway 从环境读取。交叉评审由本人全量审阅替代;本人签署由合并动作承载。

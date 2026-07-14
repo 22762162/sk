@@ -493,6 +493,7 @@ human_blind_preference / unresolved_rate / cost_per_report / latency
 | 2026-07-14 | 契约 v0.3.0：不确定性 op + 分级承诺（RFC-0001,PR #7） | 模糊时刻返回候选双盘;黄金集 102 例 |
 | 2026-07-14 | 三家 API 通道打通（PR #8/#10） | claude-sonnet-5 / gpt-5.1 / deepseek-chat 冒烟通过 |
 | 2026-07-14 | L4 三模型会诊引擎（PR #11,D3J 观察模式） | 三辩手绑流派质证 + 轮换裁判盲评;真实会诊:1共识/5分歧/2未决,命中"有据共识·分歧保留·缺据弃权" |
+| 2026-07-14 | 四实验臂评测框架（PR #12,eval-smoke） | S1/P3/D3/D3J 自动指标对照;smoke 观察:仅 D3J 有弃权机制(均弃权率 0.2),成本 S1→D3J 约 1→7 倍;红线 0/过度自信 0 |
 | 2026-07-14 | Codex 盲写参考实现完成（gpt-5.6-sol,独立会话,自带 102 测试） | 对拍能力域扩至 four_pillars;10092 例双实现一致;SPEC-QUESTIONS 零歧义 |
 | 2026-07-14 | P2 启动：L3 网关 + run-manifest + 单模型速览（PR #8） | fail_closed/日熔断 50/manifest 落盘;密钥仅本机进程;Smoke/Change Eval 体系待建（INV-12 缺口,评测基建随 P2 补） |
 

@@ -1,5 +1,5 @@
 # 三鉴 monorepo 常用命令（CLAUDE.md 常用命令表）
-.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve keys-check
+.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve keys-check eval-smoke
 
 build:
 	cargo build --manifest-path engine-paipan/Cargo.toml
@@ -51,6 +51,13 @@ v1-serve:
 	cargo build --release --manifest-path engine-paipan/Cargo.toml
 	set -a; [ -f .env ] && . ./.env; set +a; \
 	uv run --with fastapi --with uvicorn --with httpx -- uvicorn backend.app:app --host 127.0.0.1 --port 8788
+
+# 四实验臂评测 smoke(需 .env 密钥;每盘 4 臂约 17 次调用,受日熔断约束)
+eval-smoke:
+	set -a; [ -f .env ] && . ./.env; set +a; \
+	uv run --with httpx python3 evals/runner/run_eval.py \
+	  --dataset evals/datasets/smoke.jsonl --arms S1,P3,D3,D3J \
+	  --out evals/reports/eval-smoke.json
 
 # 密钥就位检查:只报告有/无,绝不输出密钥内容(INV-07)
 keys-check:
