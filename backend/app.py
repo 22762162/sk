@@ -292,14 +292,21 @@ def consult_endpoint(req: ConsultReq) -> JSONResponse:
             it["topic"] = scrub(it.get("topic", ""))
             it["rationale"] = scrub(it.get("rationale", ""))
         result["judge"]["summary"] = scrub(result["judge"].get("summary", ""))
+    ps = result.get("plain_summary")
+    if ps:
+        for k in ("overview", "consensus", "divergence"):
+            ps[k] = scrub(ps.get(k, ""))
+        for dm in ps.get("domains", []):
+            if isinstance(dm, dict):
+                dm["reading"] = scrub(dm.get("reading", ""))
 
     return JSONResponse({
         "ok": True,
         "chart": {"line": chart_line, "output": o,
                   "result_status": chart.get("result_status", "exact")},
         "consultation": result,
-        "disclaimer": "本会诊为多模型互证的研究观察:计算部分为引擎确定性结果,命理解读均为模型综合、"
-                      "无规则库佐证;分歧透明呈现,不因多模型一致而构成任何论断。",
+        "disclaimer": "本会诊为多模型互证的研究观察:计算部分为引擎确定性结果;命理解读为模型综合、"
+                      "概率化措辞,准不准以事后命中率为准,不因多模型一致即为真。分歧透明保留。",
     })
 
 
