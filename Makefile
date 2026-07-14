@@ -1,5 +1,5 @@
 # 三鉴 monorepo 常用命令（CLAUDE.md 常用命令表）
-.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve keys-check eval-smoke
+.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve keys-check eval-smoke research-smoke prompt-symmetry
 
 build:
 	cargo build --manifest-path engine-paipan/Cargo.toml
@@ -58,6 +58,16 @@ eval-smoke:
 	uv run --with httpx python3 evals/runner/run_eval.py \
 	  --dataset evals/datasets/smoke.jsonl --arms S1,P3,D3,D3J \
 	  --out evals/reports/eval-smoke.json
+
+# 研究模式拉丁方 smoke(需 .env 密钥;1 盘 = 9 次调用)
+research-smoke:
+	set -a; [ -f .env ] && . ./.env; set +a; \
+	uv run --with httpx python3 evals/runner/run_research.py \
+	  --birth 1990-06-15T08:30 --out evals/reports/research-smoke.json
+
+# 提示词对称性校验(拉丁方前提;CI 阻断项)
+prompt-symmetry:
+	python3 governance/tools/check_prompt_symmetry.py
 
 # 密钥就位检查:只报告有/无,绝不输出密钥内容(INV-07)
 keys-check:

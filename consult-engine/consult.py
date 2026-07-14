@@ -30,15 +30,52 @@ PROMPTS = ROOT / "prompts"
 MANIFEST_DIR = ROOT / "consult-engine" / "manifests"
 PROTOCOL_VERSION = "consult-v1"
 
-# 观察模式默认绑定(DESIGN §2.1);研究模式的拉丁方轮换留待评测基建
-DEBATERS = [
-    {"role": "debater_a", "provider": "anthropic", "model": "claude-sonnet-5",
-     "school": "ziping", "school_name": "子平格局派"},
-    {"role": "debater_b", "provider": "openai", "model": "gpt-5.1",
-     "school": "wangshuai", "school_name": "旺衰扶抑派"},
-    {"role": "debater_c", "provider": "deepseek", "model": "deepseek-chat",
-     "school": "tiaohou", "school_name": "调候派"},
+# 三个供应商(模型层);流派为可轮换维度(DESIGN §2.3 拉丁方)
+PROVIDERS_ORDER = [
+    {"role": "debater_a", "provider": "anthropic", "model": "claude-sonnet-5"},
+    {"role": "debater_b", "provider": "openai", "model": "gpt-5.1"},
+    {"role": "debater_c", "provider": "deepseek", "model": "deepseek-chat"},
 ]
+SCHOOL_NAMES = {"ziping": "子平格局派", "wangshuai": "旺衰扶抑派", "tiaohou": "调候派"}
+
+# 观察模式默认绑定(DESIGN §2.1):模型 → 固定流派
+DEBATERS = [
+    {**PROVIDERS_ORDER[0], "school": "ziping", "school_name": SCHOOL_NAMES["ziping"]},
+    {**PROVIDERS_ORDER[1], "school": "wangshuai", "school_name": SCHOOL_NAMES["wangshuai"]},
+    {**PROVIDERS_ORDER[2], "school": "tiaohou", "school_name": SCHOOL_NAMES["tiaohou"]},
+]
+
+# 研究模式 3×3 拉丁方(DESIGN §2.3):每模型演每流派各一次,解模型×流派混杂
+LATIN_SQUARE = {
+    "A": ["ziping", "wangshuai", "tiaohou"],   # Claude 子平 / GPT 旺衰 / DeepSeek 调候
+    "B": ["wangshuai", "tiaohou", "ziping"],   # Claude 旺衰 / GPT 调候 / DeepSeek 子平
+    "C": ["tiaohou", "ziping", "wangshuai"],   # Claude 调候 / GPT 子平 / DeepSeek 旺衰
+}
+
+
+def latin_batch_debaters(batch: str) -> list[dict]:
+    """按拉丁方批次给三个模型分配流派。"""
+    schools = LATIN_SQUARE[batch]
+    return [{**PROVIDERS_ORDER[i], "school": schools[i], "school_name": SCHOOL_NAMES[schools[i]]}
+            for i in range(3)]
+
+
+def run_latin_cells(chart_line: str) -> list[dict]:
+    """研究模式:跑全部 3 批 × 3 模型 = 9 个 (模型,流派) 单元(仅第一轮观点,供效应分析)。
+
+    返回每单元 {batch, provider, model, school, school_name, claims, run_id}。
+    只做第一轮独立发言(质证/裁判不参与效应归因,省成本且减噪)。
+    """
+    cells = []
+    for batch in ("A", "B", "C"):
+        debaters = latin_batch_debaters(batch)
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            results = list(ex.map(lambda d: _call_debater(d, chart_line), debaters))
+        for r in results:
+            cells.append({"batch": batch, "provider": r["provider"], "model": r["model"],
+                          "school": r["school"], "school_name": r["school_name"],
+                          "claims": r["claims"], "run_id": r["run_id"]})
+    return cells
 
 
 class ConsultError(RuntimeError):
