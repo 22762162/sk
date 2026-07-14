@@ -1,0 +1,22 @@
+artifact_id: PR-11-implementer
+timestamp: "2026-07-14T10:35:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(P2 会诊引擎会话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 0684650(main,PR #10 合并点)
+generated_files:
+  - consult-engine/consult.py(三辩手→质证→轮换裁判;S1/P3/D3/D3J;consultation-manifest 落盘)
+  - prompts/base/debaters/{debater,cross_exam}.md、prompts/base/arbiter/judge.md
+  - prompts/schools/{ziping,wangshuai,tiaohou}.md(流派模块,模型无关骨架)
+  - backend/app.py(/api/consult:排盘→会诊,分层 claim,红线遮蔽)
+  - web/index.html(观察模式:三辩手/质证/裁判裁决展示)
+reviewed_files: []
+notes: >-
+  真实三模型 D3J 冒烟通过(claude-sonnet-5 子平 / gpt-5.1 旺衰 / deepseek-chat 调候;
+  裁判轮换、允许 unresolved);consultation-manifest 经 jsonschema 校验合规且不含密钥。
+  提示词由 Fable 5 起草(INV-10;Change Eval 体系待评测基建,首版以 PR 评审代闸,已记 DESIGN)。
+  密钥仅经 gateway 从环境读取。交叉评审由本人全量审阅替代;本人签署由合并动作承载。
