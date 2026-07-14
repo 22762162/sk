@@ -1,0 +1,26 @@
+artifact_id: PR-22-implementer
+timestamp: "2026-07-15T03:00:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(完整版:大运+神煞+性别)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 88ef4ac(main,PR #21 合并点)
+generated_files:
+  - consult-engine/luck.py(dayun 大运推算 + shensha 神煞;标准规则,纯标准库)
+  - backend/app.py(paipan meta 暴露出生时刻/节气边界;ConsultReq 加 gender;算大运+神煞传入会诊 + 入 payload)
+  - consult-engine/consult.py(_plain_summary/run_consultation 接 dayun/shensha;材料含大运列表与神煞)
+  - prompts/base/presenter/plain_summary.md(输出加 dayun 解读;流年挂靠大运;用足神煞/大运素材)
+  - web/index.html(表单加性别;显示大运时间轴标「现在」+ 神煞标签 + 大运解读;超时上限 450s)
+  - docs/DESIGN.md §13
+reviewed_files: []
+notes: >-
+  用户要「完整版一次测完」。补上命理骨架:大运(需性别:阳男阴女定顺逆、从月柱起、起运=到节气的天数÷3 近似)、
+  神煞(桃花/驿马/华盖/天乙贵人/文昌/羊刃,以日支/年支/日干起的标准规则)。大运/流年/神煞均确定性算出(computed),
+  由模型解读(synthesis)。真实会诊验证(1990 男):神煞天乙贵人午;大运顺行 7 岁起、乙酉大运末(2017-2027)→2027 换丙戌,
+  模型正确识别当前大运并让流年挂靠大运;禁忌词 0、健康带就医、财运给倾向不给交易指令。耗时约 284s(<450s 上限)。
+  INV-10/12:改的是呈现层(presenter)提示词,未动辩手/裁判候选提示词与 metrics 指标代码;辩手骨架仍过对称性。
+  局限(诚实记录):大运/神煞现由 Python 后端算,尚未迁 Rust + 双实现对拍,未达 L1 严谨(待后续);
+  起运岁按 3 天=1 岁近似到岁,未精到月;神煞取标准规则集,流派细节有别。密钥仅经 gateway。本人签署由合并动作承载。
