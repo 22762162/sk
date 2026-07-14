@@ -1,0 +1,21 @@
+artifact_id: PR-13-implementer
+timestamp: "2026-07-14T12:10:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(P2 拉丁方研究模式会话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 65355c4(main,PR #12 合并点)
+generated_files:
+  - consult-engine/consult.py(LATIN_SQUARE 3×3 + latin_batch_debaters + run_latin_cells)
+  - evals/runner/run_research.py(模型×流派矩阵 + 边际均值 + 变异主导)
+  - governance/tools/check_prompt_symmetry.py(辩手骨架流派无关校验;CI 阻断)
+  - Makefile(research-smoke / prompt-symmetry);.github/workflows/ci.yml(治理闸加对称性)
+reviewed_files: []
+notes: >-
+  真实拉丁方 smoke 跑通(1 盘 9 单元);描述性分离出"观点数量为模型特性而非流派特性"。
+  对称性校验保证辩手骨架流派无关(拉丁方前提)。报告 gitignored。
+  ci.yml 改动经 Web 通道提交(令牌无 workflow 权限)。密钥仅经 gateway 读取。
+  交叉评审由本人全量审阅替代;本人签署由合并动作承载。
