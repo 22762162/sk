@@ -1,0 +1,5 @@
+# 评测合成盘(DESIGN §9.2:开发/测试一律用合成盘,禁真实个人数据)。
+# 这些出生时刻为人工构造、非任何真实个人;标注 synthetic=true。
+# case_id 命名:eval-smoke-NNN。birth 为当地(北京)时间。
+{"case_id": "eval-smoke-001", "birth": "1985-03-21T10:00", "zi_hour_mode": "split", "synthetic": true, "note": "春分附近·卯月"}
+{"case_id": "eval-smoke-002", "birth": "2001-12-07T22:30", "zi_hour_mode": "split", "synthetic": true, "note": "大雪附近·夜生"}
