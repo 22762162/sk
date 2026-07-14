@@ -26,6 +26,11 @@ development:
     resolved_model_id: claude-haiku-4-5-20251001
 
 runtime:                       # 观察模式默认绑定;研究评测一律用 §2.3 拉丁方轮换,不以固定绑定下结论
+  quickread:                   # 单模型速览(P2 简单管线,非辩手)
+    provider: anthropic
+    configured_alias: claude-sonnet
+    resolved_model_id: claude-sonnet-5   # 可用环境变量 SANJIAN_QUICKREAD_MODEL 覆盖
+    reasoning_effort: default
   debater_a:
     provider: anthropic
     configured_alias: claude-sonnet

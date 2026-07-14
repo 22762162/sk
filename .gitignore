@@ -22,3 +22,4 @@ consult-engine/eval/out/
 # 本地环境
 .env
 .env.*
+consult-engine/manifests/

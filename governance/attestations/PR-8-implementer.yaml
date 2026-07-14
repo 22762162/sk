@@ -1,0 +1,22 @@
+artifact_id: PR-8-implementer
+timestamp: "2026-07-14T05:30:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(P2 网关会话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 7079254(main,PR #7 合并点)
+generated_files:
+  - consult-engine/gateway.py(三供应商、fail_closed、日熔断、run-manifest 落盘)
+  - prompts/base/quickread.md(v1,Fable 5 起草;Change Eval 体系未建,首版以 PR 评审代闸)
+  - backend/app.py(/api/quickread:computed_fact 引擎签名注入 + claim 分层校验 + 红线过滤)
+  - web/index.html(AI 速览按钮与分层标签展示)
+  - governance/model-routing.yaml(quickread 槽位,resolved_model_id 待冒烟确认)
+  - Makefile(v1-serve 读 .env;keys-check 只报有无)
+reviewed_files: []
+notes: >-
+  密钥流:仅由本机进程从 .env(gitignored,0600)读取;AI 会话不读取密钥内容(INV-07)。
+  本 PR 合并前置条件:密钥就位后的真实调用冒烟通过(fail_closed 路径已本地验证)。
+  交叉评审由本人全量审阅替代;本人签署由合并动作承载。
