@@ -31,6 +31,7 @@ QUICKREAD_PROMPT_FILE = ROOT / "prompts" / "base" / "quickread.md"
 sys.path.insert(0, str(ROOT / "consult-engine"))
 import gateway  # noqa: E402  (L3 网关;密钥仅在其进程内使用)
 import consult  # noqa: E402  (L4 会诊编排)
+import predictions  # noqa: E402  (预测记录与命中率验证)
 TZ = ZoneInfo("Asia/Shanghai")
 JIE_NAMES = ["立春", "惊蛰", "清明", "立夏", "芒种", "小暑",
              "立秋", "白露", "寒露", "立冬", "大雪", "小寒"]
@@ -308,6 +309,54 @@ def consult_endpoint(req: ConsultReq) -> JSONResponse:
         "disclaimer": "本会诊为多模型互证的研究观察:计算部分为引擎确定性结果;命理解读为模型综合、"
                       "概率化措辞,准不准以事后命中率为准,不因多模型一致即为真。分歧透明保留。",
     })
+
+
+class PredictSaveReq(BaseModel):
+    chart_line: str
+    chart_hash: str = ""
+    domain: str
+    statement: str
+    window_start: str
+    window_end: str
+
+
+class PredictReviewReq(BaseModel):
+    id: str
+    status: str          # hit | miss | partial
+    note: str = ""
+
+
+@app.post("/api/predict/save")
+def predict_save(req: PredictSaveReq) -> JSONResponse:
+    """登记一条预测(预测→验证闭环第 1 步:记录)。文本过红线兜底。"""
+    stmt, _ = _redline_filter(req.statement)
+    try:
+        rec = predictions.save(req.chart_line, req.chart_hash, req.domain, stmt,
+                               req.window_start, req.window_end)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "record": rec, "stats": predictions.stats()})
+
+
+@app.get("/api/predict/list")
+def predict_list(status: str = "") -> JSONResponse:
+    """列出预测 + 到期待回访 + 命中率(第 2/3 步:回访、命中率)。"""
+    return JSONResponse({"ok": True,
+                         "records": predictions.listing(status or None),
+                         "due": predictions.due(),
+                         "stats": predictions.stats()})
+
+
+@app.post("/api/predict/review")
+def predict_review(req: PredictReviewReq) -> JSONResponse:
+    """回访核对:标命中/未中/部分。"""
+    try:
+        rec = predictions.review(req.id, req.status, _redline_filter(req.note)[0])
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    if not rec:
+        return JSONResponse({"ok": False, "error": "未找到该预测"}, status_code=404)
+    return JSONResponse({"ok": True, "record": rec, "stats": predictions.stats()})
 
 
 @app.get("/")

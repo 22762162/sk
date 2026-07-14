@@ -68,6 +68,13 @@
     </div>
     <div id="qrout" style="display:none; margin-top:14px;"></div>
     <div id="csout" style="display:none; margin-top:18px;"></div>
+    <div style="margin-top:26px; border-top:1px solid var(--line); padding-top:20px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <button type="button" id="pv" style="background:#2c6a66;">我的预测 · 命中率</button>
+        <span style="font-size:12px;color:#8a7f6e;">记录预测 → 到期回访 → 看命中率。数据越多越准。</span>
+      </div>
+      <div id="pvout" style="display:none; margin-top:14px;"></div>
+    </div>
   </section>
 
   <footer>
@@ -169,6 +176,7 @@ document.getElementById('cs').addEventListener('click', async () => {
     const j = await r.json();
     if (!j.ok) { box.innerHTML = '<span style="color:#a33;">会诊失败:' + (j.error || '未知') + '</span>'; return; }
     const cs = j.consultation;
+    window.LASTC = {line: (j.chart && j.chart.line) || '', hash: cs.consultation_id || ''};
     let html = `<div style="font-size:13px;color:#7a6f5f;margin-bottom:12px;">会诊 ${cs.consultation_id} · 实验臂 ${cs.arm} · 三家异构模型互证</div>`;
 
     // —— 白话解读(主呈现;说人话)——
@@ -185,7 +193,8 @@ document.getElementById('cs').addEventListener('click', async () => {
           <div style="font-size:13px;"><b>${dm.domain}</b>
             <span style="background:${te.c};color:#fff;font-size:10px;padding:1px 8px;border-radius:9px;margin-left:6px;">${te.t}</span>
             ${dm.confidence?`<span style="color:#8a7f6e;font-size:11px;margin-left:5px;">把握 ${dm.confidence==='medium'?'中等':'较低'}</span>`:''}</div>
-          <div style="font-size:14px;line-height:1.8;margin-top:5px;">${dm.reading||''}</div></div>`;
+          <div style="font-size:14px;line-height:1.8;margin-top:5px;">${dm.reading||''}</div>
+          <button class="recbtn" data-domain="${dm.domain}" data-reading="${encodeURIComponent(dm.reading||'')}" style="margin-top:8px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:4px 10px;cursor:pointer;">＋ 记录为预测</button></div>`;
       });
       html += '</div>';
       if (ps.consensus) html += `<div style="font-size:13px;color:#3f7d55;margin-top:12px;line-height:1.8;"><b>都同意:</b>${ps.consensus}</div>`;
@@ -239,10 +248,90 @@ document.getElementById('cs').addEventListener('click', async () => {
     html += '</div></details>';
     html += `<div style="margin-top:12px;font-size:11px;color:#8a7f6e;line-height:1.8;">${j.disclaimer}</div>`;
     box.innerHTML = html;
+    box.querySelectorAll('.recbtn').forEach(b => b.onclick = () => recordPred(b));
   } catch (_) {
     box.innerHTML = '<span style="color:#a33;">请求失败(会诊耗时较长,请确认服务运行)</span>';
   } finally { btn.disabled = false; }
 });
+
+// —— 预测 → 回访 → 命中率 ——
+function ym(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function recordPred(btn){
+  if (btn._open){ btn._open.remove(); btn._open=null; return; }
+  const box=document.createElement('span'); box.style.marginLeft='8px';
+  box.innerHTML='时间窗:' + [['3个月',3],['半年',6],['1年',12]].map(([t,m]) =>
+    `<button data-m="${m}" style="font-size:11px;margin-left:5px;border:1px solid #2c6a66;color:#2c6a66;background:#fff;border-radius:6px;padding:2px 9px;cursor:pointer;">${t}</button>`).join('');
+  box.querySelectorAll('button').forEach(b => b.onclick=()=>savePred(btn, parseInt(b.dataset.m), box));
+  btn.after(box); btn._open=box;
+}
+async function savePred(btn, months, box){
+  const start=new Date(), end=new Date(); end.setMonth(end.getMonth()+months);
+  const body={chart_line:(window.LASTC||{}).line||'', chart_hash:(window.LASTC||{}).hash||'',
+    domain:btn.dataset.domain, statement:decodeURIComponent(btn.dataset.reading),
+    window_start:ym(start), window_end:ym(end)};
+  box.innerHTML='保存中…';
+  try{
+    const j=await (await fetch('/api/predict/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    box.innerHTML = j.ok ? `<span style="color:#2c6a66;font-size:11px;">✓ 已记录(到 ${body.window_end} 回访)</span>`
+                         : `<span style="color:#a33;font-size:11px;">保存失败</span>`;
+  }catch(_){ box.innerHTML='<span style="color:#a33;font-size:11px;">请求失败</span>'; }
+  btn._open=null;
+}
+function pct(x){ return x==null ? '—' : (Math.round(x*1000)/10) + '%'; }
+document.getElementById('pv').addEventListener('click', loadPreds);
+async function loadPreds(){
+  const box=document.getElementById('pvout'); box.style.display='block'; box.innerHTML='加载中…';
+  try{
+    const j=await (await fetch('/api/predict/list')).json();
+    if(!j.ok){ box.innerHTML='加载失败'; return; }
+    renderPreds(box, j);
+  }catch(_){ box.innerHTML='请求失败'; }
+}
+function predRow(r, due){
+  const St={hit:['命中','#2c6a66'],miss:['未中','#a33'],partial:['部分','#b5762a'],pending:['待核对','#8a7f6e']};
+  const st=St[r.status]||St.pending;
+  let h=`<div style="border:1px solid var(--line);border-radius:8px;background:${due?'#fbf3e6':'#fff'};padding:10px 14px;margin-top:8px;">
+    <div style="font-size:11px;color:#8a7f6e;">${r.domain} · 窗口 ${r.window_start}~${r.window_end} · <span style="color:${st[1]};">${st[0]}</span></div>
+    <div style="font-size:14px;line-height:1.7;margin-top:4px;">${r.statement}</div>`;
+  if(r.status==='pending'){
+    h+='<div style="margin-top:8px;">' + [['hit','命中'],['partial','部分'],['miss','未中']].map(([s,t]) =>
+      `<button class="rvbtn" data-id="${r.id}" data-st="${s}" style="font-size:11px;margin-right:6px;border:1px solid #ccc;background:#fff;border-radius:6px;padding:3px 11px;cursor:pointer;">${t}</button>`).join('') + '</div>';
+  } else if(r.note){ h+=`<div style="font-size:11px;color:#8a7f6e;margin-top:4px;">回访:${r.note}</div>`; }
+  return h+'</div>';
+}
+function renderPreds(box, j){
+  const s=j.stats; let html='';
+  html+=`<div style="border:1px solid var(--line);border-radius:10px;background:#fff;padding:14px 18px;">
+    <div style="font-size:12px;color:#8a7f6e;letter-spacing:2px;">命中率</div>`;
+  if(s.reviewed===0){
+    html+='<div style="font-size:14px;margin-top:6px;color:#7a6f5f;line-height:1.8;">还没有可核对的预测。先在会诊结果里「＋记录为预测」,到时间窗之后回来「回访」,命中率就出来了。</div>';
+  }else{
+    html+=`<div style="font-size:30px;font-weight:600;color:#2c6a66;margin:4px 0;">${pct(s.hit_rate)}</div>
+      <div style="font-size:12px;color:#8a7f6e;">已核对 ${s.reviewed} 条(命中 ${s.hit} · 部分 ${s.partial} · 未中 ${s.miss});部分命中按半分计。</div>`;
+    const bd=Object.entries(s.by_domain||{});
+    if(bd.length) html+='<div style="margin-top:10px;font-size:12px;color:#5d5346;">分领域:' + bd.map(([k,v])=>`${k} ${pct(v.hit_rate)}(${v.n})`).join(' · ') + '</div>';
+  }
+  html+=`<div style="font-size:11px;color:#a99;margin-top:8px;">${s.honesty}</div></div>`;
+  if(j.due && j.due.length){
+    html+=`<div style="margin-top:16px;font-size:13px;color:#b5762a;"><b>到期待回访(${j.due.length})</b> —— 核对下当时说中了没:</div>`;
+    j.due.forEach(r => html+=predRow(r, true));
+  }
+  const dueIds=new Set((j.due||[]).map(d=>d.id));
+  const others=j.records.filter(r => !dueIds.has(r.id));
+  if(others.length){
+    html+=`<details style="margin-top:14px;"><summary style="cursor:pointer;font-size:13px;color:#7a6f5f;">全部预测(${j.records.length})</summary>`;
+    others.forEach(r => html+=predRow(r, false));
+    html+='</details>';
+  }
+  box.innerHTML=html;
+  box.querySelectorAll('.rvbtn').forEach(b => b.onclick=()=>reviewPred(b.dataset.id, b.dataset.st));
+}
+async function reviewPred(id, status){
+  try{
+    const j=await (await fetch('/api/predict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status,note:''})})).json();
+    if(j.ok) loadPreds();
+  }catch(_){}
+}
 </script>
 </body>
 </html>
