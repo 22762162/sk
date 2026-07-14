@@ -1,29 +1,33 @@
-# rulebase（L2 流派规则库）
+# rulebase(L2 流派规则库)
 
-## 权责边界（CLAUDE.md / AGENTS.md 规则 3）
+## 权责边界(INV-03,DESIGN V3.0 §6)
 
-- **规则条目（`entries/`）：三个 AI 一律只读。** 条目由命理顾问经评审流程录入；强度权重调整走贝叶斯建议 + 人工评审通道。
-- AI 可以做的：schema 与校验器、录入辅助工具（顾问口述 → 结构化草稿，草稿必须 `draft_by_ai: true` 且经顾问逐条确认）、古籍 OCR 与分段入库管线、向量入库管线。
-- 版权纪律：公版古籍（《子平真诠》等）可全文入库；当代著作与盲派整理材料须先取得授权——管线中以 `provenance.source_type = licensed` + `license_ref` 做来源白名单校验。
+- **`approved/` 对所有 AI 与自动化流程只读**:合入仅经本人(或顾问)签署 + PR(分支保护把关);强度权重调整走贝叶斯建议 + 人工评审通道。
+- **`staging/` 为 AI 草稿区**:录入辅助产出的条目必须 `draft_by_ai: true`、`review.status: draft`。
+- **`provenance/` 来源链不可省略**:每条 approved 规则一份记录(校验器强制)。
+- 版权:公版古籍可全文引用;当代著作/校注/译文须 `source_type=licensed` + `license_ref` 白名单。
 
-## 结构
+## 结构与工具
 
 ```
 rulebase/
-├── entries/        # 规则条目（JSON，v0；仅顾问经评审流程写入）
-├── schema/         # 条目 JSON Schema（draft v0，条件谓词语言表达力评估中）
-└── tools/          # 校验器与录入工具链（AI 可维护）
+├── approved/      # 已签署条目(AI 只读;每条配 provenance 记录)
+├── staging/       # AI/转写草稿(draft_by_ai 强制)
+├── rejected/      # 评审否决留档
+├── provenance/    # 逐条来源链(source_edition/locator/license/签署)
+├── schemas/       # 条目 JSON Schema(draft v0;字段变更走 RFC)
+└── tools/
+    ├── validate.py    # make rulebase-check(CI 阻断):结构 + 权责 + 来源链
+    ├── new_draft.py   # 生成 staging 草稿(AI/顾问口述转写用)
+    └── promote.py     # 晋升签署(仅本人/顾问运行)→ approved + provenance
 ```
 
-## 校验
+## 流程
 
-```bash
-make rulebase-check   # 校验 entries/ 全部条目（CI 阻断项）
-```
-
-校验器强制：schema 结构 + `strength ∈ [0,1]` + `licensed` 必有 `license_ref` + `review.status=confirmed` 必有 `reviewed_by`（含 AI 草稿的顾问确认要求）。
+顾问口述/古籍抽取 → `new_draft.py` 生成草稿 → 人工逐条确认 → `promote.py --reviewed-by …`
+签署晋升 → 补全 provenance 的版本与篇章定位 → PR 合入(required checks + 本人合并)。
 
 ## 待办
 
-- [ ] 条件谓词语言 v1 的表达力评估（Opus 评审，走 RFC）
-- [ ] 顾问录入工具（P1 后期交付）
+- [ ] 条件谓词语言 v1 表达力评估(走 RFC;当前 condition 为自由文本布尔表达)
+- [ ] 古籍 OCR 与分段入库管线(公版语料;RAG 硬边界见 DESIGN §6)
