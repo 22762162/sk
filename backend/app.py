@@ -267,6 +267,9 @@ def quickread(req: PaipanReq) -> JSONResponse:
 class ConsultReq(PaipanReq):
     arm: str = "D3J"  # S1 | P3 | D3 | D3J
     gender: str = ""  # male | female(算大运用;空则跳过大运,仅流年)
+    industry: str = ""    # 行业(推演结合实际处境,拒绝大路货)
+    occupation: str = ""  # 职业/岗位
+    situation: str = ""   # 补充:目前状况/最想问的事(可选)
 
 
 def _run_consult_payload(req: ConsultReq) -> dict:
@@ -290,9 +293,21 @@ def _run_consult_payload(req: ConsultReq) -> dict:
         dfp = (meta["birth_unix"] - meta["jie_unix"]) / 86400
         dayun = luck.dayun(o["month"]["ganzhi"], o["year"]["stem"], req.gender,
                            dtn, dfp, meta.get("birth_year", datetime.now().year))
+    # 本人背景(职业/行业/处境):贯穿辩手与白话,推演落到实际处境(拒绝大路货)
+    parts = []
+    if req.industry.strip():
+        parts.append(f"行业:{req.industry.strip()}")
+    if req.occupation.strip():
+        parts.append(f"职业:{req.occupation.strip()}")
+    if req.gender in ("male", "female"):
+        parts.append("性别:" + ("男" if req.gender == "male" else "女"))
+    if req.situation.strip():
+        parts.append(f"补充:{req.situation.strip()[:300]}")
+    profile = "；".join(parts)
     try:
         result = consult.run_consultation(o, chart_line, arm=req.arm, seed=seed,
-                                          liunian=liunian, dayun=dayun, shensha=shensha)
+                                          liunian=liunian, dayun=dayun, shensha=shensha,
+                                          profile=profile)
     except consult.ConsultError as exc:
         return {"ok": False, "error": f"会诊失败(fail_closed):{exc}"}
 
@@ -356,6 +371,38 @@ def consult_start(req: ConsultReq) -> JSONResponse:
             status = "done" if payload.get("ok") else "error"
         except Exception as exc:  # noqa: BLE001  兜底:任何异常都落到 job,不静默丢失
             payload, status = {"ok": False, "error": f"会诊异常:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
+class ChatReq(BaseModel):
+    question: str
+    history: list = []       # [{role: user|assistant, text}]
+    context: dict = {}       # {chart_line, profile, dayun_text, shensha_text, plain_summary}
+
+
+@app.post("/api/chat/start")
+def chat_start(req: ChatReq) -> JSONResponse:
+    """会诊后追问/质疑(异步,1 次模型调用);结果同样用 /api/consult/result 轮询。"""
+    q = req.question.strip()[:500]
+    if not q:
+        return JSONResponse({"ok": False, "error": "问题不能为空"}, status_code=400)
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            obj = consult.chat_followup(req.context or {}, req.history or [], q)
+            for k in ("answer", "revised", "suggestion"):
+                obj[k] = _redline_filter(str(obj.get(k, "")))[0]
+            payload, status = {"ok": True, "chat": {k: obj.get(k, "") for k in
+                                                    ("answer", "revised", "suggestion")}}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"追问失败:{exc}"}, "error"
         with _JOBS_LOCK:
             _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
 

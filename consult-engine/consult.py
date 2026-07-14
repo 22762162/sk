@@ -134,14 +134,15 @@ def _call_json(provider: str, model: str, system: str, user: str, *, want_array:
     raise ConsultError(f"{provider}/{model} 未返回合法 JSON({schema})") from last_exc
 
 
-def _call_debater(d: dict, chart_line: str) -> dict:
-    """第一轮:一位辩手独立出观点(主环节,fail_closed)。"""
+def _call_debater(d: dict, chart_line: str, profile: str = "") -> dict:
+    """第一轮:一位辩手独立出观点(主环节,fail_closed)。profile 为本人职业/处境背景,用于具体化。"""
     system = _debater_system(PROMPTS / "base" / "debaters" / "debater.md", d["school"])
+    ctx = f"\n本人背景(结合它把观察落到此人的实际处境,不泛泛而谈):{profile}" if profile else ""
     claims, run_id, usage = _call_json(
         d["provider"], d["model"], system,
-        f"四柱:{chart_line}。请按 system 要求输出 JSON 数组。",
-        want_array=True, max_tokens=3500, schema="debater-v1")
-    return {**d, "claims": claims[:4], "run_id": run_id, "usage": usage}
+        f"四柱:{chart_line}。{ctx}\n请按 system 要求输出 JSON 数组。",
+        want_array=True, max_tokens=8000, schema="debater-v1")
+    return {**d, "claims": claims[:5], "run_id": run_id, "usage": usage}
 
 
 def _call_cross_exam(d: dict, others_blob: str) -> dict:
@@ -182,14 +183,17 @@ def _judge(provider: str, model: str, material: str) -> dict:
 
 def _plain_summary(chart_line: str, assignments: list[dict], judge: dict | None,
                    liunian: list[dict] | None = None, dayun: dict | None = None,
-                   shensha: list[dict] | None = None) -> dict | None:
+                   shensha: list[dict] | None = None, profile: str = "") -> dict | None:
     """把会诊观点翻成白话、按生活领域归纳(L5 呈现层)。
 
     可直说吉凶倾向但用概率化措辞;三条底线由提示词把关(不说必然/注定、不碰投资买卖、不断生死重病),
     后端再对文本过一遍红线兜底。失败返回 None,不拖垮整场会诊(白话是加值层,专业观点始终可返回)。
     """
     system = _prompt_system(PROMPTS / "base" / "presenter" / "plain_summary.md")
-    lines = [f"四柱:{chart_line}", "", "各模型观察:"]
+    lines = [f"四柱:{chart_line}"]
+    if profile:
+        lines.append(f"本人背景(推演必须结合它,把每个领域落到此人的实际职业与处境):{profile}")
+    lines += ["", "各模型观察:"]
     for a in assignments:
         obs = "；".join(c.get("claim", "") for c in a["claims"])
         lines.append(f"- 从「{a['school_name']}」视角:{obs}")
@@ -219,9 +223,42 @@ def _plain_summary(chart_line: str, assignments: list[dict], judge: dict | None,
     return obj
 
 
+def chat_followup(context: dict, history: list[dict], question: str) -> dict:
+    """会诊后的追问/质疑(单模型,1 次调用):基于已有会诊结果重新推算或解释。
+
+    context: {chart_line, profile, dayun_text, shensha_text, plain_summary(dict)}
+    history: [{role: user|assistant, text}](最近几轮,客户端维护)
+    用户可提反对意见或补充新信息——按提示词要求把它当新数据重新推,而不是敷衍认同。
+    """
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "chat.md")
+    lines = [f"四柱:{context.get('chart_line', '')}"]
+    if context.get("profile"):
+        lines.append(f"本人背景:{context['profile']}")
+    if context.get("shensha_text"):
+        lines.append(f"神煞:{context['shensha_text']}")
+    if context.get("dayun_text"):
+        lines.append(f"大运:{context['dayun_text']}")
+    ps = context.get("plain_summary") or {}
+    if ps:
+        lines.append("此前会诊结论(白话):" + json.dumps(
+            {k: ps.get(k) for k in ("overview", "domains", "dayun", "yearly") if ps.get(k)},
+            ensure_ascii=False))
+    lines.append("")
+    for h in history[-8:]:  # 只带最近 8 轮,防上下文膨胀
+        who = "用户" if h.get("role") == "user" else "推演师"
+        lines.append(f"{who}:{h.get('text', '')}")
+    lines.append(f"用户:{question}")
+    lines.append("\n请按 system 要求,只输出一个 JSON 对象。")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                "\n".join(lines), want_array=False, max_tokens=2500,
+                                schema="chat-followup-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
 def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int = 0,
                      liunian: list[dict] | None = None, dayun: dict | None = None,
-                     shensha: list[dict] | None = None) -> dict:
+                     shensha: list[dict] | None = None, profile: str = "") -> dict:
     """执行一场会诊。chart 为 four_pillars 输出;返回观察模式所需的完整结构。"""
     if arm not in ("S1", "P3", "D3", "D3J"):
         raise ConsultError(f"未知实验臂:{arm}")
@@ -231,13 +268,13 @@ def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int =
 
     # S1:单模型基线(取 debater_a 一路,不辩论)
     if arm == "S1":
-        d0 = _call_debater(DEBATERS[0], chart_line)
+        d0 = _call_debater(DEBATERS[0], chart_line, profile)
         assignments = [d0]
         cross, judge = [], None
     else:
-        # 第一轮:三辩手并发独立出观点
+        # 第一轮:三辩手并发独立出观点(带本人职业/处境背景,推演落地不泛化)
         with ThreadPoolExecutor(max_workers=3) as ex:
-            assignments = list(ex.map(lambda d: _call_debater(d, chart_line), DEBATERS))
+            assignments = list(ex.map(lambda d: _call_debater(d, chart_line, profile), DEBATERS))
         claims_by_role = {a["role"]: a["claims"] for a in assignments}
 
         cross = []
@@ -266,7 +303,7 @@ def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int =
             judge = _judge(jd["provider"], jd["model"], "\n".join(material_parts))
 
     # 白话综述(L5 呈现层):把专业观点翻成人话 + 大运/流年逐年推演,失败不拖垮会诊
-    plain = _plain_summary(chart_line, assignments, judge, liunian, dayun, shensha)
+    plain = _plain_summary(chart_line, assignments, judge, liunian, dayun, shensha, profile)
 
     # 组装 manifest(consultation-manifest.schema.json 合规)
     now = datetime.now(timezone.utc)
