@@ -1,0 +1,27 @@
+artifact_id: PR-23-implementer
+timestamp: "2026-07-15T11:30:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(个人背景 + 追问对话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 7fad012(main,PR #22 合并点)
+generated_files:
+  - backend/app.py(ConsultReq 加 industry/occupation/situation;组 profile 贯穿会诊;/api/chat/start 异步追问)
+  - consult-engine/consult.py(_call_debater/_plain_summary/run_consultation 接 profile;chat_followup;辩手 max_tokens 8000)
+  - prompts/base/presenter/chat.md(追问推演师:反驳当新数据重推、revised 明确修正、suggestion 可验证;边界同 presenter)
+  - prompts/base/debaters/debater.md(v2.1:加单条长度硬限 claim≤120 字/basis≤60 字,防思考模型截断)
+  - web/index.html(表单行业/职业/状况;追问聊天界面,历史客户端持有最近 8 轮;答案含修正/可验证并可记录为预测)
+  - docs/DESIGN.md §13
+reviewed_files: []
+notes: >-
+  用户三点反馈:①仍不够准/清晰 ②要职业/行业输入拒绝大路货 ③要对话追问。落地:profile(行业/职业/性别/状况)
+  贯穿辩手与白话;chat_followup 单模型 1 次调用(deepseek-chat,实测 9s),把用户反驳当新数据重推,能明确修正旧结论
+  并给带时间窗的可验证预测(可一键进命中率闭环)。修 bug:带背景后辩手内容变长,sonnet-5 思考+正文超预算截断
+  (out_tokens 顶满而正文 1359 字即断)→ max_tokens 8000 + 提示词硬限单条长度;修后全流程 187s 完成。
+  边界不变(概率化/不出交易指令/健康附就医不确诊不生死/无关问题拉回主题);chat 输出经后端红线 scrub。
+  隐私提示:profile 与追问内容会随请求发给云端模型(数据分层 §9.2 内,不含姓名/联系方式)。
+  INV-10/12:改辩手提示词仅加长度硬限(结构/流派无关性不变,过对称性校验);未动评测器与 metrics。
+  密钥仅经 gateway。交叉评审由本人全量审阅替代;本人签署由合并动作承载。
