@@ -1,0 +1,18 @@
+artifact_id: PR-17-implementer
+timestamp: "2026-07-14T23:40:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(P4 白话层补健康域)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: f33275f(main,PR #16 合并点)
+generated_files:
+  - prompts/base/presenter/plain_summary.md(输出 schema 补「健康」域,补齐疾病倾向落点)
+reviewed_files: []
+notes: >-
+  PR #16 开启了疾病倾向的规则(rule 4)但输出 schema 漏了「健康」域,疾病内容无处落;本 PR 补上。
+  真实会诊验证:六域齐全(性格/事业/财运/感情/健康/近期时机);健康域给倾向 + 结尾「如有不适请及时就医」,
+  不确诊、不断生死;财运给倾向不给交易指令;禁忌词零命中。仅改 L5 呈现层提示词,未动其它。
+  交叉评审由本人全量审阅替代;本人签署由合并动作承载。

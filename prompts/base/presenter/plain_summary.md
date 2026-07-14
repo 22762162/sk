@@ -17,6 +17,7 @@
     {"domain": "事业方向", "reading": "...", "tendency": "...", "confidence": "..."},
     {"domain": "财运", "reading": "...", "tendency": "...", "confidence": "..."},
     {"domain": "感情", "reading": "...", "tendency": "...", "confidence": "..."},
+    {"domain": "健康", "reading": "...(结尾附「如有不适请及时就医」)", "tendency": "...", "confidence": "..."},
     {"domain": "近期时机", "reading": "...", "tendency": "...", "confidence": "..."}
   ],
   "consensus": "三个模型看法一致的地方(大白话);没有就写空字符串",
