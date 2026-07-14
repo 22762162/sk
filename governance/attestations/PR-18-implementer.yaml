@@ -1,0 +1,23 @@
+artifact_id: PR-18-implementer
+timestamp: "2026-07-15T00:20:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(P4 预测验证闭环)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: f2bd422(main,PR #17 合并点)
+generated_files:
+  - consult-engine/predictions.py(预测记录/回访/命中率;JSONL 存储,纯标准库)
+  - backend/app.py(/api/predict/save·list·review;文本过红线兜底)
+  - web/index.html(白话每域「记录为预测」+ 时间窗 + 到期回访 + 命中率面板)
+  - .gitignore(consult-engine/predictions/ 私有存储)+ docs/DESIGN.md §13
+reviewed_files: []
+notes: >-
+  落实「数据越多越准」(DESIGN §10 精神):预测→回访→命中率闭环。存储 gitignored、本机私有(含命盘信息)。
+  命中率含部分命中按 0.5 计、按领域分解;honesty 字段提示样本少仅供参考、非统计结论。
+  后端闭环冒烟通过:保存两条 → 时间窗已过者进「待回访」→ 标命中 → 命中率 1.0、已核对 1;存储确认被 gitignore。
+  web JS 经 node --check 语法通过;红线扫描通过。仅新增存储/接口/界面,未动提示词与 metrics 指标代码(守 INV-12)。
+  预测文本仍过 _redline_filter(必然/注定 等仍遮蔽)。密钥仅经 gateway,未进 AI 会话。
+  交叉评审由本人全量审阅替代;本人签署由合并动作承载。

@@ -23,6 +23,7 @@ consult-engine/eval/out/
 .env
 .env.*
 consult-engine/manifests/
+consult-engine/predictions/
 evals/reports/
 
 # 巴纳姆盲测产物:含私有答案 key 与主体作答,严禁提交(盲法完整性,INV-13)

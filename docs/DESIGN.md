@@ -500,6 +500,7 @@ human_blind_preference / unresolved_rate / cost_per_report / latency
 | 2026-07-14 | Codex 盲写参考实现完成（gpt-5.6-sol,独立会话,自带 102 测试） | 对拍能力域扩至 four_pillars;10092 例双实现一致;SPEC-QUESTIONS 零歧义 |
 | 2026-07-14 | 巴纳姆自盲实验预注册（PR #14,barnum-smoke） | 预注册冻结(docs/prereg + prereg.lock + INV-13 校验闸,篡改即阻断)+ 干扰盘匹配 packet + UI 实验模式页 + 揭盲精确二项评分;自动代理指标(巴纳姆率/具体性/可证伪)并入四臂 metrics;离线演示:巴纳姆报告 barnum 1.0/specific 0.0 vs 具体报告 0.25/0.75,词面代理可区分(仅描述、不替代人类盲判) |
 | 2026-07-14 | 白话综述层 + 吉凶落地（PR #16） | 会诊末加 L5 白话综述(presenter=claude-sonnet-5):按性格/事业/财运/感情/近期时机分域说人话,可直说吉凶倾向但用概率化措辞;红线放开「预测」、保留「必然/注定」与改命术类;三条底线(不说必然·不掺投资买卖·不断生死重病)由提示词 + 后端 scrub 双重把关;presenter 失败优雅降级到专业视图。真实会诊验证:辛亥日盘白话输出无术语、无禁忌词。配套「预测→回访→命中率」验证闭环见后续 PR |
+| 2026-07-14 | 预测→回访→命中率 验证闭环（PR #18） | consult-engine/predictions.py 存储(gitignored,本机私有)+ /api/predict/save·list·review;白话每域可「记录为预测」留时间窗,到期自动进「待回访」标命中/未中/部分,命中率含部分按 0.5、按领域分解;落实「数据越多越准」(§10 精神:让命理能被检验)。后端闭环冒烟通过(存→到期→回访→命中率 1.0);疾病域补齐(PR #17,六域 + 就医提醒) |
 | 2026-07-14 | P2 启动：L3 网关 + run-manifest + 单模型速览（PR #8） | fail_closed/日熔断 50/manifest 落盘;密钥仅本机进程;Smoke/Change Eval 体系待建（INV-12 缺口,评测基建随 P2 补） |
 
 ---
