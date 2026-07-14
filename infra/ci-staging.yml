@@ -92,8 +92,8 @@ jobs:
       - run: pip install pyyaml
       - run: python3 governance/tools/render_ai_docs.py --check
       - run: python3 governance/tools/check_contracts_lock.py
-      - run: python3 governance/tools/check_prompt_symmetry.py
       - run: python3 governance/tools/check_prereg_lock.py
+      - run: python3 governance/tools/check_prompt_symmetry.py
       - name: attestation 校验（仅 PR）
         if: github.event_name == 'pull_request'
         run: python3 governance/tools/check_attestation.py --base origin/${{ github.base_ref }}
