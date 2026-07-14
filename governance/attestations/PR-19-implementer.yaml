@@ -1,0 +1,22 @@
+artifact_id: PR-19-implementer
+timestamp: "2026-07-15T01:00:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(会诊异步化修隧道超时)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: fd475f9(main,PR #18 合并点)
+generated_files:
+  - backend/app.py(异步会诊:/api/consult/start + /api/consult/result;抽 _run_consult_payload 共用;同步 /api/consult 保留供本地/CLI)
+  - web/index.html(会诊改「启动 → 轮询」,带已用秒数进度、240s 上限、轮询抖动重试)
+reviewed_files: []
+notes: >-
+  动因:用户经 cloudflared 免费隧道测会诊报「请求失败」;隧道日志确认 /api/consult 被
+  「context canceled」(~100s 边缘超时),而会诊(七步 + 白话综述)实测 108s > 100s。
+  修法:会诊改异步——点击立刻返回 job_id,前端每 3s 轮询 /api/consult/result(每次请求短、不长挂),
+  规避任何代理/隧道对长请求的超时,也为将来正式部署铺路。后台线程 + 锁保护 job 字典,异常兜底落到 job。
+  验证:经隧道 start→poll→done 108s 成功,六域白话完整返回;JS 经 node --check、红线扫描通过。
+  仅改后端接口与前端;未动提示词与 metrics 指标代码。密钥仅经 gateway,未进 AI 会话。
+  交叉评审由本人全量审阅替代;本人签署由合并动作承载。

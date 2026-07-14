@@ -14,6 +14,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -262,12 +264,11 @@ class ConsultReq(PaipanReq):
     arm: str = "D3J"  # S1 | P3 | D3 | D3J
 
 
-@app.post("/api/consult")
-def consult_endpoint(req: ConsultReq) -> JSONResponse:
-    """三模型会诊(DESIGN §2):排盘 → 三辩手质证 → 轮换裁判盲评;观察模式数据。"""
+def _run_consult_payload(req: ConsultReq) -> dict:
+    """执行一场会诊,返回可直接 JSON 化的载荷(含 ok 字段)。同步端点与异步任务共用。"""
     chart_resp = paipan(req)
     if chart_resp.status_code != 200:
-        return chart_resp
+        return {"ok": False, "error": "排盘失败,会诊未开始"}
     chart = json.loads(bytes(chart_resp.body))
     o = chart["output"]
     chart_line = (f"年柱 {o['year']['ganzhi']},月柱 {o['month']['ganzhi']},"
@@ -277,10 +278,9 @@ def consult_endpoint(req: ConsultReq) -> JSONResponse:
     try:
         result = consult.run_consultation(o, chart_line, arm=req.arm, seed=seed)
     except consult.ConsultError as exc:
-        return JSONResponse({"ok": False, "error": f"会诊失败(fail_closed):{exc}"},
-                            status_code=502)
+        return {"ok": False, "error": f"会诊失败(fail_closed):{exc}"}
 
-    # 动态文案红线遮蔽(INV-04):对辩手/裁判所有可见文本过滤
+    # 动态文案红线遮蔽(INV-04):对辩手/裁判/白话所有可见文本过滤
     def scrub(text: str) -> str:
         return _redline_filter(str(text))[0]
 
@@ -301,14 +301,59 @@ def consult_endpoint(req: ConsultReq) -> JSONResponse:
             if isinstance(dm, dict):
                 dm["reading"] = scrub(dm.get("reading", ""))
 
-    return JSONResponse({
+    return {
         "ok": True,
         "chart": {"line": chart_line, "output": o,
                   "result_status": chart.get("result_status", "exact")},
         "consultation": result,
         "disclaimer": "本会诊为多模型互证的研究观察:计算部分为引擎确定性结果;命理解读为模型综合、"
                       "概率化措辞,准不准以事后命中率为准,不因多模型一致即为真。分歧透明保留。",
-    })
+    }
+
+
+@app.post("/api/consult")
+def consult_endpoint(req: ConsultReq) -> JSONResponse:
+    """三模型会诊(同步;供本地 / CLI。耗时 1–2 分钟,经代理易被超时,浏览器请用异步端点)。"""
+    payload = _run_consult_payload(req)
+    return JSONResponse(payload, status_code=200 if payload.get("ok") else 502)
+
+
+# 异步会诊:点击立刻返回 job_id,前端轮询结果。避开代理 / 隧道对长请求的超时(如 cloudflared ~100s)。
+_CONSULT_JOBS: dict[str, dict] = {}
+_JOBS_LOCK = threading.Lock()
+
+
+@app.post("/api/consult/start")
+def consult_start(req: ConsultReq) -> JSONResponse:
+    """启动一场会诊(后台线程),立刻返回 job_id;结果用 /api/consult/result 轮询。"""
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            payload = _run_consult_payload(req)
+            status = "done" if payload.get("ok") else "error"
+        except Exception as exc:  # noqa: BLE001  兜底:任何异常都落到 job,不静默丢失
+            payload, status = {"ok": False, "error": f"会诊异常:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
+@app.get("/api/consult/result")
+def consult_result(job_id: str) -> JSONResponse:
+    """查询会诊任务:running / done / error。此响应立即返回,不长挂,故不会被隧道超时。"""
+    with _JOBS_LOCK:
+        job = _CONSULT_JOBS.get(job_id)
+    if not job:
+        return JSONResponse({"ok": False, "status": "unknown", "error": "任务不存在或已过期"},
+                            status_code=404)
+    if job["status"] == "running":
+        return JSONResponse({"ok": True, "status": "running"})
+    return JSONResponse({"ok": True, "status": job["status"], "result": job["payload"]})
 
 
 class PredictSaveReq(BaseModel):
