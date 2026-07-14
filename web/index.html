@@ -171,6 +171,33 @@ document.getElementById('cs').addEventListener('click', async () => {
     const cs = j.consultation;
     let html = `<div style="font-size:13px;color:#7a6f5f;margin-bottom:12px;">会诊 ${cs.consultation_id} · 实验臂 ${cs.arm} · 三家异构模型互证</div>`;
 
+    // —— 白话解读(主呈现;说人话)——
+    const ps = cs.plain_summary;
+    const TEND = {favorable:{t:'偏顺',c:'#3f7d55',bg:'#eef6f0'}, caution:{t:'留意',c:'#b5762a',bg:'#fbf3e6'}, neutral:{t:'中性',c:'#6b6459',bg:'#f2efe9'}};
+    if (ps) {
+      html += `<div style="border:1px solid var(--line);border-radius:10px;background:#fff;padding:16px 18px;margin-bottom:14px;">
+        <div style="font-size:12px;color:#8a7f6e;letter-spacing:2px;margin-bottom:8px;">白话解读 · 说人话</div>`;
+      if (ps.overview) html += `<div style="font-size:15px;line-height:1.9;margin-bottom:12px;">${ps.overview}</div>`;
+      html += '<div style="display:grid;grid-template-columns:1fr;gap:8px;">';
+      (ps.domains||[]).forEach(dm => {
+        const te = TEND[dm.tendency] || TEND.neutral;
+        html += `<div style="border:1px solid var(--line);border-left:4px solid ${te.c};border-radius:8px;background:${te.bg};padding:10px 14px;">
+          <div style="font-size:13px;"><b>${dm.domain}</b>
+            <span style="background:${te.c};color:#fff;font-size:10px;padding:1px 8px;border-radius:9px;margin-left:6px;">${te.t}</span>
+            ${dm.confidence?`<span style="color:#8a7f6e;font-size:11px;margin-left:5px;">把握 ${dm.confidence==='medium'?'中等':'较低'}</span>`:''}</div>
+          <div style="font-size:14px;line-height:1.8;margin-top:5px;">${dm.reading||''}</div></div>`;
+      });
+      html += '</div>';
+      if (ps.consensus) html += `<div style="font-size:13px;color:#3f7d55;margin-top:12px;line-height:1.8;"><b>都同意:</b>${ps.consensus}</div>`;
+      if (ps.divergence) html += `<div style="font-size:13px;color:#b5762a;margin-top:6px;line-height:1.8;"><b>还没统一:</b>${ps.divergence}</div>`;
+      html += '</div>';
+    } else {
+      html += `<div style="font-size:13px;color:#a88;margin-bottom:12px;">(本次白话综述未生成,可展开下方专业推理查看)</div>`;
+    }
+
+    // 专业推理(可折叠)
+    html += `<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:13px;color:#7a6f5f;">查看专业推理过程(三辩手 · 质证 · 裁判)</summary><div style="margin-top:12px;">`;
+
     // 三辩手
     html += '<div style="display:grid;grid-template-columns:1fr;gap:12px;">';
     cs.debaters.forEach(d => {
@@ -209,6 +236,7 @@ document.getElementById('cs').addEventListener('click', async () => {
       if (cs.judge.summary) html += `<div style="margin-top:12px;font-size:13px;color:#5d5346;line-height:1.9;"><b>小结:</b>${cs.judge.summary}</div>`;
       html += '</div>';
     }
+    html += '</div></details>';
     html += `<div style="margin-top:12px;font-size:11px;color:#8a7f6e;line-height:1.8;">${j.disclaimer}</div>`;
     box.innerHTML = html;
   } catch (_) {

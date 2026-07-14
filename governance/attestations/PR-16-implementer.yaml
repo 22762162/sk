@@ -1,0 +1,26 @@
+artifact_id: PR-16-implementer
+timestamp: "2026-07-14T23:10:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(P4 白话层 + 吉凶落地会话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 7c4a2d2(main,PR #15 合并点)
+generated_files:
+  - prompts/base/presenter/plain_summary.md(L5 白话综述:分域说人话 + 吉凶落地 + 三条底线)
+  - consult-engine/consult.py(_plain_summary 步骤 + PRESENTER 可配 + 返回 plain_summary;max_tokens 3000)
+  - infra/compliance/redline-words.txt(放开「预测」,保留「必然/注定」与改命术类)
+  - backend/app.py(/api/consult 对 plain_summary 各字段过 scrub 兜底 + 免责声明更新)
+  - web/index.html(白话解读主呈现 + 领域卡吉凶倾向色 + 专业推理折叠)
+  - docs/DESIGN.md(§13 日志 + §9.3 私用吉凶落地裁定)
+reviewed_files: []
+notes: >-
+  本人裁定:私用研究下呈现层直说概率化吉凶 + 配验证闭环(后续 PR)。边界:不说必然/注定(仍在红线);
+  财运给吉凶倾向与时机、但不出具体买卖/投资交易建议(本人自行决策、以盈亏验证);健康给倾向提示并一律提醒就医、
+  不做疾病确诊/不断言必得重病/不碰生死;改命术类(改运/消灾/转运…)继续禁。(投资交易建议为实现方硬线,非项目设定。)
+  INV-12:本 PR 只加 L5 呈现层新提示词(presenter),未改辩手/裁判候选提示词、未动 evals/metrics 指标代码,不违反同 PR 禁改。
+  真实会诊端到端验证(辛亥日盘):白话输出分五域、无命理术语、无禁忌词命中;presenter 失败优雅降级到专业视图。
+  演示时日熔断临时 export=300(默认仍 50,可配运维参数)。密钥仅经 gateway 从环境读取,未进 AI 会话。
+  交叉评审由本人全量审阅替代;本人签署由合并动作承载。

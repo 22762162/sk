@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -29,6 +30,10 @@ import gateway  # noqa: E402
 PROMPTS = ROOT / "prompts"
 MANIFEST_DIR = ROOT / "consult-engine" / "manifests"
 PROTOCOL_VERSION = "consult-v1"
+
+# 白话综述员(L5 呈现层):把专业观点翻成人话;可配,默认取一路能写中文的模型
+PRESENTER = {"provider": os.environ.get("SANJIAN_PRESENTER_PROVIDER", "anthropic"),
+             "model": os.environ.get("SANJIAN_PRESENTER_MODEL", "claude-sonnet-5")}
 
 # 三个供应商(模型层);流派为可轮换维度(DESIGN §2.3 拉丁方)
 PROVIDERS_ORDER = [
@@ -174,6 +179,30 @@ def _judge(provider: str, model: str, material: str) -> dict:
     return {"provider": provider, "model": model, "verdict": obj, "run_id": run_id, "usage": usage}
 
 
+def _plain_summary(chart_line: str, assignments: list[dict], judge: dict | None) -> dict | None:
+    """把会诊观点翻成白话、按生活领域归纳(L5 呈现层)。
+
+    可直说吉凶倾向但用概率化措辞;三条底线由提示词把关(不说必然/注定、不碰投资买卖、不断生死重病),
+    后端再对文本过一遍红线兜底。失败返回 None,不拖垮整场会诊(白话是加值层,专业观点始终可返回)。
+    """
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "plain_summary.md")
+    lines = [f"四柱:{chart_line}", "", "各模型观察:"]
+    for a in assignments:
+        obs = "；".join(c.get("claim", "") for c in a["claims"])
+        lines.append(f"- 从「{a['school_name']}」视角:{obs}")
+    if judge and judge.get("verdict", {}).get("summary"):
+        lines.append("")
+        lines.append(f"综合结论:{judge['verdict']['summary']}")
+    user = "\n".join(lines) + "\n\n请按 system 要求输出白话综述 JSON 对象。"
+    try:
+        obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system, user,
+                                    want_array=False, max_tokens=3000, schema="plain-summary-v1")
+    except ConsultError:
+        return None
+    obj["_run_id"] = run_id
+    return obj
+
+
 def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int = 0) -> dict:
     """执行一场会诊。chart 为 four_pillars 输出;返回观察模式所需的完整结构。"""
     if arm not in ("S1", "P3", "D3", "D3J"):
@@ -217,6 +246,9 @@ def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int =
                     material_parts.append("质证:" + "；".join(
                         f"{c.get('target', '')}←{c.get('reason', '')}" for c in ch))
             judge = _judge(jd["provider"], jd["model"], "\n".join(material_parts))
+
+    # 白话综述(L5 呈现层):把专业观点翻成人话,失败不拖垮会诊
+    plain = _plain_summary(chart_line, assignments, judge)
 
     # 组装 manifest(consultation-manifest.schema.json 合规)
     now = datetime.now(timezone.utc)
@@ -263,5 +295,6 @@ def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int =
         "cross_exam": [{"role": c["role"], **c["cross"]} for c in cross],
         "judge": ({"by": f"{judge['provider']}(轮换盲评)", **judge["verdict"]}
                   if judge else None),
+        "plain_summary": ({k: v for k, v in plain.items() if k != "_run_id"} if plain else None),
         "manifest_id": cid,
     }
