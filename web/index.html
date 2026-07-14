@@ -212,6 +212,20 @@ document.getElementById('cs').addEventListener('click', async () => {
           <button class="recbtn" data-domain="${dm.domain}" data-reading="${encodeURIComponent(dm.reading||'')}" style="margin-top:8px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:4px 10px;cursor:pointer;">＋ 记录为预测</button></div>`;
       });
       html += '</div>';
+      if (ps.yearly && ps.yearly.length) {
+        html += '<div style="margin-top:16px;font-size:12px;color:#8a7f6e;letter-spacing:2px;">流年 · 逐年推演</div>';
+        html += '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-top:6px;">';
+        ps.yearly.forEach(y => {
+          const te = TEND[y.tendency] || TEND.neutral;
+          html += `<div style="border-left:3px solid ${te.c};background:${te.bg};border-radius:6px;padding:8px 12px;">
+            <div style="font-size:13px;"><b>${y.year}</b> <span style="color:#8a7f6e;">${y.ganzhi||''}</span>
+              <span style="background:${te.c};color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;margin-left:5px;">${te.t}</span>
+              ${(y.key_domains&&y.key_domains.length)?`<span style="color:#8a7f6e;font-size:11px;margin-left:4px;">${y.key_domains.join('·')}</span>`:''}</div>
+            <div style="font-size:13px;line-height:1.7;margin-top:3px;">${y.reading||''}</div>
+            <button class="recbtn" data-domain="流年${y.year}" data-reading="${encodeURIComponent(y.year + ' ' + (y.ganzhi||'') + ':' + (y.reading||''))}" style="margin-top:6px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:3px 9px;cursor:pointer;">＋ 记录为预测</button></div>`;
+        });
+        html += '</div>';
+      }
       if (ps.consensus) html += `<div style="font-size:13px;color:#3f7d55;margin-top:12px;line-height:1.8;"><b>都同意:</b>${ps.consensus}</div>`;
       if (ps.divergence) html += `<div style="font-size:13px;color:#b5762a;margin-top:6px;line-height:1.8;"><b>还没统一:</b>${ps.divergence}</div>`;
       html += '</div>';
