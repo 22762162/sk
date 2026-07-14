@@ -209,6 +209,8 @@ def quickread(req: PaipanReq) -> JSONResponse:
         result = gateway.call(route["provider"], route["model"],
                               system=_quickread_system_prompt(),
                               user=f"四柱:{chart_line}。请按 system 要求输出 JSON 数组。",
+                              temperature=-1,  # 让模型用默认(sonnet-5 不接受显式 temperature)
+                              max_tokens=3000,  # 中文长回答需足量,避免截断致 JSON 不闭合
                               output_schema_version="quickread-v1")
     except gateway.GatewayError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
@@ -216,6 +218,10 @@ def quickread(req: PaipanReq) -> JSONResponse:
     text = result["text"].strip()
     if text.startswith("```"):
         text = text.strip("`").lstrip("json").strip()
+    # 稳健提取:截取首个 [ 到末个 ] 之间的数组(容忍模型前后附言)
+    lo, hi = text.find("["), text.rfind("]")
+    if lo != -1 and hi > lo:
+        text = text[lo:hi + 1]
     try:
         items = json.loads(text)
         assert isinstance(items, list)

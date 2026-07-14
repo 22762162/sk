@@ -71,16 +71,20 @@ def call(provider: str, model_id: str, system: str, user: str,
 
     key = os.environ[PROVIDERS[provider]["env"]]
     url = PROVIDERS[provider]["url"]
+    # 部分新推理模型不接受显式 temperature(仅支持默认);temperature<0 视为"不指定"。
+    send_temp = temperature is not None and temperature >= 0
     if provider == "anthropic":
         headers = {"x-api-key": key, "anthropic-version": "2023-06-01",
                    "content-type": "application/json"}
-        payload = {"model": model_id, "max_tokens": max_tokens, "temperature": temperature,
+        payload = {"model": model_id, "max_tokens": max_tokens,
                    "system": system, "messages": [{"role": "user", "content": user}]}
     else:  # openai 兼容协议(openai / deepseek)
         headers = {"Authorization": f"Bearer {key}", "content-type": "application/json"}
-        payload = {"model": model_id, "max_tokens": max_tokens, "temperature": temperature,
+        payload = {"model": model_id, "max_tokens": max_tokens,
                    "messages": [{"role": "system", "content": system},
                                 {"role": "user", "content": user}]}
+    if send_temp:
+        payload["temperature"] = temperature
 
     try:
         resp = httpx.post(url, headers=headers, json=payload, timeout=90)
