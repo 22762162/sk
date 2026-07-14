@@ -31,9 +31,10 @@ PROMPTS = ROOT / "prompts"
 MANIFEST_DIR = ROOT / "consult-engine" / "manifests"
 PROTOCOL_VERSION = "consult-v1"
 
-# 白话综述员(L5 呈现层):把专业观点翻成人话;可配,默认取一路能写中文的模型
-PRESENTER = {"provider": os.environ.get("SANJIAN_PRESENTER_PROVIDER", "anthropic"),
-             "model": os.environ.get("SANJIAN_PRESENTER_MODEL", "claude-sonnet-5")}
+# 白话综述员(L5 呈现层):把专业观点翻成人话。这步是归纳/翻译,非思考型快模型足够且更稳、更快
+#(思考型模型在这步慢且方差大,会拖长整场会诊)。可用环境变量改回其它模型。
+PRESENTER = {"provider": os.environ.get("SANJIAN_PRESENTER_PROVIDER", "deepseek"),
+             "model": os.environ.get("SANJIAN_PRESENTER_MODEL", "deepseek-chat")}
 
 # 三个供应商(模型层);流派为可轮换维度(DESIGN §2.3 拉丁方)
 PROVIDERS_ORDER = [
