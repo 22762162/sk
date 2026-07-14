@@ -496,6 +496,7 @@ human_blind_preference / unresolved_rate / cost_per_report / latency
 | 2026-07-14 | 四实验臂评测框架（PR #12,eval-smoke） | S1/P3/D3/D3J 自动指标对照;smoke 观察:仅 D3J 有弃权机制(均弃权率 0.2),成本 S1→D3J 约 1→7 倍;红线 0/过度自信 0 |
 | 2026-07-14 | 拉丁方研究模式（PR #13,research-smoke） | 3×3 轮换分离模型/流派效应 + 提示词对称性校验入 CI;单盘演示:观点数量为"模型特性"(Claude 4/GPT 3/DeepSeek≈2.7)而非流派特性,固定绑定不可分、轮换后可归因 |
 | 2026-07-14 | Codex 盲写参考实现完成（gpt-5.6-sol,独立会话,自带 102 测试） | 对拍能力域扩至 four_pillars;10092 例双实现一致;SPEC-QUESTIONS 零歧义 |
+| 2026-07-14 | 巴纳姆自盲实验预注册（PR #14,barnum-smoke） | 预注册冻结(docs/prereg + prereg.lock + INV-13 校验闸,篡改即阻断)+ 干扰盘匹配 packet + UI 实验模式页 + 揭盲精确二项评分;自动代理指标(巴纳姆率/具体性/可证伪)并入四臂 metrics;离线演示:巴纳姆报告 barnum 1.0/specific 0.0 vs 具体报告 0.25/0.75,词面代理可区分(仅描述、不替代人类盲判) |
 | 2026-07-14 | P2 启动：L3 网关 + run-manifest + 单模型速览（PR #8） | fail_closed/日熔断 50/manifest 落盘;密钥仅本机进程;Smoke/Change Eval 体系待建（INV-12 缺口,评测基建随 P2 补） |
 
 ---

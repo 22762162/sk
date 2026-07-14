@@ -7,11 +7,19 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REDLINE_FILE = ROOT / "infra" / "compliance" / "redline-words.txt"
 HEDGES = ["倾向", "提示", "或有", "或", "可能", "宜", "未必", "较", "多", "偏", "恐", "似"]
+
+# 巴纳姆自动代理(DESIGN §10,INV-13):仅描述性,不替代人类盲判、不作优化目标。
+sys.path.insert(0, str(ROOT / "evals" / "barnum"))
+try:
+    import anchors as _anchors  # noqa: E402
+except ImportError:  # 词表缺位时代理指标降级为 N/A,不阻断其它指标
+    _anchors = None
 
 
 def _redline_words() -> list[str]:
@@ -33,6 +41,31 @@ def claim_texts(result: dict) -> list[str]:
             if c.get("claim"):
                 texts.append(str(c["claim"]))
     return texts
+
+
+def barnum_proxy(texts: list[str]) -> dict:
+    """巴纳姆自动代理指标(词面代理,DESIGN §10 §3.2;非语义、非确证)。
+
+    - barnum_rate:命中预注册巴纳姆语句库的 claim 占比(可识别模板化泛化的下界)。
+    - specificity_rate:引用具体命盘实体(干支/十神/大运流年/五行生克)的 claim 占比。
+    - falsifiable_rate:含可现实核对断言(领域 + 时间窗/方向)的 claim 占比。
+    预期:高 barnum + 低 specificity ⇒ 人类辨识应更接近随机(仅记录,不作停止依据)。
+    """
+    n = len(texts)
+    if _anchors is None:
+        return {k: "N/A(anchors_missing)" for k in
+                ("barnum_rate", "specificity_rate", "falsifiable_rate")}
+    if n == 0:
+        return {"barnum_rate": None, "specificity_rate": None, "falsifiable_rate": None}
+    bank = _anchors.load_barnum_bank()
+    barnum = sum(1 for t in texts if _anchors.is_barnum(t, bank))
+    specific = sum(1 for t in texts if _anchors.is_specific(t))
+    falsifiable = sum(1 for t in texts if _anchors.is_falsifiable(t))
+    return {
+        "barnum_rate": round(barnum / n, 3),
+        "specificity_rate": round(specific / n, 3),
+        "falsifiable_rate": round(falsifiable / n, 3),
+    }
 
 
 def compute(result: dict, latency_s: float, calls: int) -> dict:
@@ -71,6 +104,8 @@ def compute(result: dict, latency_s: float, calls: int) -> dict:
         "issue_count": n_iss,
         "calls": calls,                                              # 成本代理(模型调用数)
         "latency_seconds": round(latency_s, 1),
+        # 巴纳姆自动代理(描述性,非确证;INV-13):
+        **barnum_proxy(texts),
         # 规则依据类指标待规则库启用:
         "unsupported_claim_rate": "N/A(pending_rulebase)",
         "citation_coverage": "N/A(pending_rulebase)",

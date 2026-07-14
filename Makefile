@@ -1,5 +1,5 @@
 # 三鉴 monorepo 常用命令（CLAUDE.md 常用命令表）
-.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve keys-check eval-smoke research-smoke prompt-symmetry
+.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve keys-check eval-smoke research-smoke prompt-symmetry barnum-smoke prereg-check prereg-freeze
 
 build:
 	cargo build --manifest-path engine-paipan/Cargo.toml
@@ -68,6 +68,19 @@ research-smoke:
 # 提示词对称性校验(拉丁方前提;CI 阻断项)
 prompt-symmetry:
 	python3 governance/tools/check_prompt_symmetry.py
+
+# 预注册冻结校验(巴纳姆实验前提;CI 阻断项,INV-13)
+prereg-check:
+	python3 governance/tools/check_prereg_lock.py
+
+# 预注册冻结(人工:预注册定稿、开跑前执行一次;改预注册须新开版本后重冻)
+prereg-freeze:
+	python3 governance/tools/freeze_prereg.py
+
+# 巴纳姆盲测离线演示(零 API):构建 packet + 实验页面,并跑自动代理指标自检
+barnum-smoke:
+	python3 evals/barnum/build_packet.py --mock --out evals/barnum/out
+	@echo "→ 浏览器打开 evals/barnum/out/experiment.html 体验盲测(UI 实验模式)"
 
 # 密钥就位检查:只报告有/无,绝不输出密钥内容(INV-07)
 keys-check:

@@ -1,0 +1,6 @@
+{
+  "note": "预注册冻结哈希;开跑前登记,CI(check_prereg_lock.py)校验不漂移。改预注册须新开版本文件后重冻。",
+  "frozen": {
+    "barnum-2026-07-14.md": "6192c87180d4177ca07fb79fb6ca30c6c64b38ccb7128defcab22e290f556312"
+  }
+}

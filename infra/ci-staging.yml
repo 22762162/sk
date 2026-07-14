@@ -1,3 +1,5 @@
+# Web 通道暂存:本文件是 .github/workflows/ci.yml 的目标内容(令牌无 workflow 权限,经 GitHub 网页编辑器同步)。
+# 同步后 diff 应为 0,随即删除本暂存文件。本轮新增:治理闸 prereg-check(预注册冻结校验,INV-13)。
 # 三鉴 CI 闸门：rust / duipai（对拍）/ redline / rulebase / governance（+ ref 测试）
 name: CI
 
