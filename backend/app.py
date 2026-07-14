@@ -34,6 +34,7 @@ sys.path.insert(0, str(ROOT / "consult-engine"))
 import gateway  # noqa: E402  (L3 网关;密钥仅在其进程内使用)
 import consult  # noqa: E402  (L4 会诊编排)
 import predictions  # noqa: E402  (预测记录与命中率验证)
+import luck  # noqa: E402  (流年/大运推算)
 TZ = ZoneInfo("Asia/Shanghai")
 JIE_NAMES = ["立春", "惊蛰", "清明", "立夏", "芒种", "小暑",
              "立秋", "白露", "寒露", "立冬", "大雪", "小寒"]
@@ -275,8 +276,9 @@ def _run_consult_payload(req: ConsultReq) -> dict:
                   f"日柱 {o['day']['ganzhi']},时柱 {o['hour']['ganzhi']}(八字年 {o['bazi_year']})")
     # 种子取命盘哈希,保证同盘同轮换、可复现(DESIGN 可复现:可审计可回放)
     seed = int(hashlib.sha256(chart_line.encode()).hexdigest(), 16) % 3
+    liunian = luck.liunian(datetime.now().year, 8)  # 未来 8 年流年,供逐年推演
     try:
-        result = consult.run_consultation(o, chart_line, arm=req.arm, seed=seed)
+        result = consult.run_consultation(o, chart_line, arm=req.arm, seed=seed, liunian=liunian)
     except consult.ConsultError as exc:
         return {"ok": False, "error": f"会诊失败(fail_closed):{exc}"}
 
@@ -300,6 +302,9 @@ def _run_consult_payload(req: ConsultReq) -> dict:
         for dm in ps.get("domains", []):
             if isinstance(dm, dict):
                 dm["reading"] = scrub(dm.get("reading", ""))
+        for yr in ps.get("yearly", []):
+            if isinstance(yr, dict):
+                yr["reading"] = scrub(yr.get("reading", ""))
 
     return {
         "ok": True,
