@@ -1,0 +1,27 @@
+artifact_id: PR-14-implementer
+timestamp: "2026-07-14T21:30:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(P3 巴纳姆自盲实验会话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 483c9af(main,PR #13 合并点)
+generated_files:
+  - docs/prereg/barnum-2026-07-14.md(预注册,冻结)+ docs/prereg/prereg.lock(sha256 冻结登记)
+  - governance/ai-invariants.yaml(新增 INV-13 预注册完整性,版本 3.0→3.1)+ 重渲染 CLAUDE.md/AGENTS.md
+  - governance/tools/check_prereg_lock.py(冻结哈希校验;CI 阻断)+ freeze_prereg.py(人工冻结助手)
+  - evals/barnum/barnum-statements.jsonl(预注册巴纳姆语句库)+ anchors.py(命盘实体词表/分类器)
+  - evals/metrics.py(新增 barnum_proxy:巴纳姆率/具体性率/可证伪率,附加不改提示词)
+  - evals/barnum/build_packet.py(干扰盘匹配 + 盲测 packet + experiment.html)+ score_packet.py(揭盲精确二项)
+  - evals/barnum/README.md;Makefile(barnum-smoke/prereg-check/prereg-freeze);.gitignore(key/out 私有)
+reviewed_files: []
+notes: >-
+  §7.3/INV-12 治理:本 PR 只新增指标计算代码(metrics.barnum_proxy),未改任何辩手/裁判提示词,
+  不违反"提示词与评测器代码不得同 PR 修改"。冻结闸经对抗测试:冻结→通过,改一字节→报漂移退出 1→复原→通过。
+  自动代理指标为词面代理,离线自检确证可区分巴纳姆报告(barnum 1.0/specific 0.0)与具体报告(0.25/0.75),
+  但仅描述性,不替代人类盲判、不作优化目标(INV-13)。experiment.html 浏览器渲染 + 交互(选择高亮/导出)验证通过。
+  packet.key.json 与作答记录 gitignore,盲法完整性由"先作答后揭盲"顺序保证。真实模式需 .env 密钥,
+  本会话未跑真实会诊(节流日熔断预算),仅离线 mock 演示。密钥仅经 gateway 读取,未进任何 AI 会话。
+  ci.yml 加 prereg-check 经 Web 通道提交(令牌无 workflow 权限)。交叉评审由本人全量审阅替代;本人签署由合并动作承载。
