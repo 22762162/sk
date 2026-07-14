@@ -156,6 +156,9 @@ def paipan(req: PaipanReq) -> JSONResponse:
             "dst_applied": dst,
             "zi_hour_mode": req.zi_hour_mode,
             "jie_window": {"seq": _jie_seq[i], "name": JIE_NAMES[_jie_seq[i]]},
+            # 起运推算所需:出生时刻与所处节气边界(标准北京时)
+            "birth_unix": t, "birth_year": std.year,
+            "jie_unix": _jie_unix[i], "next_jie_unix": _jie_unix[i + 1],
             "sources": "节气:JPL DE440s 自算(经 HKO 核对);日柱锚点:KASI+中研院双源",
         },
     })
@@ -263,6 +266,7 @@ def quickread(req: PaipanReq) -> JSONResponse:
 
 class ConsultReq(PaipanReq):
     arm: str = "D3J"  # S1 | P3 | D3 | D3J
+    gender: str = ""  # male | female(算大运用;空则跳过大运,仅流年)
 
 
 def _run_consult_payload(req: ConsultReq) -> dict:
@@ -277,8 +281,18 @@ def _run_consult_payload(req: ConsultReq) -> dict:
     # 种子取命盘哈希,保证同盘同轮换、可复现(DESIGN 可复现:可审计可回放)
     seed = int(hashlib.sha256(chart_line.encode()).hexdigest(), 16) % 3
     liunian = luck.liunian(datetime.now().year, 8)  # 未来 8 年流年,供逐年推演
+    meta = chart.get("meta", {})
+    branches = [o[p]["branch"] for p in ("year", "month", "day", "hour")]
+    shensha = luck.shensha(o["day"]["stem"], o["day"]["branch"], o["year"]["branch"], branches)
+    dayun = None
+    if req.gender in ("male", "female") and meta.get("birth_unix"):
+        dtn = (meta["next_jie_unix"] - meta["birth_unix"]) / 86400
+        dfp = (meta["birth_unix"] - meta["jie_unix"]) / 86400
+        dayun = luck.dayun(o["month"]["ganzhi"], o["year"]["stem"], req.gender,
+                           dtn, dfp, meta.get("birth_year", datetime.now().year))
     try:
-        result = consult.run_consultation(o, chart_line, arm=req.arm, seed=seed, liunian=liunian)
+        result = consult.run_consultation(o, chart_line, arm=req.arm, seed=seed,
+                                          liunian=liunian, dayun=dayun, shensha=shensha)
     except consult.ConsultError as exc:
         return {"ok": False, "error": f"会诊失败(fail_closed):{exc}"}
 
@@ -309,7 +323,8 @@ def _run_consult_payload(req: ConsultReq) -> dict:
     return {
         "ok": True,
         "chart": {"line": chart_line, "output": o,
-                  "result_status": chart.get("result_status", "exact")},
+                  "result_status": chart.get("result_status", "exact"),
+                  "dayun": dayun, "shensha": shensha},
         "consultation": result,
         "disclaimer": "本会诊为多模型互证的研究观察:计算部分为引擎确定性结果;命理解读为模型综合、"
                       "概率化措辞,准不准以事后命中率为准,不因多模型一致即为真。分歧透明保留。",

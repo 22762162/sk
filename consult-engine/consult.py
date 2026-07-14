@@ -181,7 +181,8 @@ def _judge(provider: str, model: str, material: str) -> dict:
 
 
 def _plain_summary(chart_line: str, assignments: list[dict], judge: dict | None,
-                   liunian: list[dict] | None = None) -> dict | None:
+                   liunian: list[dict] | None = None, dayun: dict | None = None,
+                   shensha: list[dict] | None = None) -> dict | None:
     """把会诊观点翻成白话、按生活领域归纳(L5 呈现层)。
 
     可直说吉凶倾向但用概率化措辞;三条底线由提示词把关(不说必然/注定、不碰投资买卖、不断生死重病),
@@ -195,11 +196,20 @@ def _plain_summary(chart_line: str, assignments: list[dict], judge: dict | None,
     if judge and judge.get("verdict", {}).get("summary"):
         lines.append("")
         lines.append(f"综合结论:{judge['verdict']['summary']}")
+    if shensha:
+        lines.append("")
+        lines.append("本命神煞(已按标准规则算出,供解读):"
+                     + "、".join(f"{s['name']}({s['note']})" for s in shensha))
+    if dayun and dayun.get("periods"):
+        lines.append("")
+        lines.append(f"大运({dayun['direction']},{dayun['start_age']}岁起运;十年一步,请判断本人现在及未来走哪步):")
+        lines.append("、".join(f"{p['ganzhi']} {p['start_year']}-{p['end_year']}({p['start_age']}-{p['end_age']}岁)"
+                              for p in dayun["periods"]))
     if liunian:
         lines.append("")
-        lines.append("未来流年干支(逐年分析用,请结合命局逐年推演):"
+        lines.append("未来流年干支(逐年分析用,请结合命局与所在大运逐年推演):"
                      + "、".join(f"{x['year']}年 {x['ganzhi']}" for x in liunian))
-    user = "\n".join(lines) + "\n\n请按 system 要求输出白话综述 JSON 对象(含 domains 与 yearly)。"
+    user = "\n".join(lines) + "\n\n请按 system 要求输出白话综述 JSON 对象(含 domains、dayun、yearly)。"
     try:
         obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system, user,
                                     want_array=False, max_tokens=4000, schema="plain-summary-v1")
@@ -210,7 +220,8 @@ def _plain_summary(chart_line: str, assignments: list[dict], judge: dict | None,
 
 
 def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int = 0,
-                     liunian: list[dict] | None = None) -> dict:
+                     liunian: list[dict] | None = None, dayun: dict | None = None,
+                     shensha: list[dict] | None = None) -> dict:
     """执行一场会诊。chart 为 four_pillars 输出;返回观察模式所需的完整结构。"""
     if arm not in ("S1", "P3", "D3", "D3J"):
         raise ConsultError(f"未知实验臂:{arm}")
@@ -254,8 +265,8 @@ def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int =
                         f"{c.get('target', '')}←{c.get('reason', '')}" for c in ch))
             judge = _judge(jd["provider"], jd["model"], "\n".join(material_parts))
 
-    # 白话综述(L5 呈现层):把专业观点翻成人话 + 逐年流年推演,失败不拖垮会诊
-    plain = _plain_summary(chart_line, assignments, judge, liunian)
+    # 白话综述(L5 呈现层):把专业观点翻成人话 + 大运/流年逐年推演,失败不拖垮会诊
+    plain = _plain_summary(chart_line, assignments, judge, liunian, dayun, shensha)
 
     # 组装 manifest(consultation-manifest.schema.json 合规)
     now = datetime.now(timezone.utc)
