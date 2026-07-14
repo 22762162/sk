@@ -1,0 +1,16 @@
+artifact_id: PR-10-implementer
+timestamp: "2026-07-14T09:00:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(网关多供应商冒烟会话)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: db48739(main,PR #9 合并点)
+generated_files:
+  - consult-engine/gateway.py(openai 用 max_completion_tokens)
+reviewed_files: []
+notes: >-
+  三家真实冒烟通过(claude-sonnet-5 / gpt-5.1 / deepseek-chat 各回"通");
+  密钥仅本机进程读取,未经手明文。交叉评审由本人全量审阅替代;本人签署由合并动作承载。
