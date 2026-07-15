@@ -48,6 +48,36 @@ def save_backcast(birth: str, events: list[dict]) -> float | None:
     return rate
 
 
+def add_fact(birth: str, year: int, text: str) -> dict:
+    """记一条已知实录(某年真实发生的事 / 当年现状与变化)。事实锚点,注入后续推演校准。"""
+    t = text.strip()[:200]
+    if not t:
+        raise ValueError("内容不能为空")
+    d = _load(birth)
+    d.setdefault("facts", [])
+    fact = {"id": hashlib.sha256(f"{year}|{t}|{datetime.now(timezone.utc).isoformat()}".encode()).hexdigest()[:8],
+            "year": int(year), "text": t,
+            "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    d["facts"].append(fact)
+    DIR.mkdir(parents=True, exist_ok=True)
+    _path(birth).write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    return fact
+
+
+def del_fact(birth: str, fact_id: str) -> bool:
+    d = _load(birth)
+    before = len(d.get("facts", []))
+    d["facts"] = [f for f in d.get("facts", []) if f.get("id") != fact_id]
+    if len(d["facts"]) == before:
+        return False
+    _path(birth).write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    return True
+
+
+def facts(birth: str) -> list[dict]:
+    return sorted(_load(birth).get("facts", []), key=lambda f: (f.get("year", 0), f.get("at", "")))
+
+
 def stats(birth: str) -> dict:
     """此人档案统计:验证次数、总打分、命中率。"""
     d = _load(birth)
@@ -58,14 +88,25 @@ def stats(birth: str) -> dict:
 
 
 def summary(birth: str) -> str:
-    """档案摘要(注入会诊/追问做校准);无档案返回空串。"""
+    """档案摘要(注入会诊/追问做校准);无档案返回空串。
+
+    已知实录排最前(事实锚点,推演不得与之矛盾);其后是盘前验证打分。
+    注意:本摘要绝不喂给 backcast(盲测防作弊)。
+    """
     d = _load(birth)
-    if not d["backcasts"]:
+    fs = sorted(d.get("facts", []), key=lambda f: f.get("year", 0))
+    if not d["backcasts"] and not fs:
         return ""
+    parts0 = []
+    if fs:
+        parts0.append("已知实录(本人提供的既成事实,推演须与之一致并据此校准):"
+                      + "；".join(f"{f['year']}年:{f['text']}" for f in fs[-14:]))
+    if not d["backcasts"]:
+        return "。".join(parts0)
     all_ev = [e for b in d["backcasts"] for e in b["events"]]
     hits = [e for e in all_ev if e.get("score") == "hit"]
     misses = [e for e in all_ev if e.get("score") == "miss"]
-    parts = []
+    parts = parts0
     n = len(hits) + len(misses)
     if n:
         parts.append(f"过去验证:本人已对 {n} 条过去推断打分,命中 {len(hits)} 条")

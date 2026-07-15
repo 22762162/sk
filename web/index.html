@@ -69,7 +69,7 @@
         <option>IT/互联网</option><option>金融/投资</option><option>经商/创业</option>
         <option>制造/工程</option><option>医疗/健康</option><option>教育/科研</option>
         <option>政府/事业单位</option><option>法律/咨询</option><option>文创/媒体/艺术</option>
-        <option>销售/市场</option><option>服务业</option><option>农业/资源</option>
+        <option>直播/电商</option><option>销售/市场</option><option>服务业</option><option>农业/资源</option>
         <option>自由职业</option><option>学生</option><option>退休/居家</option>
       </select>
     </label>
@@ -107,8 +107,10 @@
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <button type="button" id="pv" style="background:#2c6a66;">我的预测 · 命中率</button>
         <button type="button" id="hist" style="background:#6b5b3f;">历史记录</button>
-        <span style="font-size:12px;color:#8a7f6e;">会诊自动存档,刷新不丢;预测到期回访看命中率。</span>
+        <button type="button" id="factsbtn" style="background:#4a5f8c;">我的大事记</button>
+        <span style="font-size:12px;color:#8a7f6e;">大事记=已知事实,推演自动带上校准;越全越准。</span>
       </div>
+      <div id="factsout" style="display:none; margin-top:14px;"></div>
       <div id="histout" style="display:none; margin-top:14px;"></div>
       <div id="pvout" style="display:none; margin-top:14px;"></div>
     </div>
@@ -363,6 +365,7 @@ function renderConsult(j) {
     window.CHATCTX = {
       chart_line: (j.chart && j.chart.line) || '',
       record_id: cs.consultation_id || '',
+      birth: j._birth || curBirth(),
       profile: j._profile || ['行业:' + (document.getElementById('industry').value || '未填'),
                 '职业:' + (document.getElementById('occupation').value || '未填'),
                 '性别:' + (document.getElementById('gender').value === 'male' ? '男' : '女'),
@@ -577,6 +580,61 @@ function renderBackcast(box, r, birth){
   };
 }
 
+// —— 我的大事记:已知事实(每年发生的事 + 当年现状变化),自动注入推演做校准 ——
+function curBirth(){ return document.getElementById('d').value + 'T' + document.getElementById('t').value; }
+document.getElementById('factsbtn').addEventListener('click', () => {
+  const box=document.getElementById('factsout');
+  if(box.style.display==='block'){ box.style.display='none'; return; }
+  box.style.display='block'; loadFacts();
+});
+async function loadFacts(){
+  const box=document.getElementById('factsout');
+  box.innerHTML='加载中…';
+  try{
+    const j=await (await fetch('/api/facts/list?birth='+encodeURIComponent(curBirth()))).json();
+    if(!j.ok){ box.innerHTML='加载失败'; return; }
+    const nowY=new Date().getFullYear();
+    let html=`<div style="border:1px solid var(--line);border-radius:10px;background:#fff;padding:14px 18px;">
+      <div style="font-size:12px;color:#4a5f8c;letter-spacing:2px;">我的大事记(当前排盘生日:${esc(curBirth())})</div>
+      <div style="font-size:12px;color:#8a7f6e;margin-top:4px;line-height:1.8;">写下每年<b>真实发生的事</b>和<b>今年的现状/变化</b>(行业、合伙人、贵人、平台、政策、风口都算)。这些是事实锚点:后续会诊/追问自动带上,与事实矛盾的推演会被校准——命盘不变,局在变,越全越准。<b>「验过去」永远看不到大事记(盲测防作弊)。</b></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+        <input type="number" id="factyear" min="1950" max="2099" value="${nowY}" style="width:90px;padding:8px;border:1px solid var(--line);border-radius:6px;">
+        <input type="text" id="facttext" maxlength="200" placeholder="如:换了直播赛道,新合伙人加入,但平台政策收紧" style="flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;">
+        <button type="button" id="factadd" style="background:#4a5f8c;font-size:13px;">添加</button>
+      </div>
+      <div id="factlist" style="margin-top:8px;"></div></div>`;
+    box.innerHTML=html;
+    renderFactList(j.facts||[]);
+    document.getElementById('factadd').onclick=addFact;
+    document.getElementById('facttext').addEventListener('keydown',e=>{ if(e.key==='Enter') addFact(); });
+  }catch(_){ box.innerHTML='请求失败'; }
+}
+function renderFactList(fs){
+  const el=document.getElementById('factlist');
+  if(!fs.length){ el.innerHTML='<div style="font-size:12px;color:#8a7f6e;margin-top:6px;">还没有记录。从最重要的几年写起。</div>'; return; }
+  el.innerHTML=fs.slice().reverse().map(f=>`
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;border-top:1px dashed var(--line);padding:7px 0;">
+      <div style="font-size:13px;line-height:1.7;"><b>${f.year}</b> ${esc(f.text)}</div>
+      <button type="button" class="factdel" data-id="${esc(f.id)}" style="font-size:11px;background:#fff;color:#a33;border:1px solid #d9b8b8;border-radius:6px;padding:2px 8px;cursor:pointer;">删除</button>
+    </div>`).join('');
+  el.querySelectorAll('.factdel').forEach(b=>b.onclick=async()=>{
+    try{
+      const j=await (await fetch('/api/facts/del',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({birth:curBirth(), fact_id:b.dataset.id})})).json();
+      renderFactList(j.facts||[]);
+    }catch(_){}
+  });
+}
+async function addFact(){
+  const y=parseInt(document.getElementById('factyear').value), t=(document.getElementById('facttext').value||'').trim();
+  if(!t){ return; }
+  try{
+    const j=await (await fetch('/api/facts/add',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({birth:curBirth(), year:y, text:t})})).json();
+    if(j.ok){ document.getElementById('facttext').value=''; renderFactList(j.facts||[]); }
+  }catch(_){}
+}
+
 // —— 历史记录:会诊自动存档,随时回看并继续追问 ——
 document.getElementById('hist').addEventListener('click', loadHist);
 async function loadHist(){
@@ -612,6 +670,7 @@ async function viewRecord(rid){
     }catch(e){}
     p._profile = rec.profile || '';
     p._chats = rec.chats || [];
+    p._birth = rec.birth || '';
     renderConsult(p);
     document.getElementById('csout').scrollIntoView({behavior:'smooth'});
   }catch(_){}
