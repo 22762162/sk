@@ -489,6 +489,70 @@ def backcast_score(req: BackcastScoreReq) -> JSONResponse:
     return JSONResponse({"ok": True, "hit_rate": rate, "stats": dossier.stats(req.birth)})
 
 
+class ShichenReq(BaseModel):
+    date: str            # YYYY-MM-DD(出生日期,时辰未知)
+    gender: str = ""
+    events_text: str     # 已发生大事自述
+    zi_hour_mode: str = "split"
+
+
+@app.post("/api/shichen/start")
+def shichen_start(req: ShichenReq) -> JSONResponse:
+    """时辰校准(异步,1 次模型调用):13 个候选时辰各排一盘(本地引擎,免费),
+    用本人已发生大事反推最可能的时辰;结果轮询同 /api/consult/result。"""
+    if not req.events_text.strip():
+        return JSONResponse({"ok": False, "error": "请先写几件已发生的大事(哪年发生过什么)"},
+                            status_code=400)
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    # 13 个候选:各时辰取代表时刻;晚子时单列(split 口径下日柱或不同)
+    slots = [("00:30", "23:00-01:00(子时)"), ("02:00", "01:00-03:00(丑时)"),
+             ("04:00", "03:00-05:00(寅时)"), ("06:00", "05:00-07:00(卯时)"),
+             ("08:00", "07:00-09:00(辰时)"), ("10:00", "09:00-11:00(巳时)"),
+             ("12:00", "11:00-13:00(午时)"), ("14:00", "13:00-15:00(未时)"),
+             ("16:00", "15:00-17:00(申时)"), ("18:00", "17:00-19:00(酉时)"),
+             ("20:00", "19:00-21:00(戌时)"), ("22:00", "21:00-23:00(亥时)"),
+             ("23:30", "23:00-24:00(晚子时)")]
+
+    def worker() -> None:
+        try:
+            cands = []
+            for hm, rng in slots:
+                r = paipan(PaipanReq(birth=f"{req.date}T{hm}", zi_hour_mode=req.zi_hour_mode))
+                if r.status_code != 200:
+                    continue
+                o = json.loads(bytes(r.body))["output"]
+                line = (f"年柱 {o['year']['ganzhi']},月柱 {o['month']['ganzhi']},"
+                        f"日柱 {o['day']['ganzhi']},时柱 {o['hour']['ganzhi']}")
+                cands.append({"time_range": rng, "hour_ganzhi": o["hour"]["ganzhi"],
+                              "chart_line": line, "repr_time": hm,
+                              "note": "晚子时,日柱按早晚子口径" if hm == "23:30" else ""})
+            if len(cands) < 12:
+                raise RuntimeError("候选盘生成不全")
+            gender_cn = {"male": "男", "female": "女"}.get(req.gender, "")
+            res = consult.shichen_calibrate(cands, req.events_text, gender_cn)
+            ranking = []
+            for it in (res.get("ranking") or [])[:3]:
+                if isinstance(it, dict):
+                    for k in ("reason", "check"):
+                        it[k] = _redline_filter(str(it.get(k, "")))[0]
+                    m = next((c for c in cands if c["hour_ganzhi"] == it.get("hour_ganzhi")), None)
+                    it["repr_time"] = m["repr_time"] if m else ""
+                    ranking.append(it)
+            payload, status = {"ok": True, "ranking": ranking,
+                               "note": _redline_filter(str(res.get("note", "")))[0],
+                               "candidates": cands}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"时辰校准失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
 @app.get("/api/records/list")
 def records_list() -> JSONResponse:
     """历史会诊记录摘要(新→旧)。"""
