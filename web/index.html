@@ -84,10 +84,13 @@
     <div class="metaline" id="meta"></div>
     <div id="amb" style="display:none; margin-top:18px; padding:14px 16px; border:1px solid #d8b56a;
          border-radius:8px; background:#fdf6e3; font-size:13px; line-height:1.9;"></div>
-    <div style="margin-top:22px; display:flex; gap:12px; flex-wrap:wrap;">
+    <div style="margin-top:22px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+      <button type="button" id="bc" style="background:#8a5a2a;">① 验过去 · 铁口直断</button>
+      <button type="button" id="cs" style="background:#6b3f6b;">② 三模型会诊(推未来)</button>
       <button type="button" id="qr" style="background:#4a5f8c;">AI 速览(单模型)</button>
-      <button type="button" id="cs" style="background:#6b3f6b;">三模型会诊(观察模式)</button>
+      <span style="font-size:12px;color:#8a7f6e;">建议先「验过去」打分——说得准过去,未来才有分量;打分自动校准后续推演。</span>
     </div>
+    <div id="bcout" style="display:none; margin-top:14px;"></div>
     <div id="qrout" style="display:none; margin-top:14px;"></div>
     <div id="csout" style="display:none; margin-top:18px;"></div>
     <div style="margin-top:26px; border-top:1px solid var(--line); padding-top:20px;">
@@ -455,6 +458,69 @@ async function reviewPred(id, status){
     const j=await (await fetch('/api/predict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status,note:''})})).json();
     if(j.ok) loadPreds();
   }catch(_){}
+}
+
+// —— 盘前验证:铁口直断过去 → 本人打分 → 过去命中率(存档并校准后续推演) ——
+document.getElementById('bc').addEventListener('click', runBackcast);
+async function runBackcast(){
+  const box=document.getElementById('bcout'), btn=document.getElementById('bc');
+  box.style.display='block'; btn.disabled=true;
+  box.innerHTML='<span style="color:#7a6f5f;">正在从命盘反推你的过去(约 30–90 秒)…</span>';
+  const birth=document.getElementById('d').value+'T'+document.getElementById('t').value;
+  try{
+    const sj=await (await fetch('/api/backcast/start',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
+        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value, situation:''})})).json();
+    if(!sj.ok||!sj.job_id) throw 0;
+    let rj=null;
+    for(let k=0;k<60;k++){
+      await new Promise(r=>setTimeout(r,3000));
+      try{ rj=await (await fetch('/api/consult/result?job_id='+encodeURIComponent(sj.job_id))).json(); }catch(e){ continue; }
+      if(rj.status!=='running') break;
+      box.innerHTML=`<span style="color:#7a6f5f;">正在从命盘反推你的过去…已 ${(k+1)*3} 秒</span>`;
+    }
+    if(!(rj&&rj.status==='done'&&rj.result&&rj.result.ok)){ box.innerHTML='<span style="color:#a33;">盘前验证失败,请重试</span>'; return; }
+    renderBackcast(box, rj.result, birth);
+  }catch(_){ box.innerHTML='<span style="color:#a33;">请求失败,请确认服务运行</span>'; }
+  finally{ btn.disabled=false; }
+}
+function renderBackcast(box, r, birth){
+  window.BCEV=(r.events||[]).map(e=>({...e, score:''}));
+  box.innerHTML=`<div style="border:2px solid #8a5a2a;border-radius:10px;background:#fff;padding:16px 18px;">
+    <div style="font-size:12px;color:#8a5a2a;letter-spacing:2px;">盘前验证 · 铁口直断过去</div>
+    <div style="font-size:13px;color:#7a6f5f;margin-top:4px;line-height:1.8;">下面是<b>只凭命盘</b>反推的你过去的事。逐条打分——说得准过去,未来的推演才有分量;说不准,你也该知道这盘的可信度。打分只存你本机,并自动校准后续推演。</div>
+    <div id="bclist" style="margin-top:10px;"></div>
+    <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <button type="button" id="bcsubmit" style="background:#8a5a2a;">提交打分 · 算过去命中率</button>
+      <span id="bcrate" style="font-size:14px;"></span>
+    </div></div>`;
+  const list=document.getElementById('bclist');
+  list.innerHTML=window.BCEV.map((e,i)=>`
+    <div style="border:1px solid var(--line);border-radius:8px;background:#faf8f4;padding:10px 14px;margin-top:8px;">
+      <div style="font-size:12px;color:#8a7f6e;"><b>${e.year}</b> ${e.ganzhi||''} · ${esc(e.domain||'')}</div>
+      <div style="font-size:14px;line-height:1.8;margin-top:3px;">${esc(e.claim||'')}</div>
+      <div style="margin-top:7px;">${[['hit','准'],['miss','不准'],['unsure','说不清']].map(([s,t])=>
+        `<button type="button" class="bcsc" data-i="${i}" data-s="${s}" style="font-size:12px;margin-right:6px;border:1px solid #bbb;background:#fff;color:#5d5346;border-radius:14px;padding:3px 13px;cursor:pointer;">${t}</button>`).join('')}</div>
+    </div>`).join('');
+  list.querySelectorAll('.bcsc').forEach(b=>b.onclick=()=>{
+    window.BCEV[+b.dataset.i].score=b.dataset.s;
+    b.parentElement.querySelectorAll('.bcsc').forEach(x=>{x.style.background='#fff';x.style.color='#5d5346';x.style.borderColor='#bbb';});
+    const col=b.dataset.s==='hit'?'#3f7d55':(b.dataset.s==='miss'?'#a33':'#8a7f6e');
+    b.style.background=col; b.style.color='#fff'; b.style.borderColor=col;
+  });
+  document.getElementById('bcsubmit').onclick=async()=>{
+    if(!window.BCEV.some(e=>e.score)){ alert('请先至少给一条打分'); return; }
+    try{
+      const j=await (await fetch('/api/backcast/score',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({birth, events:window.BCEV})})).json();
+      if(!j.ok) return;
+      const rt=j.hit_rate;
+      document.getElementById('bcrate').innerHTML = rt==null
+        ? '<span style="color:#8a7f6e;">全部「说不清」,无法计算命中率</span>'
+        : `<b style="color:${rt>=0.6?'#3f7d55':(rt>=0.4?'#b5762a':'#a33')};font-size:18px;">过去命中率 ${Math.round(rt*100)}%</b> <span style="font-size:12px;color:#8a7f6e;">已入档案,后续会诊/追问自动带上校准</span>`;
+      document.getElementById('bcsubmit').disabled=true;
+    }catch(_){}
+  };
 }
 
 // —— 历史记录:会诊自动存档,随时回看并继续追问 ——

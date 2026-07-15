@@ -223,6 +223,27 @@ def _plain_summary(chart_line: str, assignments: list[dict], judge: dict | None,
     return obj
 
 
+def backcast(chart_line: str, dayun: dict | None, past_liunian: list[dict],
+             profile: str = "") -> dict:
+    """盘前验证(铁口直断过去):反推过去哪些年发生过哪类事,供本人打分(单模型 1 次调用)。"""
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "backcast.md")
+    lines = [f"四柱:{chart_line}"]
+    if profile:
+        lines.append(f"本人背景:{profile}")
+    if dayun and dayun.get("periods"):
+        lines.append(f"大运({dayun['direction']},{dayun['start_age']}岁起运):"
+                     + "、".join(f"{p['ganzhi']} {p['start_year']}-{p['end_year']}"
+                                 for p in dayun["periods"]))
+    lines.append("过去流年(只能从这些年份里挑):"
+                 + "、".join(f"{x['year']}年 {x['ganzhi']}" for x in past_liunian))
+    lines.append("\n请按 system 要求输出 JSON 对象(events)。")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                "\n".join(lines), want_array=False, max_tokens=3000,
+                                schema="backcast-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
 def chat_followup(context: dict, history: list[dict], question: str) -> dict:
     """会诊后的追问/质疑(单模型,1 次调用):基于已有会诊结果重新推算或解释。
 
