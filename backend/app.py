@@ -407,7 +407,13 @@ def chat_start(req: ChatReq) -> JSONResponse:
 
     def worker() -> None:
         try:
-            obj = consult.chat_followup(req.context or {}, req.history or [], q)
+            ctx = dict(req.context or {})
+            b = str(ctx.get("birth", "")).strip()
+            if b:  # 追问也带档案(已知实录 + 验证打分)做校准
+                ds = dossier.summary(b)
+                if ds:
+                    ctx["profile"] = (str(ctx.get("profile", "")) + "；【此人档案】" + ds)[:2400]
+            obj = consult.chat_followup(ctx, req.history or [], q)
             for k in ("answer", "revised", "suggestion"):
                 obj[k] = _redline_filter(str(obj.get(k, "")))[0]
             chat = {k: obj.get(k, "") for k in ("answer", "revised", "suggestion")}
@@ -487,6 +493,41 @@ def backcast_score(req: BackcastScoreReq) -> JSONResponse:
     """保存盘前验证打分 → 当场出「过去命中率」,并入个人档案(校准后续推演)。"""
     rate = dossier.save_backcast(req.birth, req.events)
     return JSONResponse({"ok": True, "hit_rate": rate, "stats": dossier.stats(req.birth)})
+
+
+class FactAddReq(BaseModel):
+    birth: str
+    year: int
+    text: str
+
+
+class FactDelReq(BaseModel):
+    birth: str
+    fact_id: str
+
+
+@app.post("/api/facts/add")
+def facts_add(req: FactAddReq) -> JSONResponse:
+    """记一条已知实录(某年真实发生的事/当年现状变化)。事实锚点,自动注入后续推演。"""
+    if not 1901 <= req.year <= 2099:
+        return JSONResponse({"ok": False, "error": "年份超出范围"}, status_code=400)
+    try:
+        fact = dossier.add_fact(req.birth, req.year, _redline_filter(req.text)[0])
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "fact": fact, "facts": dossier.facts(req.birth)})
+
+
+@app.get("/api/facts/list")
+def facts_list(birth: str) -> JSONResponse:
+    return JSONResponse({"ok": True, "facts": dossier.facts(birth)})
+
+
+@app.post("/api/facts/del")
+def facts_del(req: FactDelReq) -> JSONResponse:
+    ok = dossier.del_fact(req.birth, req.fact_id)
+    return JSONResponse({"ok": ok, "facts": dossier.facts(req.birth)},
+                        status_code=200 if ok else 404)
 
 
 class ShichenReq(BaseModel):

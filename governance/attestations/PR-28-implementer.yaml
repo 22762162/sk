@@ -1,0 +1,25 @@
+artifact_id: PR-28-implementer
+timestamp: "2026-07-15T17:30:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(大事记:已知事实校准)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 5601369(main,PR #27 合并点)
+generated_files:
+  - consult-engine/dossier.py(facts:add_fact/del_fact/facts;summary 把已知实录置顶注入)
+  - backend/app.py(/api/facts/add·list·del;chat worker 经 context.birth 附带档案摘要)
+  - prompts/base/presenter/plain_summary.md(规则10 事实锚点最高优先 + 规则11 命×环境合成)
+  - prompts/base/presenter/chat.md(规则7/8 同款)
+  - web/index.html(「我的大事记」面板按当前排盘生日增删;CHATCTX 加 birth;行业加直播/电商)
+  - docs/DESIGN.md §13
+reviewed_files: []
+notes: >-
+  用户核心诉求:历史已知,把每年真实事件与当年现状/变化(行业/合伙人/贵人/平台/政策/风口)加进推演——
+  推演=命局倾向×现实处境,用已知校准未知。设计:facts 为事实锚点(最高优先注入,推演不得矛盾);
+  提示词要求先说命局倾向再结合现实条件、点명依据来源;**backcast 仍只带职业不带大事记**(盲测防作弊,
+  与 PR #25 原则一致)。facts 文本过红线 scrub;存 dossier(gitignored 本机私有)。
+  零成本闭环验证:add→list→summary 注入文案正确→del;测试档案已清空。JS node --check、红线、对称性通过。
+  INV-10/12:改呈现层提示词,未动辩手/裁判与 metrics。密钥仅经 gateway。本人签署由合并动作承载。
