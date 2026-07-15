@@ -1,0 +1,18 @@
+artifact_id: PR-27-implementer
+timestamp: "2026-07-15T16:00:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(裁判/质证 token 预算修复)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 684fa92(main,PR #26 合并点)
+generated_files:
+  - consult-engine/consult.py(judge 4000→8000、cross_exam 3500→7000)
+reviewed_files: []
+notes: >-
+  用户报「judge-v1 未返回合法 JSON」。根因与此前辩手同款:v2 后三家各出 3–5 条更长观点,
+  裁判(sonnet-5 思考模型)评的材料变大,思考+正文超 4000 截断。judge 提至 8000,
+  质证同款隐患预防性提至 7000。真实验证:全流程 157s,judge 6 issues、白话六域/流年8/大运齐。
+  仅改 token 预算,未动提示词与 metrics。本人签署由合并动作承载。

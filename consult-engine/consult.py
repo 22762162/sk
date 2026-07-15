@@ -152,7 +152,7 @@ def _call_cross_exam(d: dict, others_blob: str) -> dict:
         obj, run_id, _ = _call_json(
             d["provider"], d["model"], system,
             f"另外两位辩手的观察(匿名、顺序随机):\n{others_blob}\n请按 system 输出 JSON 对象。",
-            want_array=False, max_tokens=3500, schema="crossexam-v1")
+            want_array=False, max_tokens=7000, schema="crossexam-v1")
     except ConsultError:
         return {"role": d["role"], "cross": {"agreements": [], "challenges": [], "revise": [],
                                              "skipped": "该辩手质证输出格式异常,本轮已跳过"},
@@ -177,7 +177,7 @@ def _judge(provider: str, model: str, material: str) -> dict:
     obj, run_id, usage = _call_json(
         provider, model, system,
         f"会诊材料(脱敏):\n{material}\n请按 system 输出 JSON 对象。",
-        want_array=False, max_tokens=4000, schema="judge-v1")
+        want_array=False, max_tokens=8000, schema="judge-v1")
     return {"provider": provider, "model": model, "verdict": obj, "run_id": run_id, "usage": usage}
 
 
