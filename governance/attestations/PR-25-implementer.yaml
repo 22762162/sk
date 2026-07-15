@@ -1,0 +1,27 @@
+artifact_id: PR-25-implementer
+timestamp: "2026-07-15T14:00:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(盘前验证 + 个人档案)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: a3dd848(main,PR #24 合并点)
+generated_files:
+  - prompts/base/presenter/backcast.md(盘前验证师:反推过去、只挑信息量大年份、吉凶都断、每条可打分)
+  - consult-engine/dossier.py(个人档案:按 birth 哈希聚合打分;summary 生成校准摘要;gitignored)
+  - consult-engine/consult.py(backcast 函数,单模型 1 次调用)
+  - backend/app.py(/api/backcast/start 异步 + /api/backcast/score;dossier.summary 注入会诊 profile)
+  - web/index.html(「① 验过去·铁口直断」推荐第一步;事件卡打分 UI;当场显示过去命中率)
+  - .gitignore(consult-engine/dossier/)+ docs/DESIGN.md §13
+reviewed_files: []
+notes: >-
+  产品差异化核心(本人选定方向):「先证明,再预测」——传统命理师立信方式的产品化,也是巴纳姆自盲思想的
+  日常化应用(说不准过去的盘,本人当场知道其可信度)。设计要点:backcast 的背景只带职业不带档案
+  (把已验证结论喂回反推等于作弊循环);打分(hit/miss/unsure,unsure 不计分母)入档案后,
+  dossier.summary 注入后续会诊/追问做校准。真实验证:1990 男程序员盘,10 条覆盖 5 域、
+  吉凶都有、每条可明确打分,12s 完成;模拟打分 6/8 → 命中率 0.75、摘要正确、档案 gitignored。
+  测试档案已清空。红线 scrub 覆盖 events;禁必然/注定、健康不确诊不碰生死、不涉投资买卖(提示词硬性要求)。
+  INV-10/12:新增呈现层提示词,未动辩手/裁判与 metrics;对称性校验通过。密钥仅经 gateway。
+  交叉评审由本人全量审阅替代;本人签署由合并动作承载。

@@ -36,6 +36,7 @@ import consult  # noqa: E402  (L4 会诊编排)
 import predictions  # noqa: E402  (预测记录与命中率验证)
 import luck  # noqa: E402  (流年/大运推算)
 import records  # noqa: E402  (会诊记录存档,刷新不丢)
+import dossier  # noqa: E402  (个人档案:过去验证打分,越用越准)
 TZ = ZoneInfo("Asia/Shanghai")
 JIE_NAMES = ["立春", "惊蛰", "清明", "立夏", "芒种", "小暑",
              "立秋", "白露", "寒露", "立冬", "大雪", "小寒"]
@@ -305,6 +306,10 @@ def _run_consult_payload(req: ConsultReq) -> dict:
     if req.situation.strip():
         parts.append(f"补充:{req.situation.strip()[:300]}")
     profile = "；".join(parts)
+    # 档案校准(越用越准):把本人已打分验证的过去推断注入推演
+    dsum = dossier.summary(req.birth)
+    if dsum:
+        profile = (profile + "；" if profile else "") + f"【此人档案·已验证】{dsum}"
     try:
         result = consult.run_consultation(o, chart_line, arm=req.arm, seed=seed,
                                           liunian=liunian, dayun=dayun, shensha=shensha,
@@ -420,6 +425,68 @@ def chat_start(req: ChatReq) -> JSONResponse:
 
     threading.Thread(target=worker, daemon=True).start()
     return JSONResponse({"ok": True, "job_id": job_id})
+
+
+@app.post("/api/backcast/start")
+def backcast_start(req: ConsultReq) -> JSONResponse:
+    """盘前验证(铁口直断过去,异步 1 次调用):反推过去十年大事供本人打分;结果轮询同 /api/consult/result。"""
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            chart_resp = paipan(req)
+            if chart_resp.status_code != 200:
+                raise RuntimeError("排盘失败")
+            chart = json.loads(bytes(chart_resp.body))
+            o = chart["output"]
+            chart_line = (f"年柱 {o['year']['ganzhi']},月柱 {o['month']['ganzhi']},"
+                          f"日柱 {o['day']['ganzhi']},时柱 {o['hour']['ganzhi']}(八字年 {o['bazi_year']})")
+            meta = chart.get("meta", {})
+            du = None
+            if req.gender in ("male", "female") and meta.get("birth_unix"):
+                dtn = (meta["next_jie_unix"] - meta["birth_unix"]) / 86400
+                dfp = (meta["birth_unix"] - meta["jie_unix"]) / 86400
+                du = luck.dayun(o["month"]["ganzhi"], o["year"]["stem"], req.gender,
+                                dtn, dfp, meta.get("birth_year", datetime.now().year))
+            now_y = datetime.now().year
+            # 过去十年(不含今年);不早于出生次年
+            start = max(now_y - 10, meta.get("birth_year", now_y - 10) + 1)
+            past = luck.liunian(start, max(1, now_y - start))
+            # 背景只带职业信息,不带档案(把已验证结论喂回去等于作弊)
+            parts = []
+            if req.industry.strip():
+                parts.append(f"行业:{req.industry.strip()}")
+            if req.occupation.strip():
+                parts.append(f"职业:{req.occupation.strip()}")
+            bc = consult.backcast(chart_line, du, past, "；".join(parts))
+            events = []
+            for e in (bc.get("events") or [])[:10]:
+                if isinstance(e, dict) and e.get("claim"):
+                    e["claim"] = _redline_filter(str(e["claim"]))[0]
+                    events.append(e)
+            payload, status = {"ok": True, "chart_line": chart_line, "events": events,
+                               "note": "逐条打分:准/不准/说不清。打分只你自己可见,存本机档案,用于校准后续推演。"}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"盘前验证失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
+class BackcastScoreReq(BaseModel):
+    birth: str
+    events: list  # [{year,ganzhi,domain,claim,confidence,score:hit|miss|unsure}]
+
+
+@app.post("/api/backcast/score")
+def backcast_score(req: BackcastScoreReq) -> JSONResponse:
+    """保存盘前验证打分 → 当场出「过去命中率」,并入个人档案(校准后续推演)。"""
+    rate = dossier.save_backcast(req.birth, req.events)
+    return JSONResponse({"ok": True, "hit_rate": rate, "stats": dossier.stats(req.birth)})
 
 
 @app.get("/api/records/list")

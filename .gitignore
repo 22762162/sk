@@ -27,6 +27,7 @@ consult-engine/predictions/
 evals/reports/
 
 consult-engine/records/
+consult-engine/dossier/
 
 # 巴纳姆盲测产物:含私有答案 key 与主体作答,严禁提交(盲法完整性,INV-13)
 evals/barnum/out/
