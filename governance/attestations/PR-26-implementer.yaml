@@ -1,0 +1,24 @@
+artifact_id: PR-26-implementer
+timestamp: "2026-07-15T15:00:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(时辰校准)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: c9e23a1(main,PR #25 合并点)
+generated_files:
+  - prompts/base/presenter/shichen.md(定时辰师:候选盘×大事比对,ranking 3 条,推理须落干支,信息不足如实说)
+  - consult-engine/consult.py(shichen_calibrate,单模型 1 次调用)
+  - backend/app.py(/api/shichen/start:13 候选时辰本地排盘(晚子时单列)+ 模型比对;结果过红线 scrub)
+  - web/index.html(表单「不确定时辰?」入口 + 大事输入 + 前三名卡片 + 「用这个时辰」一键回填)
+  - docs/DESIGN.md §13
+reviewed_files: []
+notes: >-
+  本人选定方向之二:「定时辰」——真师傅的手艺,APP 几乎没有。13 个候选盘全部由确定性引擎本地排出(免费),
+  仅比对环节 1 次模型调用。真实验证:1990-06-15 男 + 三件大事,10s 排出前三,推理落到干支
+  (丁酉年酉冲寅木偏财→被动换工作),第三名敢明确说「不符」,note 诚实提示信息量有限并给出补充建议。
+  概率化措辞、不碰生死/确诊/投资(提示词硬性);候选盘为 computed_fact,排序为 model_synthesis。
+  INV-10/12:新增呈现层提示词,未动辩手/裁判与 metrics;对称性通过。密钥仅经 gateway。
+  交叉评审由本人全量审阅替代;本人签署由合并动作承载。

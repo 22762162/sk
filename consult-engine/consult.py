@@ -244,6 +244,27 @@ def backcast(chart_line: str, dayun: dict | None, past_liunian: list[dict],
     return obj
 
 
+def shichen_calibrate(candidates: list[dict], events_text: str, gender_cn: str = "") -> dict:
+    """时辰校准:对比 12/13 个候选盘与本人已发生大事,排出最可能的前三(单模型 1 次调用)。
+
+    candidates: [{time_range, hour_ganzhi, chart_line, note?}]
+    """
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "shichen.md")
+    lines = ["候选命盘(同一天,各时辰):"]
+    for c in candidates:
+        extra = f"({c['note']})" if c.get("note") else ""
+        lines.append(f"- {c['time_range']} 时柱 {c['hour_ganzhi']}{extra}:{c['chart_line']}")
+    if gender_cn:
+        lines.append(f"性别:{gender_cn}")
+    lines.append(f"\n本人自述已发生的大事:{events_text.strip()[:600]}")
+    lines.append("\n请按 system 要求输出 JSON 对象(ranking 3 条 + note)。")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                "\n".join(lines), want_array=False, max_tokens=2500,
+                                schema="shichen-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
 def chat_followup(context: dict, history: list[dict], question: str) -> dict:
     """会诊后的追问/质疑(单模型,1 次调用):基于已有会诊结果重新推算或解释。
 
