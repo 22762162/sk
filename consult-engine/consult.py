@@ -210,13 +210,20 @@ def _plain_summary(chart_line: str, assignments: list[dict], judge: dict | None,
         lines.append("、".join(f"{p['ganzhi']} {p['start_year']}-{p['end_year']}({p['start_age']}-{p['end_age']}岁)"
                               for p in dayun["periods"]))
     if liunian:
-        lines.append("")
-        lines.append("未来流年干支(逐年分析用,请结合命局与所在大运逐年推演):"
-                     + "、".join(f"{x['year']}年 {x['ganzhi']}" for x in liunian))
-    user = "\n".join(lines) + "\n\n请按 system 要求输出白话综述 JSON 对象(含 domains、dayun、yearly)。"
+        past = [x for x in liunian if x.get("past")]
+        futu = [x for x in liunian if not x.get("past")]
+        if past:
+            lines.append("")
+            lines.append("过去流年(已发生——用「这一年应该…」断过去,供本人打分验证):"
+                         + "、".join(f"{x['year']}年 {x['ganzhi']}" for x in past))
+        if futu:
+            lines.append("")
+            lines.append("未来流年(结合命局与所在大运逐年推演):"
+                         + "、".join(f"{x['year']}年 {x['ganzhi']}" for x in futu))
+    user = "\n".join(lines) + "\n\n请按 system 要求输出白话综述 JSON 对象(含 domains、dayun、yearly;过去与未来流年每年都要有)。"
     try:
         obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system, user,
-                                    want_array=False, max_tokens=4000, schema="plain-summary-v1")
+                                    want_array=False, max_tokens=6000, schema="plain-summary-v1")
     except ConsultError:
         return None
     obj["_run_id"] = run_id

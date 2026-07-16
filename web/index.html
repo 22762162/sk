@@ -285,18 +285,35 @@ function renderConsult(j) {
         }
       }
       if (ps.yearly && ps.yearly.length) {
-        html += '<div style="margin-top:16px;font-size:12px;color:#8a7f6e;letter-spacing:2px;">流年 · 逐年推演</div>';
+        const nowY = new Date().getFullYear();
+        window.YLPAST = [];
+        html += '<div style="margin-top:16px;font-size:12px;color:#8a7f6e;letter-spacing:2px;">流年 · 断过去 + 推未来</div>';
         html += '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-top:6px;">';
         ps.yearly.forEach(y => {
           const te = TEND[y.tendency] || TEND.neutral;
+          const isPast = y.year < nowY;
           html += `<div style="border-left:3px solid ${te.c};background:${te.bg};border-radius:6px;padding:8px 12px;">
             <div style="font-size:13px;"><b>${y.year}</b> <span style="color:#8a7f6e;">${y.ganzhi||''}</span>
+              ${isPast?'<span style="background:#8a5a2a;color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;margin-left:5px;">断过去·可打分</span>':''}
               <span style="background:${te.c};color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;margin-left:5px;">${te.t}</span>
               ${(y.key_domains&&y.key_domains.length)?`<span style="color:#8a7f6e;font-size:11px;margin-left:4px;">${y.key_domains.join('·')}</span>`:''}</div>
-            <div style="font-size:13px;line-height:1.7;margin-top:3px;">${y.reading||''}</div>
-            <button class="recbtn" data-domain="流年${y.year}" data-reading="${encodeURIComponent(y.year + ' ' + (y.ganzhi||'') + ':' + (y.reading||''))}" style="margin-top:6px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:3px 9px;cursor:pointer;">＋ 记录为预测</button></div>`;
+            <div style="font-size:13px;line-height:1.7;margin-top:3px;">${y.reading||''}</div>`;
+          if (isPast) {
+            const idx = window.YLPAST.length;
+            window.YLPAST.push({year:y.year, ganzhi:y.ganzhi||'', domain:(y.key_domains&&y.key_domains[0])||'综合', claim:y.reading||'', confidence:y.confidence||'low', score:''});
+            html += `<div style="margin-top:6px;">${[['hit','准'],['miss','不准'],['unsure','说不清']].map(([s,t])=>
+              `<button type="button" class="ylsc" data-i="${idx}" data-s="${s}" style="font-size:12px;margin-right:6px;border:1px solid #bbb;background:#fff;color:#5d5346;border-radius:14px;padding:2px 12px;cursor:pointer;">${t}</button>`).join('')}</div>`;
+          } else {
+            html += `<button class="recbtn" data-domain="流年${y.year}" data-reading="${encodeURIComponent(y.year + ' ' + (y.ganzhi||'') + ':' + (y.reading||''))}" style="margin-top:6px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:3px 9px;cursor:pointer;">＋ 记录为预测</button>`;
+          }
+          html += '</div>';
         });
         html += '</div>';
+        if (window.YLPAST.length) {
+          html += `<div style="margin-top:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <button type="button" id="ylsubmit" style="background:#8a5a2a;font-size:13px;">提交过去流年打分 · 入档案命中率</button>
+            <span id="ylrate" style="font-size:13px;"></span></div>`;
+        }
       }
       if (ps.consensus) html += `<div style="font-size:13px;color:#3f7d55;margin-top:12px;line-height:1.8;"><b>都同意:</b>${ps.consensus}</div>`;
       if (ps.divergence) html += `<div style="font-size:13px;color:#b5762a;margin-top:6px;line-height:1.8;"><b>还没统一:</b>${ps.divergence}</div>`;
@@ -360,6 +377,27 @@ function renderConsult(j) {
       </div></div>`;
     box.innerHTML = html;
     box.querySelectorAll('.recbtn').forEach(b => b.onclick = () => recordPred(b));
+    // 过去流年打分(断过去可验证) → 入档案命中率
+    box.querySelectorAll('.ylsc').forEach(b => b.onclick = () => {
+      window.YLPAST[+b.dataset.i].score = b.dataset.s;
+      b.parentElement.querySelectorAll('.ylsc').forEach(x=>{x.style.background='#fff';x.style.color='#5d5346';x.style.borderColor='#bbb';});
+      const col=b.dataset.s==='hit'?'#3f7d55':(b.dataset.s==='miss'?'#a33':'#8a7f6e');
+      b.style.background=col; b.style.color='#fff'; b.style.borderColor=col;
+    });
+    const ylBtn = document.getElementById('ylsubmit');
+    if (ylBtn) ylBtn.onclick = async () => {
+      if (!window.YLPAST.some(e=>e.score)) { alert('请先至少给一条过去流年打分'); return; }
+      try{
+        const jj = await (await fetch('/api/backcast/score',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({birth: j._birth || curBirth(), events: window.YLPAST})})).json();
+        if (!jj.ok) return;
+        const rt = jj.hit_rate;
+        document.getElementById('ylrate').innerHTML = rt==null
+          ? '<span style="color:#8a7f6e;">全部「说不清」,无法计算</span>'
+          : `<b style="color:${rt>=0.6?'#3f7d55':(rt>=0.4?'#b5762a':'#a33')};">过去流年命中率 ${Math.round(rt*100)}%</b> <span style="font-size:12px;color:#8a7f6e;">已入档案,自动校准后续推演</span>`;
+        ylBtn.disabled = true;
+      }catch(_){}
+    };
     // 组装追问上下文(命局 + 大运 + 神煞 + 白话结论 + 本人背景)
     const duC = j.chart && j.chart.dayun;
     window.CHATCTX = {
