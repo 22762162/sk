@@ -1,0 +1,17 @@
+artifact_id: PR-30-implementer
+timestamp: "2026-07-15T20:00:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(网关瞬时故障重试)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 1e4ab97(main,PR #29 合并点)
+generated_files:
+  - consult-engine/gateway.py(瞬时故障重试:429/500/502/503/504/529 与网络异常,指数退避 2s/4s/8s 最多 3 次)
+reviewed_files: []
+notes: >-
+  用户会诊撞 anthropic 529 Overloaded(供应商临时过载)直接失败。网关层加重试;
+  非瞬时错误(401/400 等)照旧立刻 fail_closed。未动密钥读取/manifest/熔断逻辑(INV-06/07 不变)。
+  单次真实调用冒烟通过。本人签署由合并动作承载。

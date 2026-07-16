@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -88,10 +89,24 @@ def call(provider: str, model_id: str, system: str, user: str,
     if send_temp:
         payload["temperature"] = temperature
 
-    try:
-        resp = httpx.post(url, headers=headers, json=payload, timeout=90)
-    except httpx.HTTPError as exc:
-        raise GatewayError(f"{provider} 网络错误:{exc.__class__.__name__}") from exc
+    # 瞬时故障自动重试:供应商过载(529)/限流(429)/5xx/网络抖动,指数退避最多 3 次重试
+    retryable = {429, 500, 502, 503, 504, 529}
+    resp, last_err = None, ""
+    for attempt in range(4):
+        if attempt:
+            time.sleep(2 ** attempt)  # 2s / 4s / 8s
+        try:
+            resp = httpx.post(url, headers=headers, json=payload, timeout=90)
+        except httpx.HTTPError as exc:
+            last_err = f"{provider} 网络错误:{exc.__class__.__name__}"
+            resp = None
+            continue
+        if resp.status_code in retryable:
+            last_err = f"{provider} 返回 {resp.status_code}(瞬时故障,已自动重试):{resp.text[:120]}"
+            continue
+        break
+    if resp is None or resp.status_code in retryable:
+        raise GatewayError(last_err or f"{provider} 多次重试仍失败")
     if resp.status_code != 200:
         raise GatewayError(f"{provider} 返回 {resp.status_code}:{resp.text[:200]}")
     data = resp.json()
