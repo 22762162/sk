@@ -216,26 +216,44 @@ document.getElementById('cs').addEventListener('click', async () => {
     });
     const sj = await sr.json();
     if (!sj.ok || !sj.job_id) { box.innerHTML = '<span style="color:#a33;">会诊启动失败,请确认服务运行</span>'; return; }
-    const t0 = Date.now();
-    let j = null;
-    while (true) {
-      await new Promise(res => setTimeout(res, 3000));
-      const el = Math.round((Date.now() - t0) / 1000);
-      if (el > 450) { box.innerHTML = '<span style="color:#a33;">会诊超时(&gt;7.5 分钟),可能某个模型偏慢,请重试</span>'; return; }
-      box.innerHTML = `<span style="color:#7a6f5f;">三模型会诊进行中(三辩手 → 匿名质证 → 轮换裁判 → 大运流年推演)…已 ${el} 秒,内容较全通常 3–5 分钟,请耐心等待、勿关闭本页</span>`;
-      let rj;
-      try { rj = await (await fetch('/api/consult/result?job_id=' + encodeURIComponent(sj.job_id))).json(); }
-      catch (e) { continue; }
-      if (rj.status === 'running') continue;
-      if (rj.status === 'done' || rj.status === 'error') { j = rj.result; break; }
-      box.innerHTML = '<span style="color:#a33;">会诊任务丢失,请重试</span>'; return;
-    }
-    if (!j.ok) { box.innerHTML = '<span style="color:#a33;">会诊失败:' + (j.error || '未知') + '</span>'; return; }
+    const j = await pollConsultJob(sj.job_id, box, 450);
+    if (j === 'timeout') { showConsultTimeout(sj.job_id, box); return; }
+    if (!j || !j.ok) { box.innerHTML = '<span style="color:#a33;">会诊失败:' + ((j && j.error) || '未知') + '</span>'; return; }
     renderConsult(j);
   } catch (_) {
     box.innerHTML = '<span style="color:#a33;">请求失败(会诊耗时较长,请确认服务运行)</span>';
   } finally { btn.disabled = false; }
 });
+
+// 轮询会诊任务:窗口内完成返回结果对象,超窗返回 'timeout'(任务在服务端继续跑,不丢)
+async function pollConsultJob(jobId, box, windowSec){
+  const t0 = Date.now();
+  while (true) {
+    await new Promise(res => setTimeout(res, 3000));
+    const el = Math.round((Date.now() - t0) / 1000);
+    if (el > windowSec) return 'timeout';
+    box.innerHTML = `<span style="color:#7a6f5f;">三模型会诊进行中(三辩手 → 质证 → 裁判 → 大运流年)…本轮已等 ${el} 秒。通常 3–5 分钟;遇模型服务过载会自动重试,可能更久,请勿重复发起</span>`;
+    let rj;
+    try { rj = await (await fetch('/api/consult/result?job_id=' + encodeURIComponent(jobId))).json(); }
+    catch (e) { continue; }
+    if (rj.status === 'running') continue;
+    if (rj.status === 'done' || rj.status === 'error') return rj.result;
+    return {ok:false, error:'任务丢失,请重试'};
+  }
+}
+// 超窗提示:会诊仍在后台跑,完成自动入「历史记录」;可继续等待,别重跑(重跑重复花钱)
+function showConsultTimeout(jobId, box){
+  box.innerHTML = `<div style="border:1px solid #d8b56a;border-radius:8px;background:#fdf6e3;padding:12px 16px;font-size:13px;line-height:1.9;">
+    等了挺久还没出——大概率某家模型服务过载,系统在自动重试。<b>会诊没有失败,仍在后台进行,完成后会自动存入「历史记录」</b>。
+    你可以点「继续等待」,或先去做别的、几分钟后打开「历史记录」查看。<b>请勿重新发起</b>(会重复计费)。</div>
+    <button type="button" id="cswait" style="background:#6b3f6b;margin-top:10px;">继续等待</button>`;
+  document.getElementById('cswait').onclick = async () => {
+    const j = await pollConsultJob(jobId, box, 300);
+    if (j === 'timeout') { showConsultTimeout(jobId, box); return; }
+    if (!j || !j.ok) { box.innerHTML = '<span style="color:#a33;">会诊失败:' + ((j && j.error) || '未知') + '</span>'; return; }
+    renderConsult(j);
+  };
+}
 
 // 渲染一场会诊(实时结果与历史记录通用);j 可带 _profile(记录存的背景)与 _chats(历史追问)
 function renderConsult(j) {

@@ -89,14 +89,19 @@ def call(provider: str, model_id: str, system: str, user: str,
     if send_temp:
         payload["temperature"] = temperature
 
-    # 瞬时故障自动重试:供应商过载(529)/限流(429)/5xx/网络抖动,指数退避最多 3 次重试
+    # 瞬时故障自动重试:供应商过载(529)/限流(429)/5xx/网络抖动,指数退避最多 3 次重试;
+    # 单次调用总时限 180s(过载时供应商可能响应极慢,不设上限会把整场会诊拖到十几分钟)
     retryable = {429, 500, 502, 503, 504, 529}
     resp, last_err = None, ""
+    start = time.monotonic()
     for attempt in range(4):
         if attempt:
+            if time.monotonic() - start > 180:
+                last_err = (last_err or f"{provider} 响应缓慢") + "(单次调用超 180s 上限,放弃)"
+                break
             time.sleep(2 ** attempt)  # 2s / 4s / 8s
         try:
-            resp = httpx.post(url, headers=headers, json=payload, timeout=90)
+            resp = httpx.post(url, headers=headers, json=payload, timeout=75)
         except httpx.HTTPError as exc:
             last_err = f"{provider} 网络错误:{exc.__class__.__name__}"
             resp = None
