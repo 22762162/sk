@@ -1,0 +1,22 @@
+artifact_id: PR-29-implementer
+timestamp: "2026-07-15T19:00:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(流年断过去可打分)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: e2e5c7d(main,PR #28 合并点)
+generated_files:
+  - backend/app.py(流年跨度改为 过去5年+今年+未来7年,带 past 标记)
+  - consult-engine/consult.py(_plain_summary 材料分「过去流年(断过去供打分)/未来流年」;max_tokens 4000→6000)
+  - prompts/base/presenter/plain_summary.md(规则6:过去流年用「这一年应该…」断过去,具体可打分;实录已明说的顺着事实给命理解释)
+  - web/index.html(过去年份卡:「断过去·可打分」标签+三键打分,提交入档案命中率(/api/backcast/score 复用);未来年份保留「记录为预测」)
+reviewed_files: []
+notes: >-
+  用户反馈:流年只从 2026 开始,应加上前面几年——已发生的事可直接验证。落地:每场会诊的逐年推演
+  同时「断过去(可打分)+推未来(可记录)」,过去流年打分与盘前验证同渠道入档案(dossier),
+  校准后续推演。真实验证(团播运营盘):yearly 2021–2033 共 13 条,过去 5 条为具体可打分的断言口吻,
+  全流程 167s。max_tokens 提到 6000(13 条 yearly,deepseek 非思考模型)。
+  仅改呈现层提示词与预算,未动辩手/裁判与 metrics。密钥仅经 gateway。本人签署由合并动作承载。

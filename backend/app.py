@@ -285,7 +285,11 @@ def _run_consult_payload(req: ConsultReq) -> dict:
                   f"日柱 {o['day']['ganzhi']},时柱 {o['hour']['ganzhi']}(八字年 {o['bazi_year']})")
     # 种子取命盘哈希,保证同盘同轮换、可复现(DESIGN 可复现:可审计可回放)
     seed = int(hashlib.sha256(chart_line.encode()).hexdigest(), 16) % 3
-    liunian = luck.liunian(datetime.now().year, 8)  # 未来 8 年流年,供逐年推演
+    # 流年跨度:过去 5 年(断过去,已发生可打分验证)+ 今年 + 未来 7 年(推未来)
+    now_y = datetime.now().year
+    liunian = luck.liunian(now_y - 5, 13)
+    for x in liunian:
+        x["past"] = x["year"] < now_y
     meta = chart.get("meta", {})
     branches = [o[p]["branch"] for p in ("year", "month", "day", "hour")]
     shensha = luck.shensha(o["day"]["stem"], o["day"]["branch"], o["year"]["branch"], branches)
