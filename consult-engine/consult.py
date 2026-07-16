@@ -272,6 +272,40 @@ def shichen_calibrate(candidates: list[dict], events_text: str, gender_cn: str =
     return obj
 
 
+def recalibrate(context: dict, yearly_orig: list[dict], corrections: list[dict],
+                future_years: list[dict]) -> dict:
+    """实际事件校准(单模型 1 次调用):对照原推演与实际 → 修正命局理解 → 重推今年及未来。
+
+    context: {chart_line, profile, dayun_text, shensha_text}
+    corrections: [{year, actual, score?}](本人提供的实际情况)
+    future_years: [{year, ganzhi}](需要重推的年份)
+    """
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "recalibrate.md")
+    score_cn = {"hit": "准", "miss": "不准", "partial": "部分", "unsure": "说不清"}
+    lines = [f"四柱:{context.get('chart_line', '')}"]
+    if context.get("profile"):
+        lines.append(f"本人背景:{context['profile']}")
+    if context.get("shensha_text"):
+        lines.append(f"神煞:{context['shensha_text']}")
+    if context.get("dayun_text"):
+        lines.append(f"大运:{context['dayun_text']}")
+    lines.append("\n原逐年推演:")
+    for y in yearly_orig[:16]:
+        lines.append(f"- {y.get('year')}年 {y.get('ganzhi', '')}:{str(y.get('reading', ''))[:160]}")
+    lines.append("\n本人提供的实际情况(对照用):")
+    for c in corrections[:10]:
+        sc = f"(本人打分:{score_cn.get(c.get('score'), '未打')})" if c.get("score") else ""
+        lines.append(f"- {c.get('year')}年 实际:{str(c.get('actual', ''))[:200]}{sc}")
+    lines.append("\n需要重推的年份(今年及未来):"
+                 + "、".join(f"{x['year']}年 {x['ganzhi']}" for x in future_years))
+    lines.append("\n请按 system 要求输出 JSON 对象(analysis、revision、yearly、note)。")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                "\n".join(lines), want_array=False, max_tokens=6000,
+                                schema="recalibrate-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
 def chat_followup(context: dict, history: list[dict], question: str) -> dict:
     """会诊后的追问/质疑(单模型,1 次调用):基于已有会诊结果重新推算或解释。
 

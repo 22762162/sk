@@ -1,0 +1,23 @@
+artifact_id: PR-32-implementer
+timestamp: "2026-07-16T18:30:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(实际情况校正)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: c2f6590(main,PR #31 合并点)
+generated_files:
+  - prompts/base/presenter/recalibrate.md(校准师:逐年对照→不符原因(命理或现实)→修正命局理解→重推未来;诚实对照硬性要求)
+  - consult-engine/consult.py(recalibrate 函数,单模型 1 次调用)
+  - backend/app.py(/api/recalibrate/start 异步;实际情况自动入大事记;输出全过红线 scrub)
+  - web/index.html(过去年份卡加「实际发生了什么」输入;「⟳按实际情况校正推演」按钮;renderRecal 渲染对照/修正/校正后未来(可记录为预测);大事记面板补「已出结果是快照」说明)
+reviewed_files: []
+notes: >-
+  用户反馈:①大事记加了但已出推演没变化(快照行为未说明);②过去年份只能打分,应能填当年大事件、
+  分析符不符、不符原因、校正并看未来是否变化。落地:校正 = 对照→归因(命理判错还是现实因素主导)→
+  修正命局理解→重推今年及未来;实际情况同时自动入大事记(下次会诊也带上)。
+  真实验证(2021 实际创业亏损 vs 推演换工作):对照判「不符」且诚实归因(劫财破坏力估计不足),
+  修正明确,2026/2027 重推显式基于修正后理解;27s 完成。提示词硬性要求禁止把不符拗成符合。
+  INV-10/12:新增呈现层提示词,未动辩手/裁判与 metrics;对称性通过。测试档案已清空。本人签署由合并动作承载。
