@@ -318,9 +318,10 @@ function renderConsult(j) {
             <div style="font-size:13px;line-height:1.7;margin-top:3px;">${y.reading||''}</div>`;
           if (isPast) {
             const idx = window.YLPAST.length;
-            window.YLPAST.push({year:y.year, ganzhi:y.ganzhi||'', domain:(y.key_domains&&y.key_domains[0])||'综合', claim:y.reading||'', confidence:y.confidence||'low', score:''});
+            window.YLPAST.push({year:y.year, ganzhi:y.ganzhi||'', domain:(y.key_domains&&y.key_domains[0])||'综合', claim:y.reading||'', confidence:y.confidence||'low', score:'', actual:''});
             html += `<div style="margin-top:6px;">${[['hit','准'],['miss','不准'],['unsure','说不清']].map(([s,t])=>
-              `<button type="button" class="ylsc" data-i="${idx}" data-s="${s}" style="font-size:12px;margin-right:6px;border:1px solid #bbb;background:#fff;color:#5d5346;border-radius:14px;padding:2px 12px;cursor:pointer;">${t}</button>`).join('')}</div>`;
+              `<button type="button" class="ylsc" data-i="${idx}" data-s="${s}" style="font-size:12px;margin-right:6px;border:1px solid #bbb;background:#fff;color:#5d5346;border-radius:14px;padding:2px 12px;cursor:pointer;">${t}</button>`).join('')}</div>
+            <input type="text" class="ylact" data-i="${idx}" maxlength="200" placeholder="✍ 这一年实际发生了什么(填了才能校正,如:升职去了外地 / 没换工作,平稳)" style="width:100%;margin-top:6px;padding:6px 10px;border:1px dashed var(--line);border-radius:6px;font-size:12px;background:#fff;box-sizing:border-box;">`;
           } else {
             html += `<button class="recbtn" data-domain="流年${y.year}" data-reading="${encodeURIComponent(y.year + ' ' + (y.ganzhi||'') + ':' + (y.reading||''))}" style="margin-top:6px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:3px 9px;cursor:pointer;">＋ 记录为预测</button>`;
           }
@@ -329,8 +330,10 @@ function renderConsult(j) {
         html += '</div>';
         if (window.YLPAST.length) {
           html += `<div style="margin-top:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-            <button type="button" id="ylsubmit" style="background:#8a5a2a;font-size:13px;">提交过去流年打分 · 入档案命中率</button>
-            <span id="ylrate" style="font-size:13px;"></span></div>`;
+            <button type="button" id="ylsubmit" style="background:#8a5a2a;font-size:13px;">提交打分 · 入档案命中率</button>
+            <button type="button" id="ylrecal" style="background:#6b3f6b;font-size:13px;">⟳ 按实际情况校正推演</button>
+            <span id="ylrate" style="font-size:13px;"></span></div>
+            <div id="recalout"></div>`;
         }
       }
       if (ps.consensus) html += `<div style="font-size:13px;color:#3f7d55;margin-top:12px;line-height:1.8;"><b>都同意:</b>${ps.consensus}</div>`;
@@ -402,6 +405,31 @@ function renderConsult(j) {
       const col=b.dataset.s==='hit'?'#3f7d55':(b.dataset.s==='miss'?'#a33':'#8a7f6e');
       b.style.background=col; b.style.color='#fff'; b.style.borderColor=col;
     });
+    box.querySelectorAll('.ylact').forEach(inp => inp.oninput = () => { window.YLPAST[+inp.dataset.i].actual = inp.value; });
+    const rcBtn = document.getElementById('ylrecal');
+    if (rcBtn) rcBtn.onclick = async () => {
+      const corr = window.YLPAST.filter(e => e.actual && e.actual.trim())
+                        .map(e => ({year: e.year, actual: e.actual.trim(), score: e.score || ''}));
+      if (!corr.length) { alert('先在过去年份里填「这一年实际发生了什么」,再点校正'); return; }
+      const out = document.getElementById('recalout');
+      out.innerHTML = '<div style="margin-top:10px;font-size:13px;color:#7a6f5f;">校正中(逐年对照 → 修正命局理解 → 重推今年及未来,约 20–60 秒)…</div>';
+      rcBtn.disabled = true;
+      try {
+        const sj = await (await fetch('/api/recalibrate/start', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({birth: j._birth || curBirth(), context: window.CHATCTX || {}, yearly: (ps && ps.yearly) || [], corrections: corr})})).json();
+        if (!sj.ok || !sj.job_id) { out.innerHTML = '<span style="color:#a33;">' + esc(sj.error || '校正启动失败') + '</span>'; return; }
+        let rj = null;
+        for (let k = 0; k < 60; k++) {
+          await new Promise(r => setTimeout(r, 3000));
+          try { rj = await (await fetch('/api/consult/result?job_id=' + encodeURIComponent(sj.job_id))).json(); } catch (e) { continue; }
+          if (rj.status !== 'running') break;
+          out.innerHTML = `<div style="margin-top:10px;font-size:13px;color:#7a6f5f;">校正中…已 ${(k+1)*3} 秒</div>`;
+        }
+        if (!(rj && rj.status === 'done' && rj.result && rj.result.ok)) { out.innerHTML = '<span style="color:#a33;">校正失败,请重试</span>'; return; }
+        renderRecal(out, rj.result);
+      } catch (_) { out.innerHTML = '<span style="color:#a33;">请求失败</span>'; }
+      finally { rcBtn.disabled = false; }
+    };
     const ylBtn = document.getElementById('ylsubmit');
     if (ylBtn) ylBtn.onclick = async () => {
       if (!window.YLPAST.some(e=>e.score)) { alert('请先至少给一条过去流年打分'); return; }
@@ -636,6 +664,35 @@ function renderBackcast(box, r, birth){
   };
 }
 
+// —— 实际情况校正:对照 → 修正命局理解 → 重推今年及未来 ——
+function renderRecal(out, r){
+  const V = {'符合':['符合','#3f7d55'], '部分':['部分','#b5762a'], '不符':['不符','#a33']};
+  const T2 = {favorable:{t:'偏顺',c:'#3f7d55',bg:'#eef6f0'}, caution:{t:'留意',c:'#b5762a',bg:'#fbf3e6'}, neutral:{t:'中性',c:'#6b6459',bg:'#f2efe9'}};
+  let h = `<div style="margin-top:12px;border:2px solid #6b3f6b;border-radius:10px;background:#fff;padding:14px 18px;">
+    <div style="font-size:12px;color:#6b3f6b;letter-spacing:2px;">实际情况校正 · 对照 → 修正 → 重推</div>`;
+  (r.analysis || []).forEach(a => {
+    const v = V[a.verdict] || [a.verdict || '?', '#8a7f6e'];
+    h += `<div style="margin-top:8px;font-size:13px;line-height:1.8;"><b>${a.year}</b>
+      <span style="background:${v[1]};color:#fff;font-size:10px;padding:1px 8px;border-radius:9px;margin-left:4px;">${v[0]}</span> ${esc(a.reason || '')}</div>`;
+  });
+  if (r.revision) h += `<div style="margin-top:10px;padding:10px 12px;background:#f5eef5;border-radius:8px;font-size:13px;line-height:1.85;"><b style="color:#6b3f6b;">命局理解修正:</b>${esc(r.revision)}</div>`;
+  if (r.yearly && r.yearly.length) {
+    h += '<div style="margin-top:12px;font-size:12px;color:#8a7f6e;letter-spacing:2px;">校正后 · 今年及未来</div>';
+    r.yearly.forEach(y => {
+      const te = T2[y.tendency] || T2.neutral;
+      h += `<div style="border-left:3px solid ${te.c};background:${te.bg};border-radius:6px;padding:8px 12px;margin-top:6px;">
+        <div style="font-size:13px;"><b>${y.year}</b> <span style="color:#8a7f6e;">${y.ganzhi||''}</span>
+          <span style="background:${te.c};color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;margin-left:5px;">${te.t}</span></div>
+        <div style="font-size:13px;line-height:1.7;margin-top:3px;">${esc(y.reading||'')}</div>
+        <button class="recbtn" data-domain="校正流年${y.year}" data-reading="${encodeURIComponent(y.year+' '+(y.ganzhi||'')+'(校正后):'+(y.reading||''))}" style="margin-top:6px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:3px 9px;cursor:pointer;">＋ 记录为预测</button></div>`;
+    });
+  }
+  if (r.note) h += `<div style="font-size:12px;color:#8a7f6e;margin-top:8px;line-height:1.7;">${esc(r.note)}</div>`;
+  h += '<div style="font-size:11px;color:#8a7f6e;margin-top:8px;">你填的实际情况已自动存入「我的大事记」,下次会诊自动带上。</div></div>';
+  out.innerHTML = h;
+  out.querySelectorAll('.recbtn').forEach(b => { b.onclick = () => recordPred(b); });
+}
+
 // —— 我的大事记:已知事实(每年发生的事 + 当年现状变化),自动注入推演做校准 ——
 function curBirth(){ return document.getElementById('d').value + 'T' + document.getElementById('t').value; }
 document.getElementById('factsbtn').addEventListener('click', () => {
@@ -652,7 +709,7 @@ async function loadFacts(){
     const nowY=new Date().getFullYear();
     let html=`<div style="border:1px solid var(--line);border-radius:10px;background:#fff;padding:14px 18px;">
       <div style="font-size:12px;color:#4a5f8c;letter-spacing:2px;">我的大事记(当前排盘生日:${esc(curBirth())})</div>
-      <div style="font-size:12px;color:#8a7f6e;margin-top:4px;line-height:1.8;">写下每年<b>真实发生的事</b>和<b>今年的现状/变化</b>(行业、合伙人、贵人、平台、政策、风口都算)。这些是事实锚点:后续会诊/追问自动带上,与事实矛盾的推演会被校准——命盘不变,局在变,越全越准。<b>「验过去」永远看不到大事记(盲测防作弊)。</b></div>
+      <div style="font-size:12px;color:#8a7f6e;margin-top:4px;line-height:1.8;">写下每年<b>真实发生的事</b>和<b>今年的现状/变化</b>(行业、合伙人、贵人、平台、政策、风口都算)。这些是事实锚点:<b>之后发起的</b>会诊/追问自动带上(已出的结果是快照、不回改——要当场看变化,用会诊结果里的「⟳ 按实际情况校正推演」)。命盘不变,局在变,越全越准。<b>「验过去」永远看不到大事记(盲测防作弊)。</b></div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
         <input type="number" id="factyear" min="1950" max="2099" value="${nowY}" style="width:90px;padding:8px;border:1px solid var(--line);border-radius:6px;">
         <input type="text" id="facttext" maxlength="200" placeholder="如:换了直播赛道,新合伙人加入,但平台政策收紧" style="flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;">

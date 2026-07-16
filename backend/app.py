@@ -534,6 +534,61 @@ def facts_del(req: FactDelReq) -> JSONResponse:
                         status_code=200 if ok else 404)
 
 
+class RecalReq(BaseModel):
+    birth: str
+    context: dict = {}     # {chart_line, profile, dayun_text, shensha_text}
+    yearly: list = []      # 原逐年推演(全部)
+    corrections: list = [] # [{year, actual, score?}]
+
+
+@app.post("/api/recalibrate/start")
+def recalibrate_start(req: RecalReq) -> JSONResponse:
+    """实际事件校准(异步 1 次调用):对照推演与实际 → 修正命局理解 → 重推今年及未来;
+    实际情况同时自动存入大事记;结果轮询同 /api/consult/result。"""
+    corr = [c for c in (req.corrections or [])
+            if isinstance(c, dict) and str(c.get("actual", "")).strip()]
+    if not corr:
+        return JSONResponse({"ok": False, "error": "请先在过去年份里填写「实际情况」"},
+                            status_code=400)
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            for c in corr:  # 实际情况即已知事实 → 入大事记(下次会诊也自动带上)
+                try:
+                    y = int(c.get("year", 0))
+                    if 1901 <= y <= 2099:
+                        dossier.add_fact(req.birth, y, _redline_filter(str(c["actual"]))[0])
+                except (ValueError, OSError):
+                    pass
+            now_y = datetime.now().year
+            futu = luck.liunian(now_y, 8)
+            res = consult.recalibrate(req.context or {}, req.yearly or [], corr, futu)
+            analysis = []
+            for a in (res.get("analysis") or [])[:12]:
+                if isinstance(a, dict):
+                    a["reason"] = _redline_filter(str(a.get("reason", "")))[0]
+                    analysis.append(a)
+            yearly = []
+            for y in (res.get("yearly") or [])[:10]:
+                if isinstance(y, dict):
+                    y["reading"] = _redline_filter(str(y.get("reading", "")))[0]
+                    yearly.append(y)
+            payload, status = {"ok": True, "analysis": analysis,
+                               "revision": _redline_filter(str(res.get("revision", "")))[0],
+                               "yearly": yearly,
+                               "note": _redline_filter(str(res.get("note", "")))[0]}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"校正失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
 class ShichenReq(BaseModel):
     date: str            # YYYY-MM-DD(出生日期,时辰未知)
     gender: str = ""
