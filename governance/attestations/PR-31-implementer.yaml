@@ -1,0 +1,19 @@
+artifact_id: PR-31-implementer
+timestamp: "2026-07-16T17:20:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(超时 UX + 网关单调用时限)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 446e4bf(main,PR #30 合并点)
+generated_files:
+  - consult-engine/gateway.py(单次调用总时限 180s + httpx 超时 90→75s;过载慢响应不再把整场拖爆)
+  - web/index.html(轮询抽为 pollConsultJob;超窗改「仍在后台进行,自动入历史记录,可继续等待,勿重发起」+ cswait 续等按钮)
+reviewed_files: []
+notes: >-
+  用户报「会诊超时>7.5分钟」。诊断:任务并未失败,服务端仍在跑(过载重试+慢响应拉长总时长),
+  完成后已自动入档;前端却提示「请重试」——会误导用户重复发起、重复计费。修法:①网关单调用 180s 硬上限;
+  ②前端超窗如实告知后台仍在进行、给续等按钮。等待用户在跑的会诊完成后才重启服务(避免杀掉进行中任务)。
+  仅改重试时限与前端提示,未动密钥/manifest/提示词。本人签署由合并动作承载。
