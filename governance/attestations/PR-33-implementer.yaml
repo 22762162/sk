@@ -1,0 +1,22 @@
+artifact_id: PR-33-implementer
+timestamp: "2026-07-17T23:30:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(排盘根基:真太阳时/大运精月/神煞补全)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: ba13e11(main,PR #32 合并点;新账户重建后首个 PR)
+generated_files:
+  - consult-engine/solar.py(真太阳时:经度差+均时差 NOAA 简化式;城市经度表;未选=不校正)
+  - backend/app.py(PaipanReq 加 longitude/place;排盘前平移 t;meta 报校正分钟;Shichen 透传)
+  - consult-engine/luck.py(大运起运精到月:1天折4月,start_detail;神煞补 禄神/红鸾/天喜/将星/孤辰/寡宿/空亡(旬空落柱))
+  - web/index.html(出生地下拉 39 城;birthGeo 贯穿排盘/会诊/验过去/定时辰;meta 显示校正;大运显示 X岁Y个月)
+reviewed_files: []
+notes: >-
+  排盘根基修正:时辰按出生地真太阳时判定(兰州约-65分钟,乌鲁木齐约-130分钟,时柱可能整时辰偏移)。
+  实测:1990-06-15 08:30 乌鲁木齐 → 校正-129.8分钟,时柱 壬辰→辛卯;不选出生地行为与旧版逐字一致。
+  自检:空亡(辛亥→寅卯)/大运22天→7岁4个月/神煞(将星午/寡宿辰)通过。局限(诚实):真太阳时用 NOAA
+  简化均时差(±20s,足够时辰判定);大运/神煞仍为 Python 未对拍(标记待 Codex 盲写);城市经度取市区代表值。
+  本机环境为 2026-07-17 账户迁移后重建。本人签署由合并动作承载。

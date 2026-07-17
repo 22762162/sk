@@ -51,6 +51,31 @@
       </div>
       <div id="scout" style="margin-top:8px;"></div>
     </div>
+    <label>出生地(真太阳时校正;中西部出生强烈建议选)
+      <select id="birthplace">
+        <option value="" selected>不校正(按北京时间)</option>
+        <option value="116.4">北京</option><option value="117.2">天津</option>
+        <option value="121.5">上海</option><option value="106.6">重庆</option>
+        <option value="113.3">广州</option><option value="114.1">深圳</option>
+        <option value="120.2">杭州</option><option value="118.8">南京</option>
+        <option value="120.6">苏州</option><option value="114.3">武汉</option>
+        <option value="104.1">成都</option><option value="108.9">西安</option>
+        <option value="113.6">郑州</option><option value="112.9">长沙</option>
+        <option value="117.2">合肥</option><option value="115.9">南昌</option>
+        <option value="119.3">福州</option><option value="118.1">厦门</option>
+        <option value="117.1">济南</option><option value="120.4">青岛</option>
+        <option value="114.5">石家庄</option><option value="112.6">太原</option>
+        <option value="123.4">沈阳</option><option value="121.6">大连</option>
+        <option value="125.3">长春</option><option value="126.5">哈尔滨</option>
+        <option value="102.8">昆明</option><option value="106.6">贵阳</option>
+        <option value="108.4">南宁</option><option value="110.3">海口</option>
+        <option value="103.8">兰州</option><option value="101.8">西宁</option>
+        <option value="106.2">银川</option><option value="87.6">乌鲁木齐</option>
+        <option value="91.1">拉萨</option><option value="111.7">呼和浩特</option>
+        <option value="114.2">香港</option><option value="113.5">澳门</option>
+        <option value="121.5">台北</option>
+      </select>
+    </label>
     <label>子时归属(流派配置)
       <select id="mode">
         <option value="split" selected>早晚子时(晚子时不换日柱)</option>
@@ -124,6 +149,12 @@
   </footer>
 </main>
 <script>
+function birthGeo(){
+  const s = document.getElementById('birthplace');
+  const v = s.value;
+  return { longitude: v ? parseFloat(v) : null,
+           place: v ? s.options[s.selectedIndex].text : '' };
+}
 document.getElementById('f').addEventListener('submit', async (e) => {
   e.preventDefault();
   const err = document.getElementById('err'), res = document.getElementById('result');
@@ -132,7 +163,7 @@ document.getElementById('f').addEventListener('submit', async (e) => {
   try {
     const r = await fetch('/api/paipan', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value})
+      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value, ...birthGeo()})
     });
     const j = await r.json();
     if (!j.ok) { err.textContent = '无法排盘:' + (j.error || '未知错误'); err.style.display = 'block'; return; }
@@ -141,9 +172,11 @@ document.getElementById('f').addEventListener('submit', async (e) => {
     document.getElementById('pm').textContent = o.month.ganzhi;
     document.getElementById('pd').textContent = o.day.ganzhi;
     document.getElementById('ph').textContent = o.hour.ganzhi;
+    const sc = j.meta.solar_correction_minutes || 0;
     document.getElementById('meta').textContent =
       `八字年:${o.bazi_year} · 节气月:${j.meta.jie_window.name}起 · 子时口径:` +
       (j.meta.zi_hour_mode === 'split' ? '早晚子时' : '子时换日') +
+      (sc ? ` · ${j.meta.place||'出生地'}真太阳时校正 ${sc>0?'+':''}${sc} 分钟` : '') +
       (j.meta.dst_applied ? ' · 该时刻处于历史夏令时,已按 tzdata 换算' : '');
     const amb = document.getElementById('amb');
     if (j.result_status === 'ambiguous') {
@@ -176,7 +209,7 @@ document.getElementById('qr').addEventListener('click', async () => {
   try {
     const r = await fetch('/api/quickread', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value})
+      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value, ...birthGeo()})
     });
     const j = await r.json();
     if (!j.ok) { box.innerHTML = '<span style="color:#a33;">速览失败:' + (j.error || '未知错误') + '</span>'; return; }
@@ -212,7 +245,7 @@ document.getElementById('cs').addEventListener('click', async () => {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value, gender: document.getElementById('gender').value,
         industry: document.getElementById('industry').value, occupation: document.getElementById('occupation').value,
-        situation: document.getElementById('situation').value, arm: 'D3J'})
+        situation: document.getElementById('situation').value, arm: 'D3J', ...birthGeo()})
     });
     const sj = await sr.json();
     if (!sj.ok || !sj.job_id) { box.innerHTML = '<span style="color:#a33;">会诊启动失败,请确认服务运行</span>'; return; }
@@ -299,7 +332,7 @@ function renderConsult(j) {
               const cur = p.start_year <= nowY && nowY < p.end_year;
               return `<span style="font-size:11px;border:1px solid ${cur?'#2c6a66':'var(--line)'};background:${cur?'#eef6f0':'#fff'};color:${cur?'#2c6a66':'#5d5346'};border-radius:8px;padding:3px 9px;">${p.ganzhi} <span style="color:#8a7f6e;">${p.start_year}–${p.end_year}</span>${cur?' ·现在':''}</span>`;
             }).join('') + '</div>';
-          html += `<div style="font-size:11px;color:#8a7f6e;margin-top:4px;">${du.direction} · ${du.start_age}岁起运(起运岁为近似)</div>`;
+          html += `<div style="font-size:11px;color:#8a7f6e;margin-top:4px;">${du.direction} · ${du.start_detail || (du.start_age+'岁')}起运(3天折1岁/1天折4月)</div>`;
         }
       }
       if (ps.yearly && ps.yearly.length) {
@@ -572,7 +605,7 @@ async function runShichen(){
   try{
     const sj=await (await fetch('/api/shichen/start',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({date:document.getElementById('d').value, gender:document.getElementById('gender').value,
-        events_text:ev, zi_hour_mode:document.getElementById('mode').value})})).json();
+        events_text:ev, zi_hour_mode:document.getElementById('mode').value, longitude:birthGeo().longitude})})).json();
     if(!sj.ok||!sj.job_id){ stat.textContent=sj.error||'启动失败'; btn.disabled=false; return; }
     let rj=null;
     for(let k=0;k<50;k++){
@@ -611,7 +644,7 @@ async function runBackcast(){
   try{
     const sj=await (await fetch('/api/backcast/start',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
-        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value, situation:''})})).json();
+        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value, situation:'', ...birthGeo()})})).json();
     if(!sj.ok||!sj.job_id) throw 0;
     let rj=null;
     for(let k=0;k<60;k++){

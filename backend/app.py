@@ -35,6 +35,7 @@ import gateway  # noqa: E402  (L3 网关;密钥仅在其进程内使用)
 import consult  # noqa: E402  (L4 会诊编排)
 import predictions  # noqa: E402  (预测记录与命中率验证)
 import luck  # noqa: E402  (流年/大运推算)
+import solar  # noqa: E402  (真太阳时校正)
 import records  # noqa: E402  (会诊记录存档,刷新不丢)
 import dossier  # noqa: E402  (个人档案:过去验证打分,越用越准)
 TZ = ZoneInfo("Asia/Shanghai")
@@ -68,6 +69,8 @@ def load_solar_terms() -> None:
 class PaipanReq(BaseModel):
     birth: str  # "YYYY-MM-DDTHH:MM" 或含秒
     zi_hour_mode: str = "split"
+    longitude: float | None = None  # 出生地经度(真太阳时校正;None=不校正,与旧行为一致)
+    place: str = ""                 # 出生地名(仅展示)
 
 
 @app.post("/api/paipan")
@@ -85,6 +88,12 @@ def paipan(req: PaipanReq) -> JSONResponse:
 
     aware = naive.replace(tzinfo=TZ)  # IANA tzdata:含历史时差与 1986–91 夏令时
     t = int(aware.timestamp())
+    # 真太阳时校正(排盘根基):时辰按出生地真太阳时判定,而非北京钟表时。
+    # 经度差 + 均时差;未选出生地(longitude=None)不校正,与旧行为一致。
+    solar_offset = 0
+    if req.longitude is not None and -180.0 <= req.longitude <= 180.0:
+        solar_offset = solar.true_solar_offset_seconds(req.longitude, t)
+        t += solar_offset
     # 时辰/日界按标准北京时间(UTC+8)判定:夏令时年份用户填的钟面时间被拨快一小时,
     # 此处经 tzdata 换算回标准时(主流排盘做法);引擎收到的 local 即标准时表示。
     std = datetime.fromtimestamp(t, timezone(timedelta(hours=8)))
@@ -158,6 +167,9 @@ def paipan(req: PaipanReq) -> JSONResponse:
             "dst_applied": dst,
             "zi_hour_mode": req.zi_hour_mode,
             "jie_window": {"seq": _jie_seq[i], "name": JIE_NAMES[_jie_seq[i]]},
+            # 真太阳时校正(分钟;0=未校正):
+            "solar_correction_minutes": round(solar_offset / 60, 1),
+            "place": req.place,
             # 起运推算所需:出生时刻与所处节气边界(标准北京时)
             "birth_unix": t, "birth_year": std.year,
             "jie_unix": _jie_unix[i], "next_jie_unix": _jie_unix[i + 1],
@@ -594,6 +606,7 @@ class ShichenReq(BaseModel):
     gender: str = ""
     events_text: str     # 已发生大事自述
     zi_hour_mode: str = "split"
+    longitude: float | None = None  # 出生地经度(真太阳时校正)
 
 
 @app.post("/api/shichen/start")
@@ -620,7 +633,8 @@ def shichen_start(req: ShichenReq) -> JSONResponse:
         try:
             cands = []
             for hm, rng in slots:
-                r = paipan(PaipanReq(birth=f"{req.date}T{hm}", zi_hour_mode=req.zi_hour_mode))
+                r = paipan(PaipanReq(birth=f"{req.date}T{hm}", zi_hour_mode=req.zi_hour_mode,
+                                     longitude=req.longitude))
                 if r.status_code != 200:
                     continue
                 o = json.loads(bytes(r.body))["output"]

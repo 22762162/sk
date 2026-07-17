@@ -51,7 +51,10 @@ def dayun(month_ganzhi: str, year_stem: str, gender: str,
     yang_year = STEMS.index(year_stem) % 2 == 0  # 甲丙戊庚壬 为阳
     forward = (yang_year and gender == "male") or (not yang_year and gender == "female")
     days = days_to_next_jie if forward else days_from_prev_jie
-    start_age = max(0, round(days / 3))
+    # 起运精到月:3 天折 1 岁 ⇒ 1 天折 4 个月(传统折算);月数向最近取整
+    total_months = max(0, round(days * 4))
+    start_age = total_months // 12
+    start_rem_months = total_months % 12
     m = _cycle_index(month_ganzhi)
     periods = []
     for k in range(count):
@@ -62,7 +65,10 @@ def dayun(month_ganzhi: str, year_stem: str, gender: str,
             "start_age": a0, "end_age": a0 + 10,
             "start_year": birth_year + a0, "end_year": birth_year + a0 + 10,
         })
-    return {"direction": "顺行" if forward else "逆行", "start_age": start_age, "periods": periods}
+    return {"direction": "顺行" if forward else "逆行", "start_age": start_age,
+            "start_months": start_rem_months,
+            "start_detail": f"{start_age}岁{start_rem_months}个月" if start_rem_months else f"{start_age}岁整",
+            "periods": periods}
 
 
 # —— 神煞(以标准规则计算,作为具体抓手;解读由模型给出)——
@@ -77,6 +83,23 @@ _GUIREN = {"甲": "丑未", "戊": "丑未", "庚": "丑未", "乙": "子申", "
 _WENCHANG = {"甲": "巳", "乙": "午", "丙": "申", "戊": "申", "丁": "酉", "己": "酉",
              "庚": "亥", "辛": "子", "壬": "寅", "癸": "卯"}
 _YANGREN = {"甲": "卯", "丙": "午", "戊": "午", "庚": "酉", "壬": "子"}  # 仅阳日干
+_LUSHEN = {"甲": "寅", "乙": "卯", "丙": "巳", "丁": "午", "戊": "巳", "己": "午",
+           "庚": "申", "辛": "酉", "壬": "亥", "癸": "子"}
+_HONGLUAN = {"子": "卯", "丑": "寅", "寅": "丑", "卯": "子", "辰": "亥", "巳": "戌",
+             "午": "酉", "未": "申", "申": "未", "酉": "午", "戌": "巳", "亥": "辰"}
+_JIANGXING = {"申子辰": "子", "寅午戌": "午", "巳酉丑": "酉", "亥卯未": "卯"}
+# 孤辰/寡宿(按年支三会方):亥子丑→孤寅寡戌;寅卯辰→孤巳寡丑;巳午未→孤申寡辰;申酉戌→孤亥寡未
+_GUCHEN = {"亥": ("寅", "戌"), "子": ("寅", "戌"), "丑": ("寅", "戌"),
+           "寅": ("巳", "丑"), "卯": ("巳", "丑"), "辰": ("巳", "丑"),
+           "巳": ("申", "辰"), "午": ("申", "辰"), "未": ("申", "辰"),
+           "申": ("亥", "未"), "酉": ("亥", "未"), "戌": ("亥", "未")}
+
+
+def kongwang(day_ganzhi: str) -> str:
+    """旬空(空亡):由日柱所在旬确定的两个空亡地支,如甲子旬空戌亥。"""
+    idx = _cycle_index(day_ganzhi)
+    start_branch = (idx - idx % 10) % 12
+    return BRANCHES[(start_branch + 10) % 12] + BRANCHES[(start_branch + 11) % 12]
 
 
 def shensha(day_stem: str, day_branch: str, year_branch: str, branches: list[str]) -> list[dict]:
@@ -98,6 +121,24 @@ def shensha(day_stem: str, day_branch: str, year_branch: str, branches: list[str
         add("天乙贵人", b, "逢凶得助、贵人扶持")
     add("文昌", _WENCHANG.get(day_stem), "利读书、文思、考试")
     add("羊刃", _YANGREN.get(day_stem), "刚烈、冲劲、双刃")
+    add("禄神", _LUSHEN.get(day_stem), "本禄之地、衣食根基")
+    add("红鸾", _HONGLUAN.get(year_branch), "婚恋喜庆之星")
+    hl = _HONGLUAN.get(year_branch)
+    if hl:  # 天喜 = 红鸾对冲之支
+        add("天喜", BRANCHES[(BRANCHES.index(hl) + 6) % 12], "喜事临门、人缘和悦")
+    for ref in (year_branch, day_branch):  # 将星:三合旺位,以年支或日支起
+        grp = _SANHE.get(ref)
+        if grp:
+            add("将星", _JIANGXING[grp], "统御、担当、掌权之象")
+    gc = _GUCHEN.get(year_branch)
+    if gc:
+        add("孤辰", gc[0], "性孤、独立,婚缘宜迟")
+        add("寡宿", gc[1], "静独之星,情感易疏离")
+    # 空亡:日柱旬空之支落在年/月/时支 → 标注落空
+    kw = kongwang(day_stem + day_branch)
+    for b in kw:
+        if b in present:
+            found.append({"name": "空亡", "branch": b, "note": "该支落空,力量减弱、事多虚悬"})
     # 去重(同名同支只留一条)
     uniq, seen = [], set()
     for f in found:
