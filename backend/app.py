@@ -667,6 +667,83 @@ def shichen_start(req: ShichenReq) -> JSONResponse:
     return JSONResponse({"ok": True, "job_id": job_id})
 
 
+@app.post("/api/liuyue/start")
+def liuyue_start(req: ConsultReq) -> JSONResponse:
+    """本年流月逐月推演(异步 1 次调用):验证周期从年缩到月;结果轮询同 /api/consult/result。"""
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            chart_resp = paipan(req)
+            if chart_resp.status_code != 200:
+                raise RuntimeError("排盘失败")
+            chart = json.loads(bytes(chart_resp.body))
+            o = chart["output"]
+            chart_line = (f"年柱 {o['year']['ganzhi']},月柱 {o['month']['ganzhi']},"
+                          f"日柱 {o['day']['ganzhi']},时柱 {o['hour']['ganzhi']}(八字年 {o['bazi_year']})")
+            meta = chart.get("meta", {})
+            du = None
+            if req.gender in ("male", "female") and meta.get("birth_unix"):
+                dtn = (meta["next_jie_unix"] - meta["birth_unix"]) / 86400
+                dfp = (meta["birth_unix"] - meta["jie_unix"]) / 86400
+                du = luck.dayun(o["month"]["ganzhi"], o["year"]["stem"], req.gender,
+                                dtn, dfp, meta.get("birth_year", datetime.now().year))
+            branches = [o[p]["branch"] for p in ("year", "month", "day", "hour")]
+            ss = luck.shensha(o["day"]["stem"], o["day"]["branch"], o["year"]["branch"], branches)
+            # 当前八字年(以立春为界)与十二流月边界(节气表)
+            tz8 = timezone(timedelta(hours=8))
+            now_dt = datetime.now(tz8)
+            now_t = int(now_dt.timestamp())
+            cal_y = now_dt.year
+            by = cal_y if now_t >= _lichun.get(cal_y, 0) else cal_y - 1
+            gzs = luck.liuyue_ganzhi(luck.year_ganzhi(by)[0])
+            lo, hi = _lichun[by], _lichun.get(by + 1, _lichun[by] + 366 * 86400)
+            ents = sorted((u, s) for u, s in zip(_jie_unix, _jie_seq) if lo <= u < hi)
+            months = []
+            for k, (u, s) in enumerate(ents):
+                end = ents[k + 1][0] if k + 1 < len(ents) else hi
+                d1 = datetime.fromtimestamp(u, tz8)
+                d2 = datetime.fromtimestamp(end, tz8)
+                months.append({"month_index": s + 1, "ganzhi": gzs[s],
+                               "period": f"{d1.month}/{d1.day}-{d2.month}/{d2.day}",
+                               "current": u <= now_t < end})
+            months.sort(key=lambda m: m["month_index"])
+            parts = []
+            if req.industry.strip():
+                parts.append(f"行业:{req.industry.strip()}")
+            if req.occupation.strip():
+                parts.append(f"职业:{req.occupation.strip()}")
+            if req.situation.strip():
+                parts.append(f"补充:{req.situation.strip()[:300]}")
+            dsum = dossier.summary(req.birth)
+            if dsum:
+                parts.append(f"【此人档案·已验证】{dsum}")
+            ctx = {"chart_line": chart_line, "profile": "；".join(parts),
+                   "dayun_text": (f"{du['direction']},{du.get('start_detail','')}起运:"
+                                  + "、".join(f"{p['ganzhi']}({p['start_year']}-{p['end_year']})"
+                                              for p in du["periods"])) if du else "",
+                   "shensha_text": "、".join(f"{s['name']}({s['branch']})" for s in ss)}
+            res = consult.liuyue_forecast(ctx, f"{by}年", luck.year_ganzhi(by), months)
+            got = {m.get("month_index"): m for m in (res.get("months") or []) if isinstance(m, dict)}
+            for m in months:  # 干支/日期以确定性计算为准,模型只出解读
+                g = got.get(m["month_index"], {})
+                m["reading"] = _redline_filter(str(g.get("reading", "")))[0]
+                m["tendency"] = g.get("tendency", "neutral")
+                m["key_domains"] = g.get("key_domains", [])
+            payload, status = {"ok": True, "year": by, "liunian": luck.year_ganzhi(by),
+                               "months": months,
+                               "note": _redline_filter(str(res.get("note", "")))[0]}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"流月推演失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
 @app.get("/api/records/list")
 def records_list() -> JSONResponse:
     """历史会诊记录摘要(新→旧)。"""

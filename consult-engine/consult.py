@@ -272,6 +272,29 @@ def shichen_calibrate(candidates: list[dict], events_text: str, gender_cn: str =
     return obj
 
 
+def liuyue_forecast(context: dict, year_label: str, liunian_gz: str,
+                    months: list[dict]) -> dict:
+    """本年流月逐月推演(单模型 1 次调用)。months: [{month_index, ganzhi, period, current}]。"""
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "liuyue.md")
+    lines = [f"四柱:{context.get('chart_line', '')}"]
+    if context.get("profile"):
+        lines.append(f"本人背景:{context['profile']}")
+    if context.get("shensha_text"):
+        lines.append(f"神煞:{context['shensha_text']}")
+    if context.get("dayun_text"):
+        lines.append(f"大运:{context['dayun_text']}")
+    lines.append(f"\n本年:{year_label} 流年 {liunian_gz}。十二流月(干支/公历范围):")
+    for m in months:
+        cur = "(当前月)" if m.get("current") else ""
+        lines.append(f"- 第{m['month_index']}月 {m['ganzhi']} {m['period']}{cur}")
+    lines.append("\n请按 system 要求输出 JSON 对象(months 12 条 + note)。")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                "\n".join(lines), want_array=False, max_tokens=6000,
+                                schema="liuyue-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
 def recalibrate(context: dict, yearly_orig: list[dict], corrections: list[dict],
                 future_years: list[dict]) -> dict:
     """实际事件校准(单模型 1 次调用):对照原推演与实际 → 修正命局理解 → 重推今年及未来。

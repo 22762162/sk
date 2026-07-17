@@ -122,10 +122,12 @@
     <div style="margin-top:22px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
       <button type="button" id="bc" style="background:#8a5a2a;">① 验过去 · 铁口直断</button>
       <button type="button" id="cs" style="background:#6b3f6b;">② 三模型会诊(推未来)</button>
+      <button type="button" id="ly" style="background:#2c6a66;">本年流月(逐月)</button>
       <button type="button" id="qr" style="background:#4a5f8c;">AI 速览(单模型)</button>
       <span style="font-size:12px;color:#8a7f6e;">建议先「验过去」打分——说得准过去,未来才有分量;打分自动校准后续推演。</span>
     </div>
     <div id="bcout" style="display:none; margin-top:14px;"></div>
+    <div id="lyout" style="display:none; margin-top:14px;"></div>
     <div id="qrout" style="display:none; margin-top:14px;"></div>
     <div id="csout" style="display:none; margin-top:18px;"></div>
     <div style="margin-top:26px; border-top:1px solid var(--line); padding-top:20px;">
@@ -631,6 +633,50 @@ async function runShichen(){
       stat.textContent='已填入 '+b.dataset.t+',直接「排盘」即可';
     });
   }catch(_){ stat.textContent='请求失败'; }
+  finally{ btn.disabled=false; }
+}
+
+// —— 本年流月:逐月推演,验证周期从年缩到月 ——
+document.getElementById('ly').addEventListener('click', runLiuyue);
+async function runLiuyue(){
+  const box=document.getElementById('lyout'), btn=document.getElementById('ly');
+  box.style.display='block'; btn.disabled=true;
+  box.innerHTML='<span style="color:#7a6f5f;">本年流月逐月推演中(约 30–90 秒)…</span>';
+  const birth=document.getElementById('d').value+'T'+document.getElementById('t').value;
+  try{
+    const sj=await (await fetch('/api/liuyue/start',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
+        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value,
+        situation:document.getElementById('situation').value, ...birthGeo()})})).json();
+    if(!sj.ok||!sj.job_id) throw 0;
+    let rj=null;
+    for(let k=0;k<60;k++){
+      await new Promise(r=>setTimeout(r,3000));
+      try{ rj=await (await fetch('/api/consult/result?job_id='+encodeURIComponent(sj.job_id))).json(); }catch(e){ continue; }
+      if(rj.status!=='running') break;
+      box.innerHTML=`<span style="color:#7a6f5f;">流月推演中…已 ${(k+1)*3} 秒</span>`;
+    }
+    if(!(rj&&rj.status==='done'&&rj.result&&rj.result.ok)){ box.innerHTML='<span style="color:#a33;">流月推演失败,请重试</span>'; return; }
+    const r=rj.result;
+    const T2={favorable:{t:'偏顺',c:'#3f7d55',bg:'#eef6f0'},caution:{t:'留意',c:'#b5762a',bg:'#fbf3e6'},neutral:{t:'中性',c:'#6b6459',bg:'#f2efe9'}};
+    let h=`<div style="border:2px solid #2c6a66;border-radius:10px;background:#fff;padding:14px 18px;">
+      <div style="font-size:12px;color:#2c6a66;letter-spacing:2px;">${r.year}年(${esc(r.liunian)}) · 流月逐月</div>
+      <div style="font-size:12px;color:#8a7f6e;margin-top:3px;">按月验证:每月的话几周内就能核对——记录为预测,月底回访。</div>`;
+    (r.months||[]).forEach(m=>{
+      const te=T2[m.tendency]||T2.neutral;
+      h+=`<div style="border-left:3px solid ${te.c};background:${m.current?'#fffbe8':te.bg};border-radius:6px;padding:8px 12px;margin-top:6px;">
+        <div style="font-size:13px;"><b>第${m.month_index}月</b> <span style="color:#8a7f6e;">${esc(m.ganzhi)} ${esc(m.period)}</span>
+          ${m.current?'<span style="background:#8a5a2a;color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;margin-left:5px;">当前月</span>':''}
+          <span style="background:${te.c};color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;margin-left:5px;">${te.t}</span>
+          ${(m.key_domains&&m.key_domains.length)?`<span style="color:#8a7f6e;font-size:11px;margin-left:4px;">${m.key_domains.join('·')}</span>`:''}</div>
+        <div style="font-size:13px;line-height:1.7;margin-top:3px;">${esc(m.reading||'')}</div>
+        <button class="recbtn" data-domain="流月${r.year}-${m.month_index}" data-reading="${encodeURIComponent(r.year+'年第'+m.month_index+'月 '+m.ganzhi+'('+m.period+'):'+(m.reading||''))}" style="margin-top:6px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:3px 9px;cursor:pointer;">＋ 记录为预测</button></div>`;
+    });
+    if(r.note) h+=`<div style="font-size:12px;color:#8a7f6e;margin-top:8px;line-height:1.7;">${esc(r.note)}</div>`;
+    h+='</div>';
+    box.innerHTML=h;
+    box.querySelectorAll('.recbtn').forEach(b=>b.onclick=()=>recordPred(b));
+  }catch(_){ box.innerHTML='<span style="color:#a33;">请求失败</span>'; }
   finally{ btn.disabled=false; }
 }
 

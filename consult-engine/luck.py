@@ -27,6 +27,17 @@ def liunian(start_year: int, n: int = 8) -> list[dict]:
     return out
 
 
+# 五虎遁:流年年干 → 寅月(正月)天干
+_WUHU = {"甲": "丙", "己": "丙", "乙": "戊", "庚": "戊", "丙": "庚",
+         "辛": "庚", "丁": "壬", "壬": "壬", "戊": "甲", "癸": "甲"}
+
+
+def liuyue_ganzhi(year_stem: str) -> list[str]:
+    """某流年的十二流月干支(寅月起,五虎遁定首月天干)。"""
+    first = STEMS.index(_WUHU[year_stem])
+    return [STEMS[(first + k) % 10] + BRANCHES[(2 + k) % 12] for k in range(12)]
+
+
 def _cycle_index(gz: str) -> int:
     s, b = STEMS.index(gz[0]), BRANCHES.index(gz[1])
     for n in range(60):
