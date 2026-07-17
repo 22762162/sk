@@ -106,6 +106,86 @@ _GUCHEN = {"亥": ("寅", "戌"), "子": ("寅", "戌"), "丑": ("寅", "戌"),
            "申": ("亥", "未"), "酉": ("亥", "未"), "戌": ("亥", "未")}
 
 
+# —— 合盘(组织/多人互参)基础:全部确定性,可对拍 ——
+STEM_ELEM = {"甲": "木", "乙": "木", "丙": "火", "丁": "火", "戊": "土",
+             "己": "土", "庚": "金", "辛": "金", "壬": "水", "癸": "水"}
+BRANCH_ELEM = {"子": "水", "丑": "土", "寅": "木", "卯": "木", "辰": "土", "巳": "火",
+               "午": "火", "未": "土", "申": "金", "酉": "金", "戌": "土", "亥": "水"}
+_SHENG = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
+_KE = {"木": "土", "土": "水", "水": "火", "火": "金", "金": "木"}
+_LIUHE = [{"子", "丑"}, {"寅", "亥"}, {"卯", "戌"}, {"辰", "酉"}, {"巳", "申"}, {"午", "未"}]
+_LIUHAI = [{"子", "未"}, {"丑", "午"}, {"寅", "巳"}, {"卯", "辰"}, {"申", "亥"}, {"酉", "戌"}]
+_XING = [{"寅", "巳"}, {"巳", "申"}, {"寅", "申"}, {"丑", "戌"}, {"戌", "未"}, {"丑", "未"}, {"子", "卯"}]
+_ZIXING = {"辰", "午", "酉", "亥"}
+
+
+def shishen(day_stem: str, other_stem: str) -> str:
+    """以 day_stem 为「我」,other_stem 相对我的十神。"""
+    e1, e2 = STEM_ELEM[day_stem], STEM_ELEM[other_stem]
+    same = (STEMS.index(day_stem) % 2) == (STEMS.index(other_stem) % 2)
+    if e1 == e2:
+        return "比肩" if same else "劫财"
+    if _SHENG[e1] == e2:
+        return "食神" if same else "伤官"
+    if _SHENG[e2] == e1:
+        return "偏印" if same else "正印"
+    if _KE[e1] == e2:
+        return "偏财" if same else "正财"
+    return "七杀" if same else "正官"
+
+
+def branch_rel(b1: str, b2: str) -> list[str]:
+    """两地支关系:六合/六冲/六害/刑/半合/同气(可多条并存)。"""
+    rels = []
+    pair = {b1, b2}
+    if b1 == b2:
+        rels.append("自刑" if b1 in _ZIXING else "同气")
+        return rels
+    if (BRANCHES.index(b1) - BRANCHES.index(b2)) % 12 == 6:
+        rels.append("六冲")
+    if pair in _LIUHE:
+        rels.append("六合")
+    if pair in _LIUHAI:
+        rels.append("六害")
+    if pair in _XING:
+        rels.append("相刑")
+    g1, g2 = _SANHE.get(b1), _SANHE.get(b2)
+    if g1 and g1 == g2:
+        rels.append("三合半合")
+    return rels or ["无明显作用"]
+
+
+def chart_elements(stems: list[str], branches: list[str]) -> dict:
+    """八字五行分布(天干+地支本气)。"""
+    tally = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
+    for s in stems:
+        tally[STEM_ELEM[s]] += 1
+    for b in branches:
+        tally[BRANCH_ELEM[b]] += 1
+    return tally
+
+
+def pair_analysis(a: dict, b: dict) -> dict:
+    """两盘互参:a/b 各含 {day_stem, day_branch, branches, elems}。确定性输出,AI 只翻译。"""
+    bonds = frictions = 0
+    for x in a["branches"]:
+        for y in b["branches"]:
+            for r in branch_rel(x, y):
+                if r in ("六合", "三合半合", "同气"):
+                    bonds += 1
+                elif r in ("六冲", "六害", "相刑", "自刑"):
+                    frictions += 1
+    lack_a = [e for e, n in a["elems"].items() if n == 0]
+    supply = [e for e in lack_a if b["elems"].get(e, 0) >= 2]
+    return {
+        "a_views_b": shishen(a["day_stem"], b["day_stem"]),   # 对方于我为何十神
+        "b_views_a": shishen(b["day_stem"], a["day_stem"]),
+        "day_branch_rel": branch_rel(a["day_branch"], b["day_branch"]),
+        "bonds": bonds, "frictions": frictions,
+        "element_supply": supply,  # 对方补我所缺之五行
+    }
+
+
 def kongwang(day_ganzhi: str) -> str:
     """旬空(空亡):由日柱所在旬确定的两个空亡地支,如甲子旬空戌亥。"""
     idx = _cycle_index(day_ganzhi)

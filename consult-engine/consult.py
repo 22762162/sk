@@ -295,6 +295,16 @@ def liuyue_forecast(context: dict, year_label: str, liunian_gz: str,
     return obj
 
 
+def group_forecast(matrix_text: str) -> dict:
+    """组织合盘研判(单模型 1 次调用):输入为确定性互参矩阵文本。"""
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "group.md")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                matrix_text, want_array=False, max_tokens=6000,
+                                schema="group-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
 def recalibrate(context: dict, yearly_orig: list[dict], corrections: list[dict],
                 future_years: list[dict]) -> dict:
     """实际事件校准(单模型 1 次调用):对照原推演与实际 → 修正命局理解 → 重推今年及未来。

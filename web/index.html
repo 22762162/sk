@@ -128,6 +128,19 @@
     </div>
     <div id="bcout" style="display:none; margin-top:14px;"></div>
     <div id="lyout" style="display:none; margin-top:14px;"></div>
+    <details style="margin-top:14px;border:1px solid #d8cfc0;border-radius:10px;background:#fbf8f2;padding:10px 14px;">
+      <summary style="cursor:pointer;font-size:14px;color:#5d4a32;font-weight:600;">组织合盘 · 公司/团队之势(主盘+关键人+开业盘互参)</summary>
+      <div style="font-size:12px;color:#8a7f6e;margin-top:6px;">公司走向不由一人决定:把合伙人、核心成员、公司成立日期加进来,看十神关系/合冲刑害/五行互补/今年流年分别打在谁身上——合力即「势」。别人的时辰不知道可留空(按三柱算,诚实降权)。</div>
+      <div style="margin-top:8px;font-size:13px;">公司成立日期(可选):
+        <input type="date" id="gfound" style="font-size:13px;"> <input type="time" id="gfoundt" style="font-size:13px;"><span style="font-size:11px;color:#8a7f6e;">时刻不知可空</span>
+      </div>
+      <div id="gpeople" style="margin-top:6px;"></div>
+      <div style="margin-top:8px;">
+        <button type="button" id="gadd" style="background:#8a7f6e;font-size:12px;padding:4px 10px;">＋ 添加关键人</button>
+        <button type="button" id="gp" style="background:#6a4a7d;font-size:13px;">起合盘(约1分钟)</button>
+      </div>
+      <div id="gpout" style="display:none;margin-top:10px;"></div>
+    </details>
     <div id="qrout" style="display:none; margin-top:14px;"></div>
     <div id="csout" style="display:none; margin-top:18px;"></div>
     <div style="margin-top:26px; border-top:1px solid var(--line); padding-top:20px;">
@@ -675,6 +688,79 @@ async function runLiuyue(){
         <div style="font-size:13px;line-height:1.7;margin-top:3px;">${esc(m.reading||'')}</div>
         <button class="recbtn" data-domain="流月${r.year}-${m.month_index}" data-reading="${encodeURIComponent(r.year+'年第'+m.month_index+'月 '+m.ganzhi+'('+m.period+'):'+(m.reading||''))}" style="margin-top:6px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:3px 9px;cursor:pointer;">＋ 记录为预测</button></div>`;
     });
+    if(r.note) h+=`<div style="font-size:12px;color:#8a7f6e;margin-top:8px;line-height:1.7;">${esc(r.note)}</div>`;
+    h+='</div>';
+    box.innerHTML=h;
+    box.querySelectorAll('.recbtn').forEach(b=>b.onclick=()=>recordPred(b));
+  }catch(_){ box.innerHTML='<span style="color:#a33;">请求失败</span>'; }
+  finally{ btn.disabled=false; }
+}
+
+// —— 组织合盘:主盘+关键人+开业盘 互参 → 组织之势 ——
+function gAddRow(){
+  const box=document.getElementById('gpeople');
+  if(box.children.length>=6){ alert('最多 6 位关键人'); return; }
+  const row=document.createElement('div');
+  row.style.cssText='display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap;font-size:12px;';
+  row.innerHTML=`<input placeholder="称谓(如 合伙人老王)" class="glabel" style="width:130px;font-size:12px;">
+    <select class="grole" style="font-size:12px;"><option>合伙人</option><option>核心成员</option><option>业务负责人</option><option>家人</option><option>其他</option></select>
+    <input type="date" class="gbirth" style="font-size:12px;">
+    <input type="time" class="gtime" style="font-size:12px;" title="时辰不知可空">
+    <select class="ggender" style="font-size:12px;"><option value="">性别?</option><option value="male">男</option><option value="female">女</option></select>
+    <button type="button" style="background:#b0a898;font-size:11px;padding:2px 8px;" onclick="this.parentElement.remove()">删</button>`;
+  box.appendChild(row);
+}
+document.getElementById('gadd').addEventListener('click', gAddRow);
+document.getElementById('gp').addEventListener('click', runGroup);
+async function runGroup(){
+  const box=document.getElementById('gpout'), btn=document.getElementById('gp');
+  const people=[];
+  document.querySelectorAll('#gpeople > div').forEach(r=>{
+    const b=r.querySelector('.gbirth').value; if(!b) return;
+    const t=r.querySelector('.gtime').value;
+    people.push({label:r.querySelector('.glabel').value||'关键人', role:r.querySelector('.grole').value,
+      birth: t? b+'T'+t : b, gender:r.querySelector('.ggender').value});
+  });
+  let founded=document.getElementById('gfound').value;
+  if(founded && document.getElementById('gfoundt').value) founded+='T'+document.getElementById('gfoundt').value;
+  if(!people.length && !founded){ alert('先添加至少一位关键人,或填公司成立日期'); return; }
+  box.style.display='block'; btn.disabled=true;
+  box.innerHTML='<span style="color:#7a6f5f;">合盘互参计算 + 研判中(约 1 分钟)…</span>';
+  const birth=document.getElementById('d').value+'T'+document.getElementById('t').value;
+  try{
+    const sj=await (await fetch('/api/group/start',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
+        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value,
+        situation:document.getElementById('situation').value, people, company_founded:founded, ...birthGeo()})})).json();
+    if(!sj.ok||!sj.job_id) throw 0;
+    let rj=null;
+    for(let k=0;k<60;k++){
+      await new Promise(r=>setTimeout(r,3000));
+      try{ rj=await (await fetch('/api/consult/result?job_id='+encodeURIComponent(sj.job_id))).json(); }catch(e){ continue; }
+      if(rj.status!=='running') break;
+      box.innerHTML=`<span style="color:#7a6f5f;">合盘研判中…已 ${(k+1)*3} 秒</span>`;
+    }
+    if(!(rj&&rj.status==='done'&&rj.result&&rj.result.ok)){ box.innerHTML='<span style="color:#a33;">合盘失败:'+esc((rj&&rj.result&&rj.result.error)||'请重试')+'</span>'; return; }
+    const r=rj.result;
+    const TC={favorable:'#3f7d55',caution:'#b5762a',neutral:'#6b6459'};
+    let h=`<div style="border:2px solid #6a4a7d;border-radius:10px;background:#fff;padding:14px 18px;">
+      <div style="font-size:12px;color:#6a4a7d;letter-spacing:2px;">组织之势 · ${r.year}年(${esc(r.liunian)})</div>
+      <div style="font-size:11px;color:#8a7f6e;margin-top:4px;">${(r.entities||[]).map(e=>esc(e.label)+':'+esc(e.chart_line)).join(' ｜ ')}</div>
+      <div style="font-size:14px;line-height:1.8;margin-top:8px;">${esc(r.overview||'')}</div>`;
+    if((r.people||[]).length){
+      h+='<div style="font-size:12px;color:#6a4a7d;margin-top:10px;">— 各人今年 —</div>';
+      r.people.forEach(p=>{ h+=`<div style="border-left:3px solid #6a4a7d;background:#f7f3fa;border-radius:6px;padding:7px 11px;margin-top:5px;font-size:13px;line-height:1.7;"><b>${esc(p.label)}</b>:${esc(p.this_year||'')}<br><span style="color:#5d5346;">位置:${esc(p.role_fit||'')}</span></div>`; });
+    }
+    if((r.pairs||[]).length){
+      h+='<div style="font-size:12px;color:#6a4a7d;margin-top:10px;">— 关系互参 —</div>';
+      r.pairs.forEach(p=>{ h+=`<div style="background:#f2efe9;border-radius:6px;padding:7px 11px;margin-top:5px;font-size:13px;line-height:1.7;"><b>${esc(p.pair)}</b>:${esc(p.reading||'')}</div>`; });
+    }
+    if((r.windows||[]).length){
+      h+='<div style="font-size:12px;color:#6a4a7d;margin-top:10px;">— 关键时间窗(可验证) —</div>';
+      r.windows.forEach(w=>{ const c=TC[w.tendency]||TC.neutral;
+        h+=`<div style="border-left:3px solid ${c};background:#fbf8f2;border-radius:6px;padding:7px 11px;margin-top:5px;font-size:13px;line-height:1.7;"><b style="color:${c};">${esc(w.period)}</b> ${esc(w.reading||'')}
+        <button class="recbtn" data-domain="组织${r.year}" data-reading="${encodeURIComponent('组织·'+w.period+':'+(w.reading||''))}" style="font-size:11px;background:#6a4a7d;color:#fff;border:0;border-radius:6px;padding:2px 8px;cursor:pointer;margin-left:6px;">＋ 记录为预测</button></div>`; });
+    }
     if(r.note) h+=`<div style="font-size:12px;color:#8a7f6e;margin-top:8px;line-height:1.7;">${esc(r.note)}</div>`;
     h+='</div>';
     box.innerHTML=h;

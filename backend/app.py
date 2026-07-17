@@ -785,6 +785,116 @@ def liuyue_start(req: ConsultReq) -> JSONResponse:
     return JSONResponse({"ok": True, "job_id": job_id})
 
 
+class GroupPerson(BaseModel):
+    label: str                      # 称谓(如"合伙人老王")
+    role: str = ""                  # 角色(合伙人/核心成员/负责人…)
+    birth: str                      # YYYY-MM-DD 或 YYYY-MM-DDTHH:MM
+    gender: str = ""
+    longitude: float | None = None
+
+
+class GroupReq(ConsultReq):
+    people: list[GroupPerson] = []
+    company_founded: str = ""       # 公司注册/开业日期(可选,同 birth 格式)
+
+
+def _entity_pack(birth: str, zi_mode: str, longitude: float | None) -> dict:
+    """任一实体(人/公司)的盘 + 合盘所需确定性要素;时刻缺省用 12:00 并标注时柱不确定。"""
+    hour_known = "T" in birth
+    r = paipan(PaipanReq(birth=birth if hour_known else f"{birth}T12:00",
+                         zi_hour_mode=zi_mode, longitude=longitude))
+    if r.status_code != 200:
+        raise RuntimeError(f"排盘失败:{birth}")
+    o = json.loads(bytes(r.body))["output"]
+    stems = [o[p]["stem"] for p in ("year", "month", "day", "hour")]
+    branches = [o[p]["branch"] for p in ("year", "month", "day", "hour")]
+    if not hour_known:  # 时柱不可信:互参与五行统计只用年月日三柱
+        stems, branches = stems[:3], branches[:3]
+    line = "、".join(o[p]["ganzhi"] for p in ("year", "month", "day", "hour"))
+    return {"day_stem": o["day"]["stem"], "day_branch": o["day"]["branch"],
+            "branches": branches, "elems": luck.chart_elements(stems, branches),
+            "chart_line": line + ("" if hour_known else "(时柱不确定,按正午占位)"),
+            "hour_known": hour_known}
+
+
+@app.post("/api/group/start")
+def group_start(req: GroupReq) -> JSONResponse:
+    """组织合盘(异步 1 次调用):主盘+关键人+公司开业盘 互参矩阵 → 组织之势研判。"""
+    if not req.people and not req.company_founded.strip():
+        return JSONResponse({"ok": False, "error": "至少加一位关键人或公司成立日期"}, status_code=422)
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            entities = [("你(主盘)", "主事人", _entity_pack(req.birth, req.zi_hour_mode, req.longitude))]
+            for p in req.people[:6]:
+                entities.append((p.label or "关键人", p.role or "关键人",
+                                 _entity_pack(p.birth, req.zi_hour_mode, p.longitude)))
+            if req.company_founded.strip():
+                entities.append(("公司盘", "组织本体",
+                                 _entity_pack(req.company_founded.strip(), req.zi_hour_mode, req.longitude)))
+            # 本年流年如何分别打在每个盘上(确定性)
+            tz8 = timezone(timedelta(hours=8))
+            now_dt = datetime.now(tz8)
+            by = now_dt.year if int(now_dt.timestamp()) >= _lichun.get(now_dt.year, 0) else now_dt.year - 1
+            ln = luck.year_ganzhi(by)
+            lines = [f"【本年】{by}年 流年 {ln}", "", "【各盘】"]
+            for label, role, e in entities:
+                hits = luck.branch_rel(ln[1], e["day_branch"])
+                lines.append(f"- {label}({role}):{e['chart_line']};日主 {e['day_stem']};"
+                             f"五行分布 {e['elems']};流年干于其为「{luck.shishen(e['day_stem'], ln[0])}」,"
+                             f"流年支与其日支:{'/'.join(hits)}")
+            lines.append("")
+            lines.append("【互参矩阵(确定性计算,不许另算)】")
+            for i in range(len(entities)):
+                for k in range(i + 1, len(entities)):
+                    la, _, a = entities[i]
+                    lb, _, b = entities[k]
+                    pa = luck.pair_analysis(a, b)
+                    lines.append(f"- {la} × {lb}:{lb}于{la}为「{pa['a_views_b']}」,"
+                                 f"{la}于{lb}为「{pa['b_views_a']}」;日支关系:{'/'.join(pa['day_branch_rel'])};"
+                                 f"全盘合系 {pa['bonds']} 处/冲系 {pa['frictions']} 处"
+                                 + (f";{lb}补{la}所缺五行:{'、'.join(pa['element_supply'])}" if pa['element_supply'] else ""))
+            parts = []
+            if req.industry.strip():
+                parts.append(f"行业:{req.industry.strip()}")
+            if req.occupation.strip():
+                parts.append(f"主事人职业:{req.occupation.strip()}")
+            if req.situation.strip():
+                parts.append(f"背景:{req.situation.strip()[:300]}")
+            dsum = dossier.summary(req.birth)
+            if dsum:
+                parts.append(f"【已验证档案·主事人】{dsum}")
+            if parts:
+                lines.append("")
+                lines.append("【背景】" + "；".join(parts))
+            res = consult.group_forecast("\n".join(lines))
+            def _clean(s):
+                return _redline_filter(str(s))[0]
+            payload, status = {"ok": True, "year": by, "liunian": ln,
+                               "entities": [{"label": l, "role": r, "chart_line": e["chart_line"]}
+                                            for l, r, e in entities],
+                               "overview": _clean(res.get("overview", "")),
+                               "people": [{"label": _clean(p.get("label", "")), "this_year": _clean(p.get("this_year", "")),
+                                           "role_fit": _clean(p.get("role_fit", ""))}
+                                          for p in (res.get("people") or []) if isinstance(p, dict)],
+                               "pairs": [{"pair": _clean(p.get("pair", "")), "reading": _clean(p.get("reading", ""))}
+                                         for p in (res.get("pairs") or []) if isinstance(p, dict)],
+                               "windows": [{"period": _clean(w.get("period", "")), "reading": _clean(w.get("reading", "")),
+                                            "tendency": w.get("tendency", "neutral")}
+                                           for w in (res.get("windows") or []) if isinstance(w, dict)],
+                               "note": _clean(res.get("note", ""))}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"合盘失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
 @app.get("/api/records/list")
 def records_list() -> JSONResponse:
     """历史会诊记录摘要(新→旧)。"""
