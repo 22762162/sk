@@ -1,22 +1,24 @@
 artifact_id: PR-33-implementer
-timestamp: "2026-07-17T23:30:00+07:00"
+timestamp: "2026-07-18T00:30:00+07:00"
 provider: anthropic
 model_id: claude-fable-5
 model_release: Fable 5(Claude Code 2.1.207)
 agent_role: implementer
-session_id: claude-code-session(排盘根基:真太阳时/大运精月/神煞补全)
+session_id: claude-code-session(精准化四件套;账户迁移重建后首个 PR)
 run_manifest_id: null
 source_repository: https://github.com/22762162/sk
-source_commit: ba13e11(main,PR #32 合并点;新账户重建后首个 PR)
+source_commit: ba13e11(main,PR #32 合并点)
 generated_files:
-  - consult-engine/solar.py(真太阳时:经度差+均时差 NOAA 简化式;城市经度表;未选=不校正)
-  - backend/app.py(PaipanReq 加 longitude/place;排盘前平移 t;meta 报校正分钟;Shichen 透传)
-  - consult-engine/luck.py(大运起运精到月:1天折4月,start_detail;神煞补 禄神/红鸾/天喜/将星/孤辰/寡宿/空亡(旬空落柱))
-  - web/index.html(出生地下拉 39 城;birthGeo 贯穿排盘/会诊/验过去/定时辰;meta 显示校正;大运显示 X岁Y个月)
+  - consult-engine/solar.py + backend/web(真太阳时:经度差+均时差 NOAA;39 城;未选不校正,行为与旧一致)
+  - consult-engine/luck.py(大运精到月 1天折4月;神煞补 禄神/红鸾/天喜/将星/孤辰/寡宿/空亡;五虎遁流月)
+  - prompts/base/presenter/liuyue.md + consult.liuyue_forecast + /api/liuyue/start + web(流月逐月,当前月标注)
+  - backend backcast(对照盲测:混入随机盘反推,origin 标记;score 揭盲拆分真盘/随机盘命中率与差值,随机盘不入档案)
+  - web(快速会诊 S1 按钮替代 AI 速览,runConsultFlow(arm) 重构)+ 启动三鉴.command(双击自启)
 reviewed_files: []
 notes: >-
-  排盘根基修正:时辰按出生地真太阳时判定(兰州约-65分钟,乌鲁木齐约-130分钟,时柱可能整时辰偏移)。
-  实测:1990-06-15 08:30 乌鲁木齐 → 校正-129.8分钟,时柱 壬辰→辛卯;不选出生地行为与旧版逐字一致。
-  自检:空亡(辛亥→寅卯)/大运22天→7岁4个月/神煞(将星午/寡宿辰)通过。局限(诚实):真太阳时用 NOAA
-  简化均时差(±20s,足够时辰判定);大运/神煞仍为 Python 未对拍(标记待 Codex 盲写);城市经度取市区代表值。
-  本机环境为 2026-07-17 账户迁移后重建。本人签署由合并动作承载。
+  用户选定四方向全交付。实测:乌鲁木齐 08:30 校正-129.8min 时柱壬辰→辛卯;流月 12 条/18s 落到干支作用;
+  对照盲测 15 条混合(真10+扰5)揭盲拆分正确(diff 计算验证);S1 快速会诊 85s 六域+13 流年+存档。
+  自检:空亡(辛亥→寅卯)/起运 22 天→7岁4月/神煞(将星午/寡宿辰)/JS node --check/红线/对称性全过。
+  局限(诚实):真太阳时用 NOAA 简化均时差(±20s);大运/神煞/流月仍 Python 未对拍;城市经度取市区代表值。
+  本 PR 为 2026-07-17 账户迁移(sk001→sk)重建后首推;凭证经 GitHub 设备码授权入钥匙串(含 workflow scope)。
+  本人签署由合并动作承载。
