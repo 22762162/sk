@@ -487,9 +487,39 @@ def backcast_start(req: ConsultReq) -> JSONResponse:
             for e in (bc.get("events") or [])[:10]:
                 if isinstance(e, dict) and e.get("claim"):
                     e["claim"] = _redline_filter(str(e["claim"]))[0]
+                    e["origin"] = "real"
                     events.append(e)
+            # 对照盲测:混入一张随机合法干扰盘(不同日主)的反推,盲打分后揭盲对比——
+            # 真盘命中率必须赢过随机盘,才说明命中来自盘而非话术(巴纳姆思想的日常化)
+            import random as _rnd
+            decoy_events = []
+            for _try in range(6):
+                y = _rnd.randint(1955, 2005)
+                b2 = f"{y}-{_rnd.randint(1,12):02d}-{_rnd.randint(1,28):02d}T{_rnd.randint(0,23):02d}:{_rnd.randint(0,59):02d}"
+                r2 = paipan(PaipanReq(birth=b2, zi_hour_mode=req.zi_hour_mode))
+                if r2.status_code != 200:
+                    continue
+                o2 = json.loads(bytes(r2.body))["output"]
+                if o2["day"]["ganzhi"] == o["day"]["ganzhi"]:
+                    continue
+                line2 = (f"年柱 {o2['year']['ganzhi']},月柱 {o2['month']['ganzhi']},"
+                         f"日柱 {o2['day']['ganzhi']},时柱 {o2['hour']['ganzhi']}(八字年 {o2['bazi_year']})")
+                try:
+                    bc2 = consult.backcast(line2, None, past, "；".join(parts))
+                    for e in (bc2.get("events") or [])[:5]:
+                        if isinstance(e, dict) and e.get("claim"):
+                            e["claim"] = _redline_filter(str(e["claim"]))[0]
+                            e["origin"] = "decoy"
+                            decoy_events.append(e)
+                except Exception:  # noqa: BLE001  干扰盘失败不拖垮主流程,退化为无对照
+                    pass
+                break
+            events = events + decoy_events
+            _rnd.shuffle(events)
             payload, status = {"ok": True, "chart_line": chart_line, "events": events,
-                               "note": "逐条打分:准/不准/说不清。打分只你自己可见,存本机档案,用于校准后续推演。"}, "done"
+                               "has_control": bool(decoy_events),
+                               "note": "逐条打分:准/不准/说不清。其中混有对照条目(揭盲后才知道哪些),"
+                                       "打分只你自己可见,存本机档案。"}, "done"
         except Exception as exc:  # noqa: BLE001
             payload, status = {"ok": False, "error": f"盘前验证失败:{exc}"}, "error"
         with _JOBS_LOCK:
@@ -506,9 +536,20 @@ class BackcastScoreReq(BaseModel):
 
 @app.post("/api/backcast/score")
 def backcast_score(req: BackcastScoreReq) -> JSONResponse:
-    """保存盘前验证打分 → 当场出「过去命中率」,并入个人档案(校准后续推演)。"""
-    rate = dossier.save_backcast(req.birth, req.events)
-    return JSONResponse({"ok": True, "hit_rate": rate, "stats": dossier.stats(req.birth)})
+    """保存盘前验证打分 → 揭盲:真盘 vs 干扰盘命中率对比;只有真盘条目入档案。"""
+    def rate_of(evs):
+        scored = [e for e in evs if e.get("score") in ("hit", "miss")]
+        hit = sum(1 for e in scored if e["score"] == "hit")
+        return {"scored": len(scored), "hit": hit,
+                "rate": round(hit / len(scored), 3) if scored else None}
+    real = [e for e in req.events if isinstance(e, dict) and e.get("origin") != "decoy"]
+    decoy = [e for e in req.events if isinstance(e, dict) and e.get("origin") == "decoy"]
+    rate = dossier.save_backcast(req.birth, real)  # 干扰盘不入档案
+    rr, dr = rate_of(real), rate_of(decoy)
+    diff = (round(rr["rate"] - dr["rate"], 3)
+            if rr["rate"] is not None and dr["rate"] is not None else None)
+    return JSONResponse({"ok": True, "hit_rate": rate, "real": rr, "decoy": dr, "diff": diff,
+                         "stats": dossier.stats(req.birth)})
 
 
 class FactAddReq(BaseModel):

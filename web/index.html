@@ -123,7 +123,7 @@
       <button type="button" id="bc" style="background:#8a5a2a;">① 验过去 · 铁口直断</button>
       <button type="button" id="cs" style="background:#6b3f6b;">② 三模型会诊(推未来)</button>
       <button type="button" id="ly" style="background:#2c6a66;">本年流月(逐月)</button>
-      <button type="button" id="qr" style="background:#4a5f8c;">AI 速览(单模型)</button>
+      <button type="button" id="qc" style="background:#4a5f8c;">快速会诊(约1分钟)</button>
       <span style="font-size:12px;color:#8a7f6e;">建议先「验过去」打分——说得准过去,未来才有分量;打分自动校准后续推演。</span>
     </div>
     <div id="bcout" style="display:none; margin-top:14px;"></div>
@@ -202,8 +202,9 @@ document.getElementById('f').addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('qr').addEventListener('click', async () => {
-  const box = document.getElementById('qrout'), btn = document.getElementById('qr');
+const _qrBtn = document.getElementById('qr');  // AI 速览已由「快速会诊(S1)」取代;按钮不在则跳过
+if (_qrBtn) _qrBtn.addEventListener('click', async () => {
+  const box = document.getElementById('qrout'), btn = _qrBtn;
   box.style.display = 'block';
   box.innerHTML = '<span style="color:#7a6f5f;">调用模型中(每次调用计入日熔断上限)…</span>';
   btn.disabled = true;
@@ -236,10 +237,12 @@ const VERDICT = {
   dissent:   {t:'流派分歧(保留)', c:'#8c6a2f'},
   unresolved:{t:'证据不足·未决', c:'#7a6f5f'}
 };
-document.getElementById('cs').addEventListener('click', async () => {
-  const box = document.getElementById('csout'), btn = document.getElementById('cs');
+document.getElementById('cs').addEventListener('click', () => runConsultFlow('D3J', 'cs'));
+document.getElementById('qc').addEventListener('click', () => runConsultFlow('S1', 'qc'));
+async function runConsultFlow(arm, btnId) {
+  const box = document.getElementById('csout'), btn = document.getElementById(btnId);
   box.style.display = 'block';
-  box.innerHTML = '<span style="color:#7a6f5f;">三模型会诊启动中…</span>';
+  box.innerHTML = '<span style="color:#7a6f5f;">' + (arm==='S1' ? '快速会诊启动中(单模型,约 1–2 分钟)…' : '三模型会诊启动中…') + '</span>';
   btn.disabled = true;
   const birth = document.getElementById('d').value + 'T' + document.getElementById('t').value;
   try {
@@ -247,7 +250,7 @@ document.getElementById('cs').addEventListener('click', async () => {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value, gender: document.getElementById('gender').value,
         industry: document.getElementById('industry').value, occupation: document.getElementById('occupation').value,
-        situation: document.getElementById('situation').value, arm: 'D3J', ...birthGeo()})
+        situation: document.getElementById('situation').value, arm: arm, ...birthGeo()})
     });
     const sj = await sr.json();
     if (!sj.ok || !sj.job_id) { box.innerHTML = '<span style="color:#a33;">会诊启动失败,请确认服务运行</span>'; return; }
@@ -258,7 +261,7 @@ document.getElementById('cs').addEventListener('click', async () => {
   } catch (_) {
     box.innerHTML = '<span style="color:#a33;">请求失败(会诊耗时较长,请确认服务运行)</span>';
   } finally { btn.disabled = false; }
-});
+}
 
 // 轮询会诊任务:窗口内完成返回结果对象,超窗返回 'timeout'(任务在服务端继续跑,不丢)
 async function pollConsultJob(jobId, box, windowSec){
@@ -734,10 +737,22 @@ function renderBackcast(box, r, birth){
       const j=await (await fetch('/api/backcast/score',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({birth, events:window.BCEV})})).json();
       if(!j.ok) return;
-      const rt=j.hit_rate;
-      document.getElementById('bcrate').innerHTML = rt==null
-        ? '<span style="color:#8a7f6e;">全部「说不清」,无法计算命中率</span>'
-        : `<b style="color:${rt>=0.6?'#3f7d55':(rt>=0.4?'#b5762a':'#a33')};font-size:18px;">过去命中率 ${Math.round(rt*100)}%</b> <span style="font-size:12px;color:#8a7f6e;">已入档案,后续会诊/追问自动带上校准</span>`;
+      const rr=j.real, dr=j.decoy, d=j.diff;
+      let msg='';
+      if(!rr || rr.rate==null){ msg='<span style="color:#8a7f6e;">真盘条目全「说不清」,无法计算</span>'; }
+      else {
+        msg=`<b style="color:${rr.rate>=0.6?'#3f7d55':(rr.rate>=0.4?'#b5762a':'#a33')};font-size:17px;">你的盘命中 ${Math.round(rr.rate*100)}%(${rr.hit}/${rr.scored})</b>`;
+        if(dr && dr.rate!=null){
+          msg+=` <span style="font-size:14px;color:#5d5346;">vs 混入的随机盘 ${Math.round(dr.rate*100)}%(${dr.hit}/${dr.scored})</span>`;
+          if(d>=0.15) msg+=` <b style="color:#3f7d55;">→ 真盘胜出 ${Math.round(d*100)} 个点:命中来自你的盘,不是话术 ✓</b>`;
+          else if(d<=-0.15) msg+=` <b style="color:#a33;">→ 随机盘反而更准:此盘对你的区分度存疑 ⚠</b>`;
+          else msg+=` <b style="color:#b5762a;">→ 与随机盘难分伯仲:命中可能来自泛化表述,需更多轮验证</b>`;
+        } else if(dr && dr.scored===0){
+          msg+=' <span style="font-size:12px;color:#8a7f6e;">(对照条目未打分,无法对比)</span>';
+        }
+        msg+=' <span style="font-size:12px;color:#8a7f6e;">真盘打分已入档案(随机盘条目不入)</span>';
+      }
+      document.getElementById('bcrate').innerHTML = msg;
       document.getElementById('bcsubmit').disabled=true;
     }catch(_){}
   };
