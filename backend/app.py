@@ -35,6 +35,7 @@ import gateway  # noqa: E402  (L3 网关;密钥仅在其进程内使用)
 import consult  # noqa: E402  (L4 会诊编排)
 import predictions  # noqa: E402  (预测记录与命中率验证)
 import luck  # noqa: E402  (流年/大运推算)
+import solar  # noqa: E402  (真太阳时校正)
 import records  # noqa: E402  (会诊记录存档,刷新不丢)
 import dossier  # noqa: E402  (个人档案:过去验证打分,越用越准)
 TZ = ZoneInfo("Asia/Shanghai")
@@ -68,6 +69,8 @@ def load_solar_terms() -> None:
 class PaipanReq(BaseModel):
     birth: str  # "YYYY-MM-DDTHH:MM" 或含秒
     zi_hour_mode: str = "split"
+    longitude: float | None = None  # 出生地经度(真太阳时校正;None=不校正,与旧行为一致)
+    place: str = ""                 # 出生地名(仅展示)
 
 
 @app.post("/api/paipan")
@@ -85,6 +88,12 @@ def paipan(req: PaipanReq) -> JSONResponse:
 
     aware = naive.replace(tzinfo=TZ)  # IANA tzdata:含历史时差与 1986–91 夏令时
     t = int(aware.timestamp())
+    # 真太阳时校正(排盘根基):时辰按出生地真太阳时判定,而非北京钟表时。
+    # 经度差 + 均时差;未选出生地(longitude=None)不校正,与旧行为一致。
+    solar_offset = 0
+    if req.longitude is not None and -180.0 <= req.longitude <= 180.0:
+        solar_offset = solar.true_solar_offset_seconds(req.longitude, t)
+        t += solar_offset
     # 时辰/日界按标准北京时间(UTC+8)判定:夏令时年份用户填的钟面时间被拨快一小时,
     # 此处经 tzdata 换算回标准时(主流排盘做法);引擎收到的 local 即标准时表示。
     std = datetime.fromtimestamp(t, timezone(timedelta(hours=8)))
@@ -158,6 +167,9 @@ def paipan(req: PaipanReq) -> JSONResponse:
             "dst_applied": dst,
             "zi_hour_mode": req.zi_hour_mode,
             "jie_window": {"seq": _jie_seq[i], "name": JIE_NAMES[_jie_seq[i]]},
+            # 真太阳时校正(分钟;0=未校正):
+            "solar_correction_minutes": round(solar_offset / 60, 1),
+            "place": req.place,
             # 起运推算所需:出生时刻与所处节气边界(标准北京时)
             "birth_unix": t, "birth_year": std.year,
             "jie_unix": _jie_unix[i], "next_jie_unix": _jie_unix[i + 1],
@@ -475,9 +487,39 @@ def backcast_start(req: ConsultReq) -> JSONResponse:
             for e in (bc.get("events") or [])[:10]:
                 if isinstance(e, dict) and e.get("claim"):
                     e["claim"] = _redline_filter(str(e["claim"]))[0]
+                    e["origin"] = "real"
                     events.append(e)
+            # 对照盲测:混入一张随机合法干扰盘(不同日主)的反推,盲打分后揭盲对比——
+            # 真盘命中率必须赢过随机盘,才说明命中来自盘而非话术(巴纳姆思想的日常化)
+            import random as _rnd
+            decoy_events = []
+            for _try in range(6):
+                y = _rnd.randint(1955, 2005)
+                b2 = f"{y}-{_rnd.randint(1,12):02d}-{_rnd.randint(1,28):02d}T{_rnd.randint(0,23):02d}:{_rnd.randint(0,59):02d}"
+                r2 = paipan(PaipanReq(birth=b2, zi_hour_mode=req.zi_hour_mode))
+                if r2.status_code != 200:
+                    continue
+                o2 = json.loads(bytes(r2.body))["output"]
+                if o2["day"]["ganzhi"] == o["day"]["ganzhi"]:
+                    continue
+                line2 = (f"年柱 {o2['year']['ganzhi']},月柱 {o2['month']['ganzhi']},"
+                         f"日柱 {o2['day']['ganzhi']},时柱 {o2['hour']['ganzhi']}(八字年 {o2['bazi_year']})")
+                try:
+                    bc2 = consult.backcast(line2, None, past, "；".join(parts))
+                    for e in (bc2.get("events") or [])[:5]:
+                        if isinstance(e, dict) and e.get("claim"):
+                            e["claim"] = _redline_filter(str(e["claim"]))[0]
+                            e["origin"] = "decoy"
+                            decoy_events.append(e)
+                except Exception:  # noqa: BLE001  干扰盘失败不拖垮主流程,退化为无对照
+                    pass
+                break
+            events = events + decoy_events
+            _rnd.shuffle(events)
             payload, status = {"ok": True, "chart_line": chart_line, "events": events,
-                               "note": "逐条打分:准/不准/说不清。打分只你自己可见,存本机档案,用于校准后续推演。"}, "done"
+                               "has_control": bool(decoy_events),
+                               "note": "逐条打分:准/不准/说不清。其中混有对照条目(揭盲后才知道哪些),"
+                                       "打分只你自己可见,存本机档案。"}, "done"
         except Exception as exc:  # noqa: BLE001
             payload, status = {"ok": False, "error": f"盘前验证失败:{exc}"}, "error"
         with _JOBS_LOCK:
@@ -494,9 +536,20 @@ class BackcastScoreReq(BaseModel):
 
 @app.post("/api/backcast/score")
 def backcast_score(req: BackcastScoreReq) -> JSONResponse:
-    """保存盘前验证打分 → 当场出「过去命中率」,并入个人档案(校准后续推演)。"""
-    rate = dossier.save_backcast(req.birth, req.events)
-    return JSONResponse({"ok": True, "hit_rate": rate, "stats": dossier.stats(req.birth)})
+    """保存盘前验证打分 → 揭盲:真盘 vs 干扰盘命中率对比;只有真盘条目入档案。"""
+    def rate_of(evs):
+        scored = [e for e in evs if e.get("score") in ("hit", "miss")]
+        hit = sum(1 for e in scored if e["score"] == "hit")
+        return {"scored": len(scored), "hit": hit,
+                "rate": round(hit / len(scored), 3) if scored else None}
+    real = [e for e in req.events if isinstance(e, dict) and e.get("origin") != "decoy"]
+    decoy = [e for e in req.events if isinstance(e, dict) and e.get("origin") == "decoy"]
+    rate = dossier.save_backcast(req.birth, real)  # 干扰盘不入档案
+    rr, dr = rate_of(real), rate_of(decoy)
+    diff = (round(rr["rate"] - dr["rate"], 3)
+            if rr["rate"] is not None and dr["rate"] is not None else None)
+    return JSONResponse({"ok": True, "hit_rate": rate, "real": rr, "decoy": dr, "diff": diff,
+                         "stats": dossier.stats(req.birth)})
 
 
 class FactAddReq(BaseModel):
@@ -594,6 +647,7 @@ class ShichenReq(BaseModel):
     gender: str = ""
     events_text: str     # 已发生大事自述
     zi_hour_mode: str = "split"
+    longitude: float | None = None  # 出生地经度(真太阳时校正)
 
 
 @app.post("/api/shichen/start")
@@ -620,7 +674,8 @@ def shichen_start(req: ShichenReq) -> JSONResponse:
         try:
             cands = []
             for hm, rng in slots:
-                r = paipan(PaipanReq(birth=f"{req.date}T{hm}", zi_hour_mode=req.zi_hour_mode))
+                r = paipan(PaipanReq(birth=f"{req.date}T{hm}", zi_hour_mode=req.zi_hour_mode,
+                                     longitude=req.longitude))
                 if r.status_code != 200:
                     continue
                 o = json.loads(bytes(r.body))["output"]
@@ -646,6 +701,193 @@ def shichen_start(req: ShichenReq) -> JSONResponse:
                                "candidates": cands}, "done"
         except Exception as exc:  # noqa: BLE001
             payload, status = {"ok": False, "error": f"时辰校准失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
+@app.post("/api/liuyue/start")
+def liuyue_start(req: ConsultReq) -> JSONResponse:
+    """本年流月逐月推演(异步 1 次调用):验证周期从年缩到月;结果轮询同 /api/consult/result。"""
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            chart_resp = paipan(req)
+            if chart_resp.status_code != 200:
+                raise RuntimeError("排盘失败")
+            chart = json.loads(bytes(chart_resp.body))
+            o = chart["output"]
+            chart_line = (f"年柱 {o['year']['ganzhi']},月柱 {o['month']['ganzhi']},"
+                          f"日柱 {o['day']['ganzhi']},时柱 {o['hour']['ganzhi']}(八字年 {o['bazi_year']})")
+            meta = chart.get("meta", {})
+            du = None
+            if req.gender in ("male", "female") and meta.get("birth_unix"):
+                dtn = (meta["next_jie_unix"] - meta["birth_unix"]) / 86400
+                dfp = (meta["birth_unix"] - meta["jie_unix"]) / 86400
+                du = luck.dayun(o["month"]["ganzhi"], o["year"]["stem"], req.gender,
+                                dtn, dfp, meta.get("birth_year", datetime.now().year))
+            branches = [o[p]["branch"] for p in ("year", "month", "day", "hour")]
+            ss = luck.shensha(o["day"]["stem"], o["day"]["branch"], o["year"]["branch"], branches)
+            # 当前八字年(以立春为界)与十二流月边界(节气表)
+            tz8 = timezone(timedelta(hours=8))
+            now_dt = datetime.now(tz8)
+            now_t = int(now_dt.timestamp())
+            cal_y = now_dt.year
+            by = cal_y if now_t >= _lichun.get(cal_y, 0) else cal_y - 1
+            gzs = luck.liuyue_ganzhi(luck.year_ganzhi(by)[0])
+            lo, hi = _lichun[by], _lichun.get(by + 1, _lichun[by] + 366 * 86400)
+            ents = sorted((u, s) for u, s in zip(_jie_unix, _jie_seq) if lo <= u < hi)
+            months = []
+            for k, (u, s) in enumerate(ents):
+                end = ents[k + 1][0] if k + 1 < len(ents) else hi
+                d1 = datetime.fromtimestamp(u, tz8)
+                d2 = datetime.fromtimestamp(end, tz8)
+                months.append({"month_index": s + 1, "ganzhi": gzs[s],
+                               "period": f"{d1.month}/{d1.day}-{d2.month}/{d2.day}",
+                               "current": u <= now_t < end})
+            months.sort(key=lambda m: m["month_index"])
+            parts = []
+            if req.industry.strip():
+                parts.append(f"行业:{req.industry.strip()}")
+            if req.occupation.strip():
+                parts.append(f"职业:{req.occupation.strip()}")
+            if req.situation.strip():
+                parts.append(f"补充:{req.situation.strip()[:300]}")
+            dsum = dossier.summary(req.birth)
+            if dsum:
+                parts.append(f"【此人档案·已验证】{dsum}")
+            ctx = {"chart_line": chart_line, "profile": "；".join(parts),
+                   "dayun_text": (f"{du['direction']},{du.get('start_detail','')}起运:"
+                                  + "、".join(f"{p['ganzhi']}({p['start_year']}-{p['end_year']})"
+                                              for p in du["periods"])) if du else "",
+                   "shensha_text": "、".join(f"{s['name']}({s['branch']})" for s in ss)}
+            res = consult.liuyue_forecast(ctx, f"{by}年", luck.year_ganzhi(by), months)
+            got = {m.get("month_index"): m for m in (res.get("months") or []) if isinstance(m, dict)}
+            for m in months:  # 干支/日期以确定性计算为准,模型只出解读
+                g = got.get(m["month_index"], {})
+                m["reading"] = _redline_filter(str(g.get("reading", "")))[0]
+                m["tendency"] = g.get("tendency", "neutral")
+                m["key_domains"] = g.get("key_domains", [])
+            payload, status = {"ok": True, "year": by, "liunian": luck.year_ganzhi(by),
+                               "months": months,
+                               "note": _redline_filter(str(res.get("note", "")))[0]}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"流月推演失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
+class GroupPerson(BaseModel):
+    label: str                      # 称谓(如"合伙人老王")
+    role: str = ""                  # 角色(合伙人/核心成员/负责人…)
+    birth: str                      # YYYY-MM-DD 或 YYYY-MM-DDTHH:MM
+    gender: str = ""
+    longitude: float | None = None
+
+
+class GroupReq(ConsultReq):
+    people: list[GroupPerson] = []
+    company_founded: str = ""       # 公司注册/开业日期(可选,同 birth 格式)
+
+
+def _entity_pack(birth: str, zi_mode: str, longitude: float | None) -> dict:
+    """任一实体(人/公司)的盘 + 合盘所需确定性要素;时刻缺省用 12:00 并标注时柱不确定。"""
+    hour_known = "T" in birth
+    r = paipan(PaipanReq(birth=birth if hour_known else f"{birth}T12:00",
+                         zi_hour_mode=zi_mode, longitude=longitude))
+    if r.status_code != 200:
+        raise RuntimeError(f"排盘失败:{birth}")
+    o = json.loads(bytes(r.body))["output"]
+    stems = [o[p]["stem"] for p in ("year", "month", "day", "hour")]
+    branches = [o[p]["branch"] for p in ("year", "month", "day", "hour")]
+    if not hour_known:  # 时柱不可信:互参与五行统计只用年月日三柱
+        stems, branches = stems[:3], branches[:3]
+    line = "、".join(o[p]["ganzhi"] for p in ("year", "month", "day", "hour"))
+    return {"day_stem": o["day"]["stem"], "day_branch": o["day"]["branch"],
+            "branches": branches, "elems": luck.chart_elements(stems, branches),
+            "chart_line": line + ("" if hour_known else "(时柱不确定,按正午占位)"),
+            "hour_known": hour_known}
+
+
+@app.post("/api/group/start")
+def group_start(req: GroupReq) -> JSONResponse:
+    """组织合盘(异步 1 次调用):主盘+关键人+公司开业盘 互参矩阵 → 组织之势研判。"""
+    if not req.people and not req.company_founded.strip():
+        return JSONResponse({"ok": False, "error": "至少加一位关键人或公司成立日期"}, status_code=422)
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            entities = [("你(主盘)", "主事人", _entity_pack(req.birth, req.zi_hour_mode, req.longitude))]
+            for p in req.people[:6]:
+                entities.append((p.label or "关键人", p.role or "关键人",
+                                 _entity_pack(p.birth, req.zi_hour_mode, p.longitude)))
+            if req.company_founded.strip():
+                entities.append(("公司盘", "组织本体",
+                                 _entity_pack(req.company_founded.strip(), req.zi_hour_mode, req.longitude)))
+            # 本年流年如何分别打在每个盘上(确定性)
+            tz8 = timezone(timedelta(hours=8))
+            now_dt = datetime.now(tz8)
+            by = now_dt.year if int(now_dt.timestamp()) >= _lichun.get(now_dt.year, 0) else now_dt.year - 1
+            ln = luck.year_ganzhi(by)
+            lines = [f"【本年】{by}年 流年 {ln}", "", "【各盘】"]
+            for label, role, e in entities:
+                hits = luck.branch_rel(ln[1], e["day_branch"])
+                lines.append(f"- {label}({role}):{e['chart_line']};日主 {e['day_stem']};"
+                             f"五行分布 {e['elems']};流年干于其为「{luck.shishen(e['day_stem'], ln[0])}」,"
+                             f"流年支与其日支:{'/'.join(hits)}")
+            lines.append("")
+            lines.append("【互参矩阵(确定性计算,不许另算)】")
+            for i in range(len(entities)):
+                for k in range(i + 1, len(entities)):
+                    la, _, a = entities[i]
+                    lb, _, b = entities[k]
+                    pa = luck.pair_analysis(a, b)
+                    lines.append(f"- {la} × {lb}:{lb}于{la}为「{pa['a_views_b']}」,"
+                                 f"{la}于{lb}为「{pa['b_views_a']}」;日支关系:{'/'.join(pa['day_branch_rel'])};"
+                                 f"全盘合系 {pa['bonds']} 处/冲系 {pa['frictions']} 处"
+                                 + (f";{lb}补{la}所缺五行:{'、'.join(pa['element_supply'])}" if pa['element_supply'] else ""))
+            parts = []
+            if req.industry.strip():
+                parts.append(f"行业:{req.industry.strip()}")
+            if req.occupation.strip():
+                parts.append(f"主事人职业:{req.occupation.strip()}")
+            if req.situation.strip():
+                parts.append(f"背景:{req.situation.strip()[:300]}")
+            dsum = dossier.summary(req.birth)
+            if dsum:
+                parts.append(f"【已验证档案·主事人】{dsum}")
+            if parts:
+                lines.append("")
+                lines.append("【背景】" + "；".join(parts))
+            res = consult.group_forecast("\n".join(lines))
+            def _clean(s):
+                return _redline_filter(str(s))[0]
+            payload, status = {"ok": True, "year": by, "liunian": ln,
+                               "entities": [{"label": l, "role": r, "chart_line": e["chart_line"]}
+                                            for l, r, e in entities],
+                               "overview": _clean(res.get("overview", "")),
+                               "people": [{"label": _clean(p.get("label", "")), "this_year": _clean(p.get("this_year", "")),
+                                           "role_fit": _clean(p.get("role_fit", ""))}
+                                          for p in (res.get("people") or []) if isinstance(p, dict)],
+                               "pairs": [{"pair": _clean(p.get("pair", "")), "reading": _clean(p.get("reading", ""))}
+                                         for p in (res.get("pairs") or []) if isinstance(p, dict)],
+                               "windows": [{"period": _clean(w.get("period", "")), "reading": _clean(w.get("reading", "")),
+                                            "tendency": w.get("tendency", "neutral")}
+                                           for w in (res.get("windows") or []) if isinstance(w, dict)],
+                               "note": _clean(res.get("note", ""))}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"合盘失败:{exc}"}, "error"
         with _JOBS_LOCK:
             _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
 

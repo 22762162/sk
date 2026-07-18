@@ -51,6 +51,31 @@
       </div>
       <div id="scout" style="margin-top:8px;"></div>
     </div>
+    <label>出生地(真太阳时校正;中西部出生强烈建议选)
+      <select id="birthplace">
+        <option value="" selected>不校正(按北京时间)</option>
+        <option value="116.4">北京</option><option value="117.2">天津</option>
+        <option value="121.5">上海</option><option value="106.6">重庆</option>
+        <option value="113.3">广州</option><option value="114.1">深圳</option>
+        <option value="120.2">杭州</option><option value="118.8">南京</option>
+        <option value="120.6">苏州</option><option value="114.3">武汉</option>
+        <option value="104.1">成都</option><option value="108.9">西安</option>
+        <option value="113.6">郑州</option><option value="112.9">长沙</option>
+        <option value="117.2">合肥</option><option value="115.9">南昌</option>
+        <option value="119.3">福州</option><option value="118.1">厦门</option>
+        <option value="117.1">济南</option><option value="120.4">青岛</option>
+        <option value="114.5">石家庄</option><option value="112.6">太原</option>
+        <option value="123.4">沈阳</option><option value="121.6">大连</option>
+        <option value="125.3">长春</option><option value="126.5">哈尔滨</option>
+        <option value="102.8">昆明</option><option value="106.6">贵阳</option>
+        <option value="108.4">南宁</option><option value="110.3">海口</option>
+        <option value="103.8">兰州</option><option value="101.8">西宁</option>
+        <option value="106.2">银川</option><option value="87.6">乌鲁木齐</option>
+        <option value="91.1">拉萨</option><option value="111.7">呼和浩特</option>
+        <option value="114.2">香港</option><option value="113.5">澳门</option>
+        <option value="121.5">台北</option>
+      </select>
+    </label>
     <label>子时归属(流派配置)
       <select id="mode">
         <option value="split" selected>早晚子时(晚子时不换日柱)</option>
@@ -97,10 +122,25 @@
     <div style="margin-top:22px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
       <button type="button" id="bc" style="background:#8a5a2a;">① 验过去 · 铁口直断</button>
       <button type="button" id="cs" style="background:#6b3f6b;">② 三模型会诊(推未来)</button>
-      <button type="button" id="qr" style="background:#4a5f8c;">AI 速览(单模型)</button>
+      <button type="button" id="ly" style="background:#2c6a66;">本年流月(逐月)</button>
+      <button type="button" id="qc" style="background:#4a5f8c;">快速会诊(约1分钟)</button>
       <span style="font-size:12px;color:#8a7f6e;">建议先「验过去」打分——说得准过去,未来才有分量;打分自动校准后续推演。</span>
     </div>
     <div id="bcout" style="display:none; margin-top:14px;"></div>
+    <div id="lyout" style="display:none; margin-top:14px;"></div>
+    <details style="margin-top:14px;border:1px solid #d8cfc0;border-radius:10px;background:#fbf8f2;padding:10px 14px;">
+      <summary style="cursor:pointer;font-size:14px;color:#5d4a32;font-weight:600;">组织合盘 · 公司/团队之势(主盘+关键人+开业盘互参)</summary>
+      <div style="font-size:12px;color:#8a7f6e;margin-top:6px;">公司走向不由一人决定:把合伙人、核心成员、公司成立日期加进来,看十神关系/合冲刑害/五行互补/今年流年分别打在谁身上——合力即「势」。别人的时辰不知道可留空(按三柱算,诚实降权)。</div>
+      <div style="margin-top:8px;font-size:13px;">公司成立日期(可选):
+        <input type="date" id="gfound" style="font-size:13px;"> <input type="time" id="gfoundt" style="font-size:13px;"><span style="font-size:11px;color:#8a7f6e;">时刻不知可空</span>
+      </div>
+      <div id="gpeople" style="margin-top:6px;"></div>
+      <div style="margin-top:8px;">
+        <button type="button" id="gadd" style="background:#8a7f6e;font-size:12px;padding:4px 10px;">＋ 添加关键人</button>
+        <button type="button" id="gp" style="background:#6a4a7d;font-size:13px;">起合盘(约1分钟)</button>
+      </div>
+      <div id="gpout" style="display:none;margin-top:10px;"></div>
+    </details>
     <div id="qrout" style="display:none; margin-top:14px;"></div>
     <div id="csout" style="display:none; margin-top:18px;"></div>
     <div style="margin-top:26px; border-top:1px solid var(--line); padding-top:20px;">
@@ -124,6 +164,12 @@
   </footer>
 </main>
 <script>
+function birthGeo(){
+  const s = document.getElementById('birthplace');
+  const v = s.value;
+  return { longitude: v ? parseFloat(v) : null,
+           place: v ? s.options[s.selectedIndex].text : '' };
+}
 document.getElementById('f').addEventListener('submit', async (e) => {
   e.preventDefault();
   const err = document.getElementById('err'), res = document.getElementById('result');
@@ -132,7 +178,7 @@ document.getElementById('f').addEventListener('submit', async (e) => {
   try {
     const r = await fetch('/api/paipan', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value})
+      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value, ...birthGeo()})
     });
     const j = await r.json();
     if (!j.ok) { err.textContent = '无法排盘:' + (j.error || '未知错误'); err.style.display = 'block'; return; }
@@ -141,9 +187,11 @@ document.getElementById('f').addEventListener('submit', async (e) => {
     document.getElementById('pm').textContent = o.month.ganzhi;
     document.getElementById('pd').textContent = o.day.ganzhi;
     document.getElementById('ph').textContent = o.hour.ganzhi;
+    const sc = j.meta.solar_correction_minutes || 0;
     document.getElementById('meta').textContent =
       `八字年:${o.bazi_year} · 节气月:${j.meta.jie_window.name}起 · 子时口径:` +
       (j.meta.zi_hour_mode === 'split' ? '早晚子时' : '子时换日') +
+      (sc ? ` · ${j.meta.place||'出生地'}真太阳时校正 ${sc>0?'+':''}${sc} 分钟` : '') +
       (j.meta.dst_applied ? ' · 该时刻处于历史夏令时,已按 tzdata 换算' : '');
     const amb = document.getElementById('amb');
     if (j.result_status === 'ambiguous') {
@@ -167,8 +215,9 @@ document.getElementById('f').addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('qr').addEventListener('click', async () => {
-  const box = document.getElementById('qrout'), btn = document.getElementById('qr');
+const _qrBtn = document.getElementById('qr');  // AI 速览已由「快速会诊(S1)」取代;按钮不在则跳过
+if (_qrBtn) _qrBtn.addEventListener('click', async () => {
+  const box = document.getElementById('qrout'), btn = _qrBtn;
   box.style.display = 'block';
   box.innerHTML = '<span style="color:#7a6f5f;">调用模型中(每次调用计入日熔断上限)…</span>';
   btn.disabled = true;
@@ -176,7 +225,7 @@ document.getElementById('qr').addEventListener('click', async () => {
   try {
     const r = await fetch('/api/quickread', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value})
+      body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value, ...birthGeo()})
     });
     const j = await r.json();
     if (!j.ok) { box.innerHTML = '<span style="color:#a33;">速览失败:' + (j.error || '未知错误') + '</span>'; return; }
@@ -201,10 +250,12 @@ const VERDICT = {
   dissent:   {t:'流派分歧(保留)', c:'#8c6a2f'},
   unresolved:{t:'证据不足·未决', c:'#7a6f5f'}
 };
-document.getElementById('cs').addEventListener('click', async () => {
-  const box = document.getElementById('csout'), btn = document.getElementById('cs');
+document.getElementById('cs').addEventListener('click', () => runConsultFlow('D3J', 'cs'));
+document.getElementById('qc').addEventListener('click', () => runConsultFlow('S1', 'qc'));
+async function runConsultFlow(arm, btnId) {
+  const box = document.getElementById('csout'), btn = document.getElementById(btnId);
   box.style.display = 'block';
-  box.innerHTML = '<span style="color:#7a6f5f;">三模型会诊启动中…</span>';
+  box.innerHTML = '<span style="color:#7a6f5f;">' + (arm==='S1' ? '快速会诊启动中(单模型,约 1–2 分钟)…' : '三模型会诊启动中…') + '</span>';
   btn.disabled = true;
   const birth = document.getElementById('d').value + 'T' + document.getElementById('t').value;
   try {
@@ -212,7 +263,7 @@ document.getElementById('cs').addEventListener('click', async () => {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value, gender: document.getElementById('gender').value,
         industry: document.getElementById('industry').value, occupation: document.getElementById('occupation').value,
-        situation: document.getElementById('situation').value, arm: 'D3J'})
+        situation: document.getElementById('situation').value, arm: arm, ...birthGeo()})
     });
     const sj = await sr.json();
     if (!sj.ok || !sj.job_id) { box.innerHTML = '<span style="color:#a33;">会诊启动失败,请确认服务运行</span>'; return; }
@@ -223,7 +274,7 @@ document.getElementById('cs').addEventListener('click', async () => {
   } catch (_) {
     box.innerHTML = '<span style="color:#a33;">请求失败(会诊耗时较长,请确认服务运行)</span>';
   } finally { btn.disabled = false; }
-});
+}
 
 // 轮询会诊任务:窗口内完成返回结果对象,超窗返回 'timeout'(任务在服务端继续跑,不丢)
 async function pollConsultJob(jobId, box, windowSec){
@@ -299,7 +350,7 @@ function renderConsult(j) {
               const cur = p.start_year <= nowY && nowY < p.end_year;
               return `<span style="font-size:11px;border:1px solid ${cur?'#2c6a66':'var(--line)'};background:${cur?'#eef6f0':'#fff'};color:${cur?'#2c6a66':'#5d5346'};border-radius:8px;padding:3px 9px;">${p.ganzhi} <span style="color:#8a7f6e;">${p.start_year}–${p.end_year}</span>${cur?' ·现在':''}</span>`;
             }).join('') + '</div>';
-          html += `<div style="font-size:11px;color:#8a7f6e;margin-top:4px;">${du.direction} · ${du.start_age}岁起运(起运岁为近似)</div>`;
+          html += `<div style="font-size:11px;color:#8a7f6e;margin-top:4px;">${du.direction} · ${du.start_detail || (du.start_age+'岁')}起运(3天折1岁/1天折4月)</div>`;
         }
       }
       if (ps.yearly && ps.yearly.length) {
@@ -572,7 +623,7 @@ async function runShichen(){
   try{
     const sj=await (await fetch('/api/shichen/start',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({date:document.getElementById('d').value, gender:document.getElementById('gender').value,
-        events_text:ev, zi_hour_mode:document.getElementById('mode').value})})).json();
+        events_text:ev, zi_hour_mode:document.getElementById('mode').value, longitude:birthGeo().longitude})})).json();
     if(!sj.ok||!sj.job_id){ stat.textContent=sj.error||'启动失败'; btn.disabled=false; return; }
     let rj=null;
     for(let k=0;k<50;k++){
@@ -601,6 +652,123 @@ async function runShichen(){
   finally{ btn.disabled=false; }
 }
 
+// —— 本年流月:逐月推演,验证周期从年缩到月 ——
+document.getElementById('ly').addEventListener('click', runLiuyue);
+async function runLiuyue(){
+  const box=document.getElementById('lyout'), btn=document.getElementById('ly');
+  box.style.display='block'; btn.disabled=true;
+  box.innerHTML='<span style="color:#7a6f5f;">本年流月逐月推演中(约 30–90 秒)…</span>';
+  const birth=document.getElementById('d').value+'T'+document.getElementById('t').value;
+  try{
+    const sj=await (await fetch('/api/liuyue/start',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
+        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value,
+        situation:document.getElementById('situation').value, ...birthGeo()})})).json();
+    if(!sj.ok||!sj.job_id) throw 0;
+    let rj=null;
+    for(let k=0;k<60;k++){
+      await new Promise(r=>setTimeout(r,3000));
+      try{ rj=await (await fetch('/api/consult/result?job_id='+encodeURIComponent(sj.job_id))).json(); }catch(e){ continue; }
+      if(rj.status!=='running') break;
+      box.innerHTML=`<span style="color:#7a6f5f;">流月推演中…已 ${(k+1)*3} 秒</span>`;
+    }
+    if(!(rj&&rj.status==='done'&&rj.result&&rj.result.ok)){ box.innerHTML='<span style="color:#a33;">流月推演失败,请重试</span>'; return; }
+    const r=rj.result;
+    const T2={favorable:{t:'偏顺',c:'#3f7d55',bg:'#eef6f0'},caution:{t:'留意',c:'#b5762a',bg:'#fbf3e6'},neutral:{t:'中性',c:'#6b6459',bg:'#f2efe9'}};
+    let h=`<div style="border:2px solid #2c6a66;border-radius:10px;background:#fff;padding:14px 18px;">
+      <div style="font-size:12px;color:#2c6a66;letter-spacing:2px;">${r.year}年(${esc(r.liunian)}) · 流月逐月</div>
+      <div style="font-size:12px;color:#8a7f6e;margin-top:3px;">按月验证:每月的话几周内就能核对——记录为预测,月底回访。</div>`;
+    (r.months||[]).forEach(m=>{
+      const te=T2[m.tendency]||T2.neutral;
+      h+=`<div style="border-left:3px solid ${te.c};background:${m.current?'#fffbe8':te.bg};border-radius:6px;padding:8px 12px;margin-top:6px;">
+        <div style="font-size:13px;"><b>第${m.month_index}月</b> <span style="color:#8a7f6e;">${esc(m.ganzhi)} ${esc(m.period)}</span>
+          ${m.current?'<span style="background:#8a5a2a;color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;margin-left:5px;">当前月</span>':''}
+          <span style="background:${te.c};color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;margin-left:5px;">${te.t}</span>
+          ${(m.key_domains&&m.key_domains.length)?`<span style="color:#8a7f6e;font-size:11px;margin-left:4px;">${m.key_domains.join('·')}</span>`:''}</div>
+        <div style="font-size:13px;line-height:1.7;margin-top:3px;">${esc(m.reading||'')}</div>
+        <button class="recbtn" data-domain="流月${r.year}-${m.month_index}" data-reading="${encodeURIComponent(r.year+'年第'+m.month_index+'月 '+m.ganzhi+'('+m.period+'):'+(m.reading||''))}" style="margin-top:6px;font-size:11px;background:#2c6a66;color:#fff;border:0;border-radius:6px;padding:3px 9px;cursor:pointer;">＋ 记录为预测</button></div>`;
+    });
+    if(r.note) h+=`<div style="font-size:12px;color:#8a7f6e;margin-top:8px;line-height:1.7;">${esc(r.note)}</div>`;
+    h+='</div>';
+    box.innerHTML=h;
+    box.querySelectorAll('.recbtn').forEach(b=>b.onclick=()=>recordPred(b));
+  }catch(_){ box.innerHTML='<span style="color:#a33;">请求失败</span>'; }
+  finally{ btn.disabled=false; }
+}
+
+// —— 组织合盘:主盘+关键人+开业盘 互参 → 组织之势 ——
+function gAddRow(){
+  const box=document.getElementById('gpeople');
+  if(box.children.length>=6){ alert('最多 6 位关键人'); return; }
+  const row=document.createElement('div');
+  row.style.cssText='display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap;font-size:12px;';
+  row.innerHTML=`<input placeholder="称谓(如 合伙人老王)" class="glabel" style="width:130px;font-size:12px;">
+    <select class="grole" style="font-size:12px;"><option>合伙人</option><option>核心成员</option><option>业务负责人</option><option>家人</option><option>其他</option></select>
+    <input type="date" class="gbirth" style="font-size:12px;">
+    <input type="time" class="gtime" style="font-size:12px;" title="时辰不知可空">
+    <select class="ggender" style="font-size:12px;"><option value="">性别?</option><option value="male">男</option><option value="female">女</option></select>
+    <button type="button" style="background:#b0a898;font-size:11px;padding:2px 8px;" onclick="this.parentElement.remove()">删</button>`;
+  box.appendChild(row);
+}
+document.getElementById('gadd').addEventListener('click', gAddRow);
+document.getElementById('gp').addEventListener('click', runGroup);
+async function runGroup(){
+  const box=document.getElementById('gpout'), btn=document.getElementById('gp');
+  const people=[];
+  document.querySelectorAll('#gpeople > div').forEach(r=>{
+    const b=r.querySelector('.gbirth').value; if(!b) return;
+    const t=r.querySelector('.gtime').value;
+    people.push({label:r.querySelector('.glabel').value||'关键人', role:r.querySelector('.grole').value,
+      birth: t? b+'T'+t : b, gender:r.querySelector('.ggender').value});
+  });
+  let founded=document.getElementById('gfound').value;
+  if(founded && document.getElementById('gfoundt').value) founded+='T'+document.getElementById('gfoundt').value;
+  if(!people.length && !founded){ alert('先添加至少一位关键人,或填公司成立日期'); return; }
+  box.style.display='block'; btn.disabled=true;
+  box.innerHTML='<span style="color:#7a6f5f;">合盘互参计算 + 研判中(约 1 分钟)…</span>';
+  const birth=document.getElementById('d').value+'T'+document.getElementById('t').value;
+  try{
+    const sj=await (await fetch('/api/group/start',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
+        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value,
+        situation:document.getElementById('situation').value, people, company_founded:founded, ...birthGeo()})})).json();
+    if(!sj.ok||!sj.job_id) throw 0;
+    let rj=null;
+    for(let k=0;k<60;k++){
+      await new Promise(r=>setTimeout(r,3000));
+      try{ rj=await (await fetch('/api/consult/result?job_id='+encodeURIComponent(sj.job_id))).json(); }catch(e){ continue; }
+      if(rj.status!=='running') break;
+      box.innerHTML=`<span style="color:#7a6f5f;">合盘研判中…已 ${(k+1)*3} 秒</span>`;
+    }
+    if(!(rj&&rj.status==='done'&&rj.result&&rj.result.ok)){ box.innerHTML='<span style="color:#a33;">合盘失败:'+esc((rj&&rj.result&&rj.result.error)||'请重试')+'</span>'; return; }
+    const r=rj.result;
+    const TC={favorable:'#3f7d55',caution:'#b5762a',neutral:'#6b6459'};
+    let h=`<div style="border:2px solid #6a4a7d;border-radius:10px;background:#fff;padding:14px 18px;">
+      <div style="font-size:12px;color:#6a4a7d;letter-spacing:2px;">组织之势 · ${r.year}年(${esc(r.liunian)})</div>
+      <div style="font-size:11px;color:#8a7f6e;margin-top:4px;">${(r.entities||[]).map(e=>esc(e.label)+':'+esc(e.chart_line)).join(' ｜ ')}</div>
+      <div style="font-size:14px;line-height:1.8;margin-top:8px;">${esc(r.overview||'')}</div>`;
+    if((r.people||[]).length){
+      h+='<div style="font-size:12px;color:#6a4a7d;margin-top:10px;">— 各人今年 —</div>';
+      r.people.forEach(p=>{ h+=`<div style="border-left:3px solid #6a4a7d;background:#f7f3fa;border-radius:6px;padding:7px 11px;margin-top:5px;font-size:13px;line-height:1.7;"><b>${esc(p.label)}</b>:${esc(p.this_year||'')}<br><span style="color:#5d5346;">位置:${esc(p.role_fit||'')}</span></div>`; });
+    }
+    if((r.pairs||[]).length){
+      h+='<div style="font-size:12px;color:#6a4a7d;margin-top:10px;">— 关系互参 —</div>';
+      r.pairs.forEach(p=>{ h+=`<div style="background:#f2efe9;border-radius:6px;padding:7px 11px;margin-top:5px;font-size:13px;line-height:1.7;"><b>${esc(p.pair)}</b>:${esc(p.reading||'')}</div>`; });
+    }
+    if((r.windows||[]).length){
+      h+='<div style="font-size:12px;color:#6a4a7d;margin-top:10px;">— 关键时间窗(可验证) —</div>';
+      r.windows.forEach(w=>{ const c=TC[w.tendency]||TC.neutral;
+        h+=`<div style="border-left:3px solid ${c};background:#fbf8f2;border-radius:6px;padding:7px 11px;margin-top:5px;font-size:13px;line-height:1.7;"><b style="color:${c};">${esc(w.period)}</b> ${esc(w.reading||'')}
+        <button class="recbtn" data-domain="组织${r.year}" data-reading="${encodeURIComponent('组织·'+w.period+':'+(w.reading||''))}" style="font-size:11px;background:#6a4a7d;color:#fff;border:0;border-radius:6px;padding:2px 8px;cursor:pointer;margin-left:6px;">＋ 记录为预测</button></div>`; });
+    }
+    if(r.note) h+=`<div style="font-size:12px;color:#8a7f6e;margin-top:8px;line-height:1.7;">${esc(r.note)}</div>`;
+    h+='</div>';
+    box.innerHTML=h;
+    box.querySelectorAll('.recbtn').forEach(b=>b.onclick=()=>recordPred(b));
+  }catch(_){ box.innerHTML='<span style="color:#a33;">请求失败</span>'; }
+  finally{ btn.disabled=false; }
+}
+
 // —— 盘前验证:铁口直断过去 → 本人打分 → 过去命中率(存档并校准后续推演) ——
 document.getElementById('bc').addEventListener('click', runBackcast);
 async function runBackcast(){
@@ -611,7 +779,7 @@ async function runBackcast(){
   try{
     const sj=await (await fetch('/api/backcast/start',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
-        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value, situation:''})})).json();
+        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value, situation:'', ...birthGeo()})})).json();
     if(!sj.ok||!sj.job_id) throw 0;
     let rj=null;
     for(let k=0;k<60;k++){
@@ -655,10 +823,22 @@ function renderBackcast(box, r, birth){
       const j=await (await fetch('/api/backcast/score',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({birth, events:window.BCEV})})).json();
       if(!j.ok) return;
-      const rt=j.hit_rate;
-      document.getElementById('bcrate').innerHTML = rt==null
-        ? '<span style="color:#8a7f6e;">全部「说不清」,无法计算命中率</span>'
-        : `<b style="color:${rt>=0.6?'#3f7d55':(rt>=0.4?'#b5762a':'#a33')};font-size:18px;">过去命中率 ${Math.round(rt*100)}%</b> <span style="font-size:12px;color:#8a7f6e;">已入档案,后续会诊/追问自动带上校准</span>`;
+      const rr=j.real, dr=j.decoy, d=j.diff;
+      let msg='';
+      if(!rr || rr.rate==null){ msg='<span style="color:#8a7f6e;">真盘条目全「说不清」,无法计算</span>'; }
+      else {
+        msg=`<b style="color:${rr.rate>=0.6?'#3f7d55':(rr.rate>=0.4?'#b5762a':'#a33')};font-size:17px;">你的盘命中 ${Math.round(rr.rate*100)}%(${rr.hit}/${rr.scored})</b>`;
+        if(dr && dr.rate!=null){
+          msg+=` <span style="font-size:14px;color:#5d5346;">vs 混入的随机盘 ${Math.round(dr.rate*100)}%(${dr.hit}/${dr.scored})</span>`;
+          if(d>=0.15) msg+=` <b style="color:#3f7d55;">→ 真盘胜出 ${Math.round(d*100)} 个点:命中来自你的盘,不是话术 ✓</b>`;
+          else if(d<=-0.15) msg+=` <b style="color:#a33;">→ 随机盘反而更准:此盘对你的区分度存疑 ⚠</b>`;
+          else msg+=` <b style="color:#b5762a;">→ 与随机盘难分伯仲:命中可能来自泛化表述,需更多轮验证</b>`;
+        } else if(dr && dr.scored===0){
+          msg+=' <span style="font-size:12px;color:#8a7f6e;">(对照条目未打分,无法对比)</span>';
+        }
+        msg+=' <span style="font-size:12px;color:#8a7f6e;">真盘打分已入档案(随机盘条目不入)</span>';
+      }
+      document.getElementById('bcrate').innerHTML = msg;
       document.getElementById('bcsubmit').disabled=true;
     }catch(_){}
   };

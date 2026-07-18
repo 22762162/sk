@@ -27,6 +27,17 @@ def liunian(start_year: int, n: int = 8) -> list[dict]:
     return out
 
 
+# 五虎遁:流年年干 → 寅月(正月)天干
+_WUHU = {"甲": "丙", "己": "丙", "乙": "戊", "庚": "戊", "丙": "庚",
+         "辛": "庚", "丁": "壬", "壬": "壬", "戊": "甲", "癸": "甲"}
+
+
+def liuyue_ganzhi(year_stem: str) -> list[str]:
+    """某流年的十二流月干支(寅月起,五虎遁定首月天干)。"""
+    first = STEMS.index(_WUHU[year_stem])
+    return [STEMS[(first + k) % 10] + BRANCHES[(2 + k) % 12] for k in range(12)]
+
+
 def _cycle_index(gz: str) -> int:
     s, b = STEMS.index(gz[0]), BRANCHES.index(gz[1])
     for n in range(60):
@@ -51,7 +62,10 @@ def dayun(month_ganzhi: str, year_stem: str, gender: str,
     yang_year = STEMS.index(year_stem) % 2 == 0  # 甲丙戊庚壬 为阳
     forward = (yang_year and gender == "male") or (not yang_year and gender == "female")
     days = days_to_next_jie if forward else days_from_prev_jie
-    start_age = max(0, round(days / 3))
+    # 起运精到月:3 天折 1 岁 ⇒ 1 天折 4 个月(传统折算);月数向最近取整
+    total_months = max(0, round(days * 4))
+    start_age = total_months // 12
+    start_rem_months = total_months % 12
     m = _cycle_index(month_ganzhi)
     periods = []
     for k in range(count):
@@ -62,7 +76,10 @@ def dayun(month_ganzhi: str, year_stem: str, gender: str,
             "start_age": a0, "end_age": a0 + 10,
             "start_year": birth_year + a0, "end_year": birth_year + a0 + 10,
         })
-    return {"direction": "顺行" if forward else "逆行", "start_age": start_age, "periods": periods}
+    return {"direction": "顺行" if forward else "逆行", "start_age": start_age,
+            "start_months": start_rem_months,
+            "start_detail": f"{start_age}岁{start_rem_months}个月" if start_rem_months else f"{start_age}岁整",
+            "periods": periods}
 
 
 # —— 神煞(以标准规则计算,作为具体抓手;解读由模型给出)——
@@ -77,6 +94,103 @@ _GUIREN = {"甲": "丑未", "戊": "丑未", "庚": "丑未", "乙": "子申", "
 _WENCHANG = {"甲": "巳", "乙": "午", "丙": "申", "戊": "申", "丁": "酉", "己": "酉",
              "庚": "亥", "辛": "子", "壬": "寅", "癸": "卯"}
 _YANGREN = {"甲": "卯", "丙": "午", "戊": "午", "庚": "酉", "壬": "子"}  # 仅阳日干
+_LUSHEN = {"甲": "寅", "乙": "卯", "丙": "巳", "丁": "午", "戊": "巳", "己": "午",
+           "庚": "申", "辛": "酉", "壬": "亥", "癸": "子"}
+_HONGLUAN = {"子": "卯", "丑": "寅", "寅": "丑", "卯": "子", "辰": "亥", "巳": "戌",
+             "午": "酉", "未": "申", "申": "未", "酉": "午", "戌": "巳", "亥": "辰"}
+_JIANGXING = {"申子辰": "子", "寅午戌": "午", "巳酉丑": "酉", "亥卯未": "卯"}
+# 孤辰/寡宿(按年支三会方):亥子丑→孤寅寡戌;寅卯辰→孤巳寡丑;巳午未→孤申寡辰;申酉戌→孤亥寡未
+_GUCHEN = {"亥": ("寅", "戌"), "子": ("寅", "戌"), "丑": ("寅", "戌"),
+           "寅": ("巳", "丑"), "卯": ("巳", "丑"), "辰": ("巳", "丑"),
+           "巳": ("申", "辰"), "午": ("申", "辰"), "未": ("申", "辰"),
+           "申": ("亥", "未"), "酉": ("亥", "未"), "戌": ("亥", "未")}
+
+
+# —— 合盘(组织/多人互参)基础:全部确定性,可对拍 ——
+STEM_ELEM = {"甲": "木", "乙": "木", "丙": "火", "丁": "火", "戊": "土",
+             "己": "土", "庚": "金", "辛": "金", "壬": "水", "癸": "水"}
+BRANCH_ELEM = {"子": "水", "丑": "土", "寅": "木", "卯": "木", "辰": "土", "巳": "火",
+               "午": "火", "未": "土", "申": "金", "酉": "金", "戌": "土", "亥": "水"}
+_SHENG = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
+_KE = {"木": "土", "土": "水", "水": "火", "火": "金", "金": "木"}
+_LIUHE = [{"子", "丑"}, {"寅", "亥"}, {"卯", "戌"}, {"辰", "酉"}, {"巳", "申"}, {"午", "未"}]
+_LIUHAI = [{"子", "未"}, {"丑", "午"}, {"寅", "巳"}, {"卯", "辰"}, {"申", "亥"}, {"酉", "戌"}]
+_XING = [{"寅", "巳"}, {"巳", "申"}, {"寅", "申"}, {"丑", "戌"}, {"戌", "未"}, {"丑", "未"}, {"子", "卯"}]
+_ZIXING = {"辰", "午", "酉", "亥"}
+
+
+def shishen(day_stem: str, other_stem: str) -> str:
+    """以 day_stem 为「我」,other_stem 相对我的十神。"""
+    e1, e2 = STEM_ELEM[day_stem], STEM_ELEM[other_stem]
+    same = (STEMS.index(day_stem) % 2) == (STEMS.index(other_stem) % 2)
+    if e1 == e2:
+        return "比肩" if same else "劫财"
+    if _SHENG[e1] == e2:
+        return "食神" if same else "伤官"
+    if _SHENG[e2] == e1:
+        return "偏印" if same else "正印"
+    if _KE[e1] == e2:
+        return "偏财" if same else "正财"
+    return "七杀" if same else "正官"
+
+
+def branch_rel(b1: str, b2: str) -> list[str]:
+    """两地支关系:六合/六冲/六害/刑/半合/同气(可多条并存)。"""
+    rels = []
+    pair = {b1, b2}
+    if b1 == b2:
+        rels.append("自刑" if b1 in _ZIXING else "同气")
+        return rels
+    if (BRANCHES.index(b1) - BRANCHES.index(b2)) % 12 == 6:
+        rels.append("六冲")
+    if pair in _LIUHE:
+        rels.append("六合")
+    if pair in _LIUHAI:
+        rels.append("六害")
+    if pair in _XING:
+        rels.append("相刑")
+    g1, g2 = _SANHE.get(b1), _SANHE.get(b2)
+    if g1 and g1 == g2:
+        rels.append("三合半合")
+    return rels or ["无明显作用"]
+
+
+def chart_elements(stems: list[str], branches: list[str]) -> dict:
+    """八字五行分布(天干+地支本气)。"""
+    tally = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
+    for s in stems:
+        tally[STEM_ELEM[s]] += 1
+    for b in branches:
+        tally[BRANCH_ELEM[b]] += 1
+    return tally
+
+
+def pair_analysis(a: dict, b: dict) -> dict:
+    """两盘互参:a/b 各含 {day_stem, day_branch, branches, elems}。确定性输出,AI 只翻译。"""
+    bonds = frictions = 0
+    for x in a["branches"]:
+        for y in b["branches"]:
+            for r in branch_rel(x, y):
+                if r in ("六合", "三合半合", "同气"):
+                    bonds += 1
+                elif r in ("六冲", "六害", "相刑", "自刑"):
+                    frictions += 1
+    lack_a = [e for e, n in a["elems"].items() if n == 0]
+    supply = [e for e in lack_a if b["elems"].get(e, 0) >= 2]
+    return {
+        "a_views_b": shishen(a["day_stem"], b["day_stem"]),   # 对方于我为何十神
+        "b_views_a": shishen(b["day_stem"], a["day_stem"]),
+        "day_branch_rel": branch_rel(a["day_branch"], b["day_branch"]),
+        "bonds": bonds, "frictions": frictions,
+        "element_supply": supply,  # 对方补我所缺之五行
+    }
+
+
+def kongwang(day_ganzhi: str) -> str:
+    """旬空(空亡):由日柱所在旬确定的两个空亡地支,如甲子旬空戌亥。"""
+    idx = _cycle_index(day_ganzhi)
+    start_branch = (idx - idx % 10) % 12
+    return BRANCHES[(start_branch + 10) % 12] + BRANCHES[(start_branch + 11) % 12]
 
 
 def shensha(day_stem: str, day_branch: str, year_branch: str, branches: list[str]) -> list[dict]:
@@ -98,6 +212,24 @@ def shensha(day_stem: str, day_branch: str, year_branch: str, branches: list[str
         add("天乙贵人", b, "逢凶得助、贵人扶持")
     add("文昌", _WENCHANG.get(day_stem), "利读书、文思、考试")
     add("羊刃", _YANGREN.get(day_stem), "刚烈、冲劲、双刃")
+    add("禄神", _LUSHEN.get(day_stem), "本禄之地、衣食根基")
+    add("红鸾", _HONGLUAN.get(year_branch), "婚恋喜庆之星")
+    hl = _HONGLUAN.get(year_branch)
+    if hl:  # 天喜 = 红鸾对冲之支
+        add("天喜", BRANCHES[(BRANCHES.index(hl) + 6) % 12], "喜事临门、人缘和悦")
+    for ref in (year_branch, day_branch):  # 将星:三合旺位,以年支或日支起
+        grp = _SANHE.get(ref)
+        if grp:
+            add("将星", _JIANGXING[grp], "统御、担当、掌权之象")
+    gc = _GUCHEN.get(year_branch)
+    if gc:
+        add("孤辰", gc[0], "性孤、独立,婚缘宜迟")
+        add("寡宿", gc[1], "静独之星,情感易疏离")
+    # 空亡:日柱旬空之支落在年/月/时支 → 标注落空
+    kw = kongwang(day_stem + day_branch)
+    for b in kw:
+        if b in present:
+            found.append({"name": "空亡", "branch": b, "note": "该支落空,力量减弱、事多虚悬"})
     # 去重(同名同支只留一条)
     uniq, seen = [], set()
     for f in found:
