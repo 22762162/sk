@@ -99,7 +99,8 @@ def summary(birth: str) -> str:
         return ""
     parts0 = []
     if fs:
-        parts0.append("已知实录(本人提供的既成事实,推演须与之一致并据此校准):"
+        parts0.append("已知实录(本人提供的既成事实——事实不容否认,但盘理解释必须诚实:"
+                      "盘上确有依据才引盘,盘上看不出的就明说「此事此盘不显」,严禁事后强行圆盘):"
                       + "；".join(f"{f['year']}年:{f['text']}" for f in fs[-14:]))
     if not d["backcasts"]:
         return "。".join(parts0)

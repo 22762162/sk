@@ -295,6 +295,16 @@ def liuyue_forecast(context: dict, year_label: str, liunian_gz: str,
     return obj
 
 
+def probe_questions(context_text: str) -> dict:
+    """AI 补充发问(单模型 1 次调用):产出 3-5 个诊断性问题,答案入档案提精度。"""
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "probe.md")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                context_text, want_array=False, max_tokens=3000,
+                                schema="probe-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
 def group_forecast(matrix_text: str) -> dict:
     """组织合盘研判(单模型 1 次调用):输入为确定性互参矩阵文本。"""
     system = _prompt_system(PROMPTS / "base" / "presenter" / "group.md")

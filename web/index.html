@@ -124,10 +124,12 @@
       <button type="button" id="cs" style="background:#6b3f6b;">② 三模型会诊(推未来)</button>
       <button type="button" id="ly" style="background:#2c6a66;">本年流月(逐月)</button>
       <button type="button" id="qc" style="background:#4a5f8c;">快速会诊(约1分钟)</button>
+      <button type="button" id="pb" style="background:#7d5a3c;">AI 发问(补精度)</button>
       <span style="font-size:12px;color:#8a7f6e;">建议先「验过去」打分——说得准过去,未来才有分量;打分自动校准后续推演。</span>
     </div>
     <div id="bcout" style="display:none; margin-top:14px;"></div>
     <div id="lyout" style="display:none; margin-top:14px;"></div>
+    <div id="pbout" style="display:none; margin-top:14px;"></div>
     <details style="margin-top:14px;border:1px solid #d8cfc0;border-radius:10px;background:#fbf8f2;padding:10px 14px;">
       <summary style="cursor:pointer;font-size:14px;color:#5d4a32;font-weight:600;">组织合盘 · 公司/团队之势(主盘+关键人+开业盘互参)</summary>
       <div style="font-size:12px;color:#8a7f6e;margin-top:6px;">公司走向不由一人决定:把合伙人、核心成员、公司成立日期加进来,看十神关系/合冲刑害/五行互补/今年流年分别打在谁身上——合力即「势」。别人的时辰不知道可留空(按三柱算,诚实降权)。</div>
@@ -692,6 +694,55 @@ async function runLiuyue(){
     h+='</div>';
     box.innerHTML=h;
     box.querySelectorAll('.recbtn').forEach(b=>b.onclick=()=>recordPred(b));
+  }catch(_){ box.innerHTML='<span style="color:#a33;">请求失败</span>'; }
+  finally{ btn.disabled=false; }
+}
+
+// —— AI 补充发问:诊断性问题 → 回答入档案 → 后续推演更准 ——
+document.getElementById('pb').addEventListener('click', runProbe);
+async function runProbe(){
+  const box=document.getElementById('pbout'), btn=document.getElementById('pb');
+  box.style.display='block'; btn.disabled=true;
+  box.innerHTML='<span style="color:#7a6f5f;">AI 正在挑最有信息量的问题(约 20–40 秒)…</span>';
+  const birth=document.getElementById('d').value+'T'+document.getElementById('t').value;
+  try{
+    const sj=await (await fetch('/api/probe/start',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
+        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value,
+        situation:document.getElementById('situation').value, ...birthGeo()})})).json();
+    if(!sj.ok||!sj.job_id) throw 0;
+    let rj=null;
+    for(let k=0;k<40;k++){
+      await new Promise(r=>setTimeout(r,3000));
+      try{ rj=await (await fetch('/api/consult/result?job_id='+encodeURIComponent(sj.job_id))).json(); }catch(e){ continue; }
+      if(rj.status!=='running') break;
+    }
+    if(!(rj&&rj.status==='done'&&rj.result&&rj.result.ok)){ box.innerHTML='<span style="color:#a33;">发问失败,请重试</span>'; return; }
+    const r=rj.result; window.PBQ=r.questions||[];
+    let h=`<div style="border:2px solid #7d5a3c;border-radius:10px;background:#fff;padding:14px 18px;">
+      <div style="font-size:12px;color:#7d5a3c;letter-spacing:2px;">AI 问诊 · 回答越实,推演越准</div>
+      <div style="font-size:12px;color:#8a7f6e;margin-top:3px;">这些问题都是「答案能一锤定音」的分歧点。不方便答的留空;答了的存入你的本机档案,之后所有推演自动带上。</div>`;
+    window.PBQ.forEach((q,i)=>{
+      h+=`<div style="border-left:3px solid #7d5a3c;background:#faf6f0;border-radius:6px;padding:8px 12px;margin-top:7px;">
+        <div style="font-size:13px;line-height:1.7;"><b>${i+1}. ${esc(q.question)}</b> <span style="color:#8a7f6e;font-size:11px;">(${q.target_year}年)</span></div>
+        <div style="font-size:11px;color:#8a7f6e;line-height:1.6;margin-top:2px;">为何问:${esc(q.why||'')}<br>影响:${esc(q.impact||'')}</div>
+        <textarea class="pbans" data-i="${i}" rows="2" placeholder="你的回答(留空=跳过)" style="width:100%;margin-top:5px;font-size:13px;box-sizing:border-box;"></textarea></div>`;
+    });
+    if(r.note) h+=`<div style="font-size:12px;color:#8a7f6e;margin-top:6px;">${esc(r.note)}</div>`;
+    h+=`<button id="pbsubmit" style="margin-top:10px;background:#7d5a3c;">提交回答入档案</button><span id="pbdone" style="margin-left:10px;font-size:13px;"></span></div>`;
+    box.innerHTML=h;
+    document.getElementById('pbsubmit').onclick=async()=>{
+      const answers=[];
+      box.querySelectorAll('.pbans').forEach(t=>{
+        const q=window.PBQ[parseInt(t.dataset.i)];
+        if(t.value.trim()) answers.push({year:q.target_year, question:q.question, answer:t.value.trim()});
+      });
+      if(!answers.length){ document.getElementById('pbdone').textContent='一条都没填哦'; return; }
+      const j=await (await fetch('/api/probe/answer',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({birth, answers})})).json();
+      if(j.ok){ document.getElementById('pbdone').innerHTML=`<b style="color:#3f7d55;">✓ 已存 ${j.saved} 条,档案现共 ${j.total_facts} 条实录</b>`;
+        document.getElementById('pbsubmit').disabled=true; }
+    };
   }catch(_){ box.innerHTML='<span style="color:#a33;">请求失败</span>'; }
   finally{ btn.disabled=false; }
 }

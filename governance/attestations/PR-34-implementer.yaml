@@ -1,0 +1,20 @@
+artifact_id: PR-34-implementer
+timestamp: "2026-07-18T19:00:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(诚实核准+AI 问诊;用户实测反馈驱动)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: b561b11(main,PR #33 合并点)
+generated_files:
+  - consult-engine/dossier.py(摘要措辞:事实不容否认但引盘要诚实,盘不显就明说)
+  - prompts/base/presenter/recalibrate.md(1b 马后炮铁律:「符合」只认原推演原文)
+  - prompts/base/presenter/shichen.md(3b 区分力铁律)+ chat.md(第7条引盘诚实)
+  - prompts/base/presenter/probe.md + consult.probe_questions + /api/probe/{start,answer} + web 问诊卡
+reviewed_files: []
+notes: >-
+  用户实测后反馈:核准历史事件时不得强行绑定解释,要真实依据真实推论;并要求 AI 主动补充发问。
+  两项落地。实测:问诊 5 问全为年份级诊断性问题;回答入档 round-trip 通过;红线/对称性/JS 校验过。
+  马后炮铁律为反自欺关键:事后能圆≠当时推到,只有原文对照才算命中。本人签署由合并动作承载。
