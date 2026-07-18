@@ -895,6 +895,88 @@ def group_start(req: GroupReq) -> JSONResponse:
     return JSONResponse({"ok": True, "job_id": job_id})
 
 
+@app.post("/api/probe/start")
+def probe_start(req: ConsultReq) -> JSONResponse:
+    """AI 补充发问(异步 1 次调用):产出诊断性问题;回答经 /api/probe/answer 入档案。"""
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            chart_resp = paipan(req)
+            if chart_resp.status_code != 200:
+                raise RuntimeError("排盘失败")
+            chart = json.loads(bytes(chart_resp.body))
+            o = chart["output"]
+            meta = chart.get("meta", {})
+            lines = [f"四柱:年柱 {o['year']['ganzhi']},月柱 {o['month']['ganzhi']},"
+                     f"日柱 {o['day']['ganzhi']},时柱 {o['hour']['ganzhi']}(八字年 {o['bazi_year']})"]
+            if req.gender in ("male", "female") and meta.get("birth_unix"):
+                dtn = (meta["next_jie_unix"] - meta["birth_unix"]) / 86400
+                dfp = (meta["birth_unix"] - meta["jie_unix"]) / 86400
+                du = luck.dayun(o["month"]["ganzhi"], o["year"]["stem"], req.gender,
+                                dtn, dfp, meta.get("birth_year", datetime.now().year))
+                lines.append("大运:" + f"{du['direction']},{du.get('start_detail', '')}起运:"
+                             + "、".join(f"{p['ganzhi']}({p['start_year']}-{p['end_year']})"
+                                         for p in du["periods"]))
+            now_y = datetime.now().year
+            lines.append("可供提问的年份范围:出生后至今(重点近 10 年)及今明两年。今年:"
+                         f"{now_y}年 {luck.year_ganzhi(now_y)}")
+            parts = []
+            if req.industry.strip():
+                parts.append(f"行业:{req.industry.strip()}")
+            if req.occupation.strip():
+                parts.append(f"职业:{req.occupation.strip()}")
+            if req.situation.strip():
+                parts.append(f"补充:{req.situation.strip()[:300]}")
+            dsum = dossier.summary(req.birth)
+            if dsum:
+                parts.append(dsum)
+            if parts:
+                lines.append("【背景】" + "；".join(parts))
+            res = consult.probe_questions("\n".join(lines))
+            qs = []
+            for q in (res.get("questions") or [])[:5]:
+                if isinstance(q, dict) and q.get("question"):
+                    qs.append({"target_year": int(q.get("target_year") or now_y),
+                               "question": _redline_filter(str(q["question"]))[0],
+                               "why": _redline_filter(str(q.get("why", "")))[0],
+                               "impact": _redline_filter(str(q.get("impact", "")))[0]})
+            payload, status = {"ok": True, "questions": qs,
+                               "note": _redline_filter(str(res.get("note", "")))[0]}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"发问失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
+class ProbeAnswer(BaseModel):
+    year: int
+    question: str
+    answer: str
+
+
+class ProbeAnswerReq(BaseModel):
+    birth: str
+    answers: list[ProbeAnswer]
+
+
+@app.post("/api/probe/answer")
+def probe_answer(req: ProbeAnswerReq) -> JSONResponse:
+    """把问诊回答存为档案实录(问+答成对,后续推演自动注入)。"""
+    saved = 0
+    for a in req.answers:
+        if a.answer.strip():
+            dossier.add_fact(req.birth, a.year, f"问:{a.question.strip()[:80]} 答:{a.answer.strip()}"[:200])
+            saved += 1
+    return JSONResponse({"ok": True, "saved": saved,
+                         "total_facts": len(dossier.facts(req.birth))})
+
+
 @app.get("/api/records/list")
 def records_list() -> JSONResponse:
     """历史会诊记录摘要(新→旧)。"""
