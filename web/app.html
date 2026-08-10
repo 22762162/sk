@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f4f0e8" media="(prefers-color-scheme:light)">
+  <meta name="theme-color" content="#111714" media="(prefers-color-scheme:dark)">
+  <meta name="description" content="三鉴私人研究 App：问事、锁定预测、结果复盘与个人校准。">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="三鉴">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <link rel="stylesheet" href="/static/app.css">
+  <title>三鉴 · 私人研究 App</title>
+</head>
+<body>
+  <a class="skip-link" href="#app-main">跳到主要内容</a>
+  <div id="network-banner" class="network-banner" role="status" aria-live="polite" hidden>
+    当前离线：可查看本机缓存；问事与复盘将在联网后恢复。
+  </div>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <a class="brand" href="#home" aria-label="三鉴首页">
+        <span class="brand-mark" aria-hidden="true">鉴</span>
+        <span><strong>三鉴</strong><small>个人推演实验室</small></span>
+      </a>
+      <div class="header-actions">
+        <button id="install-button" class="icon-button install-button" type="button" hidden>
+          <span aria-hidden="true">↓</span><span>安装</span>
+        </button>
+        <button id="profile-chip" class="profile-chip" type="button" data-route="profile">
+          <span class="profile-dot" aria-hidden="true"></span>
+          <span id="profile-chip-label">未建基本盘</span>
+        </button>
+      </div>
+    </header>
+
+    <main id="app-main" tabindex="-1">
+      <section id="view-home" class="app-view is-active" data-view="home" aria-labelledby="home-title">
+        <div class="eyebrow" id="today-label">今日</div>
+        <div class="hero-row">
+          <div>
+            <h1 id="home-title">先问清楚，再交给时间验证。</h1>
+            <p>每次推演都会原样锁定。事实发生后复盘，样本够了才谈个人准确率。</p>
+          </div>
+          <button class="primary-action hero-action" type="button" data-route="question">开始问事</button>
+        </div>
+
+        <article id="today-card" class="today-card card" aria-live="polite" aria-busy="true">
+          <div class="card-kicker">今日流运 · 计算事实</div>
+          <div class="skeleton-row" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <p class="muted">正在读取今日年、月、日柱…</p>
+        </article>
+
+        <section class="section-block" aria-labelledby="quick-title">
+          <div class="section-heading">
+            <div><span class="eyebrow">快速入口</span><h2 id="quick-title">今天最想确认什么？</h2></div>
+          </div>
+          <div class="quick-grid">
+            <button type="button" class="quick-card" data-category="career"><span>事业</span><small>选择与推进</small></button>
+            <button type="button" class="quick-card" data-category="finance"><span>财务</span><small>机会与风险</small></button>
+            <button type="button" class="quick-card" data-category="relationship"><span>关系</span><small>沟通与走向</small></button>
+            <button type="button" class="quick-card" data-category="general"><span>其他</span><small>一件具体的事</small></button>
+          </div>
+        </section>
+
+        <section class="section-block" aria-labelledby="home-records-title">
+          <div class="section-heading">
+            <div><span class="eyebrow">待办</span><h2 id="home-records-title">该复盘的预测</h2></div>
+            <button class="text-button" type="button" data-route="records">全部记录</button>
+          </div>
+          <div id="home-review-list" class="compact-list"></div>
+        </section>
+      </section>
+
+      <section id="view-question" class="app-view" data-view="question" aria-labelledby="question-title" hidden>
+        <div class="page-heading">
+          <span class="eyebrow">每日 / 当月问事</span>
+          <h1 id="question-title">把问题说具体。</h1>
+          <p>提问时间由系统自动记录；结果生成后即锁定，之后的校准不会改写它。</p>
+        </div>
+
+        <div id="question-no-profile" class="notice warning" hidden>
+          <strong>还没有基本盘</strong>
+          <span>先创建一份基本盘，才能结合本命与当前流运问事。</span>
+          <button type="button" class="text-button" data-route="profile">去创建</button>
+        </div>
+
+        <form id="question-form" class="form-card card" novalidate>
+          <fieldset class="segmented-field">
+            <legend>预测周期</legend>
+            <div class="segmented">
+              <label><input type="radio" name="period" value="day" checked><span>今天</span></label>
+              <label><input type="radio" name="period" value="month"><span>本月</span></label>
+            </div>
+          </fieldset>
+
+          <label class="field">事情类别
+            <select id="question-category" required>
+              <option value="career">事业工作</option>
+              <option value="finance">财务机会</option>
+              <option value="relationship">感情关系</option>
+              <option value="family">家庭六亲</option>
+              <option value="health">健康状态</option>
+              <option value="study">学习考试</option>
+              <option value="travel">出行变动</option>
+              <option value="general">其他事项</option>
+            </select>
+          </label>
+
+          <label class="field">具体问题
+            <textarea id="question-text" required minlength="5" maxlength="300" rows="4"
+              placeholder="例如：本月是否适合推进已经谈到第二轮的岗位机会？我应该重点观察什么信号？"></textarea>
+            <span class="field-hint">一次只问一件事，写到未来可以判断“发生 / 没发生”。</span>
+          </label>
+
+          <label class="field">必要背景 <span class="optional">选填</span>
+            <textarea id="question-background" maxlength="800" rows="3"
+              placeholder="只写影响判断的现实条件；不要填写姓名、电话、精确地址或账号。"></textarea>
+          </label>
+
+          <div class="privacy-line"><span aria-hidden="true">⌁</span> 原始生日留在本机；模型只接收命盘结构与去标识后的必要问题。</div>
+          <div id="question-error" class="form-error" role="alert" hidden></div>
+          <button id="question-submit" class="primary-action full" type="submit">生成并锁定预测</button>
+        </form>
+
+        <div id="question-progress" class="progress-card card" aria-live="polite" hidden>
+          <div class="orb" aria-hidden="true"></div>
+          <div><strong>正在结合基本盘与当前流运</strong><p id="question-progress-text">已记录提问时间，正在生成结构化预测…</p></div>
+        </div>
+        <div id="prediction-result" aria-live="polite"></div>
+      </section>
+
+      <section id="view-records" class="app-view" data-view="records" aria-labelledby="records-title" hidden>
+        <div class="page-heading">
+          <span class="eyebrow">不可变快照</span>
+          <h1 id="records-title">记录与复盘</h1>
+          <p>原预测和依据始终保留原样；复盘是独立记录，不做事后改判。</p>
+        </div>
+        <div class="filter-row" role="group" aria-label="记录筛选">
+          <button type="button" class="filter is-active" data-filter="">全部</button>
+          <button type="button" class="filter" data-filter="pending">待复盘</button>
+          <button type="button" class="filter" data-filter="reviewed">已复盘</button>
+        </div>
+        <div id="records-list" class="record-list" aria-live="polite"></div>
+      </section>
+
+      <section id="view-profile" class="app-view" data-view="profile" aria-labelledby="profile-title" hidden>
+        <div class="page-heading">
+          <span class="eyebrow">我的</span>
+          <h1 id="profile-title">基本盘与个人校准</h1>
+          <p>可保存多份并随时切换。出生地只需城市级信息，不要填写精确地址。</p>
+        </div>
+
+        <section class="section-block" aria-labelledby="profiles-title">
+          <div class="section-heading">
+            <div><h2 id="profiles-title">我的基本盘</h2></div>
+            <button id="new-profile-button" class="small-action" type="button">＋ 新建</button>
+          </div>
+          <div id="profile-list" class="profile-list"></div>
+        </section>
+
+        <form id="profile-form" class="form-card card" novalidate hidden>
+          <div class="form-title-row"><h2 id="profile-form-title">新建基本盘</h2><button type="button" id="profile-form-close" class="icon-button" aria-label="关闭">×</button></div>
+          <input id="profile-id" type="hidden">
+          <input id="profile-version" type="hidden">
+          <div class="field-grid">
+            <label class="field">名称<input id="profile-name" maxlength="30" required placeholder="例如：我的基本盘"></label>
+            <label class="field">性别<select id="profile-gender" required><option value="male">男</option><option value="female">女</option></select></label>
+          </div>
+          <label class="field">出生日期时间<input id="profile-birth" type="datetime-local" min="1901-01-01T00:00" max="2099-12-31T23:59" required></label>
+          <div class="field-grid">
+            <label class="field">出生地（城市）<input id="profile-place" maxlength="40" placeholder="例如：成都"></label>
+            <label class="field">经度 <span class="optional">选填</span><input id="profile-longitude" type="number" min="-180" max="180" step="0.1" inputmode="decimal" placeholder="例如：104.1"></label>
+          </div>
+          <label class="field">时区<select id="profile-timezone"><option value="Asia/Shanghai">Asia/Shanghai（当前已验证）</option></select></label>
+          <label class="field">子时规则<select id="profile-zi"><option value="split">早晚子时（晚子时不换日柱）</option><option value="unified">子时换日（23 点起算次日）</option></select></label>
+          <div class="field-grid">
+            <label class="field">行业 <span class="optional">选填</span><input id="profile-industry" maxlength="40"></label>
+            <label class="field">职业 <span class="optional">选填</span><input id="profile-occupation" maxlength="40"></label>
+          </div>
+          <label class="field">长期背景 <span class="optional">选填</span><textarea id="profile-situation" maxlength="300" rows="2" placeholder="只写会持续影响判断的现实处境"></textarea></label>
+          <div id="profile-error" class="form-error" role="alert" hidden></div>
+          <button class="primary-action full" type="submit">保存基本盘</button>
+        </form>
+
+        <section class="section-block" aria-labelledby="stats-title">
+          <div class="section-heading"><div><span class="eyebrow">只看未来校准</span><h2 id="stats-title">个人准确率</h2></div></div>
+          <div id="stats-card" class="stats-card card"></div>
+        </section>
+
+        <section class="settings-card card" aria-labelledby="settings-title">
+          <h2 id="settings-title">本机数据与高级研究</h2>
+          <p>App 会在此浏览器缓存基本盘和历史快照，供离线查看。预测生成始终要求联网。</p>
+          <div class="settings-actions">
+            <button id="clear-offline" type="button" class="secondary-action">清除浏览器离线缓存</button>
+            <a class="secondary-action" href="/legacy">打开原高级研究页</a>
+            <button id="show-install-help" type="button" class="secondary-action">安装说明</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="主导航">
+      <button type="button" class="nav-item is-active" data-route="home"><span aria-hidden="true">⌂</span><small>首页</small></button>
+      <button type="button" class="nav-item" data-route="question"><span aria-hidden="true">✦</span><small>问事</small></button>
+      <button type="button" class="nav-item" data-route="records"><span aria-hidden="true">▤</span><small>记录</small><b id="review-badge" hidden>0</b></button>
+      <button type="button" class="nav-item" data-route="profile"><span aria-hidden="true">○</span><small>我的</small></button>
+    </nav>
+  </div>
+
+  <dialog id="review-dialog" class="modal">
+    <form id="review-form" method="dialog">
+      <div class="form-title-row"><div><span class="eyebrow">结果复盘</span><h2>实际发生了什么？</h2></div><button type="button" id="review-close" class="icon-button" aria-label="关闭">×</button></div>
+      <input id="review-prediction-id" type="hidden">
+      <fieldset class="outcome-grid">
+        <legend>与原预测相比</legend>
+        <label><input type="radio" name="outcome" value="hit" required><span>命中</span></label>
+        <label><input type="radio" name="outcome" value="partial"><span>部分命中</span></label>
+        <label><input type="radio" name="outcome" value="miss"><span>未命中</span></label>
+        <label><input type="radio" name="outcome" value="unclear"><span>无法判断</span></label>
+      </fieldset>
+      <label class="field">实际发生时间 <span class="optional">选填</span><input id="review-actual-at" type="datetime-local"></label>
+      <label class="field">实际结果<textarea id="review-result" maxlength="1000" rows="3" placeholder="只记录已经发生的事实"></textarea></label>
+      <label class="field">备注 <span class="optional">选填</span><textarea id="review-note" maxlength="500" rows="2"></textarea></label>
+      <div id="review-error" class="form-error" role="alert" hidden></div>
+      <button class="primary-action full" value="submit" type="submit">锁定复盘</button>
+      <p class="modal-note">复盘提交后同样不能改写，避免事后调整口径。</p>
+    </form>
+  </dialog>
+
+  <dialog id="install-dialog" class="modal small-modal">
+    <div class="form-title-row"><div><span class="eyebrow">安装到桌面</span><h2>像 App 一样使用</h2></div><button type="button" id="install-close" class="icon-button" aria-label="关闭">×</button></div>
+    <p id="install-copy">在浏览器菜单中选择“添加到主屏幕”或“安装应用”。iPhone / iPad 请用 Safari 的分享按钮，再选“添加到主屏幕”。</p>
+    <button id="install-confirm" type="button" class="primary-action full" hidden>立即安装</button>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

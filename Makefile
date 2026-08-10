@@ -1,5 +1,5 @@
 # 三鉴 monorepo 常用命令（CLAUDE.md 常用命令表）
-.PHONY: build test test-rust test-ref lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve keys-check eval-smoke research-smoke prompt-symmetry barnum-smoke prereg-check prereg-freeze
+.PHONY: build test test-rust test-ref test-backend lint golden-smoke duipai redline rulebase-check install-hooks render-ai-docs governance-check v1-serve keys-check eval-smoke research-smoke prompt-symmetry barnum-smoke prereg-check prereg-freeze
 
 build:
 	cargo build --manifest-path engine-paipan/Cargo.toml
@@ -7,14 +7,18 @@ build:
 # 参考实现在独立仓库(盲隔离,INV-09);本地默认取主仓同级目录
 REF_DIR ?= ../sk-paipan-reference
 
-test: test-rust test-ref
+test: test-rust test-ref test-backend
 
 test-rust:
 	cargo test --manifest-path engine-paipan/Cargo.toml
 
 test-ref:
-	@if [ -d "$(REF_DIR)" ]; then cd "$(REF_DIR)" && python3 -m pytest -q tests; \
+	@if [ -d "$(REF_DIR)" ]; then cd "$(REF_DIR)" && uv run --with pytest python3 -m pytest -q tests; \
 	else echo "跳过参考实现测试:$(REF_DIR) 未就位(git clone https://github.com/22762162/sk-paipan-reference.git)"; fi
+
+test-backend:
+	uv run --with fastapi --with uvicorn --with httpx \
+	  python3 -m unittest discover -s backend/tests -p 'test_*.py' -v
 
 lint:
 	cargo fmt --manifest-path engine-paipan/Cargo.toml --all -- --check
@@ -37,10 +41,10 @@ rulebase-check:
 
 # 治理:CLAUDE.md / AGENTS.md 由 governance/ 事实源渲染生成（dev-plan V2.1 第 4 节）
 render-ai-docs:
-	python3 governance/tools/render_ai_docs.py
+	uv run --with pyyaml python3 governance/tools/render_ai_docs.py
 
 governance-check:
-	python3 governance/tools/render_ai_docs.py --check
+	uv run --with pyyaml python3 governance/tools/render_ai_docs.py --check
 
 # 契约钉版校验:contracts/ 必须等于 sk-contracts@contracts.lock 所记 tag(需网络)
 contracts-check:

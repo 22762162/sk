@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="三鉴">
+  <defs>
+    <linearGradient id="bg" x1="64" y1="32" x2="452" y2="488" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#245f4c"/>
+      <stop offset="1" stop-color="#10372b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(378 118) rotate(132) scale(310)">
+      <stop stop-color="#9ad4b8" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#9ad4b8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="118" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="118" fill="url(#glow)"/>
+  <circle cx="256" cy="256" r="164" fill="none" stroke="#dce9df" stroke-opacity=".28" stroke-width="2"/>
+  <circle cx="256" cy="256" r="134" fill="#f4f0e8" fill-opacity=".08" stroke="#e9f1eb" stroke-opacity=".58" stroke-width="4"/>
+  <path d="M256 78v42M256 392v42M78 256h42M392 256h42" stroke="#e9f1eb" stroke-opacity=".5" stroke-width="8" stroke-linecap="round"/>
+  <text x="256" y="322" text-anchor="middle" fill="#f4f0e8" font-size="190" font-family="Songti SC, STSong, serif">鉴</text>
+  <circle cx="376" cy="376" r="22" fill="#d59a58"/>
+</svg>
