@@ -1,0 +1,22 @@
+artifact_id: PR-37-implementer
+timestamp: "2026-08-11T23:59:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(生活化四件套:择日/合婚/仪表盘/每日一盘+曲线;备份)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: f37bad1(main,PR #36 合并点)
+generated_files:
+  - consult-engine/luck.py(建除十二神 jianchu + 择日 day_score:确定性,自检含 破日/贵人日 边界)
+  - prompts/base/presenter/{zeri,hehun,daily}.md + consult.{zeri_advise,hehun_forecast,daily_reading}
+  - backend/app.py(/api/zeri/start /api/hehun/start /api/stats/dashboard /api/app/today-reading 按日缓存)
+  - web/index.html(择日/合婚/仪表盘三卡 + yearlyCurve SVG 两处接入) + web/app.js(今日卡内嵌日读)
+  - scripts/backup.sh(+本机 launchd com.sanjian.backup 每日 03:30,不入库)
+reviewed_files:
+  - PR#36(Codex PWA+预测闭环):本地 tests 7/7、bootstrap/today/PWA/legacy 实测后验收合并
+notes: >-
+  实测:择日 30 天逐日+3 推荐(忌日正确命中冲日支);合婚双盘互参落到十神/夫妻宫;仪表盘聚合两代存储;
+  每日一盘按日缓存(戊午开日样例引用子午冲)。红线过滤在择日文案中有轻度过删(◌占位),属保守方向,可接受。
+  局限:择日规则为通则未含黄历全部神煞;day_score/jianchu 待并入对拍清单。本人签署由合并动作承载。

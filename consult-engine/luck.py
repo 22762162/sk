@@ -186,6 +186,54 @@ def pair_analysis(a: dict, b: dict) -> dict:
     }
 
 
+# —— 择日:建除十二神 + 逐日对本命打分(全确定性,可对拍) ——
+_JIANCHU = ["建", "除", "满", "平", "定", "执", "破", "危", "成", "收", "开", "闭"]
+
+
+def jianchu(month_branch: str, day_branch: str) -> str:
+    """建除十二神:月建起「建」,逐日顺推(黄历核心口诀)。"""
+    return _JIANCHU[(BRANCHES.index(day_branch) - BRANCHES.index(month_branch)) % 12]
+
+
+def day_score(natal_day_stem: str, natal_day_branch: str, natal_year_branch: str,
+              date_gz: str, month_branch: str) -> tuple[float, list[str], str]:
+    """某日对某本命的吉凶分(正吉负凶)与依据标签。规则均为传统择日通则。"""
+    b = date_gz[1]
+    score, tags = 0.0, []
+    jc = jianchu(month_branch, b)
+    if jc == "破":
+        score -= 3; tags.append("破日(冲月建,诸事不宜)")
+    elif jc in ("成", "开"):
+        score += 1.5; tags.append(f"{jc}日(宜开张成事)")
+    elif jc == "定":
+        score += 0.5; tags.append("定日(宜签约安床)")
+    elif jc == "闭":
+        score -= 1; tags.append("闭日(宜收敛不宜启动)")
+    rels = branch_rel(b, natal_day_branch)
+    if "六冲" in rels:
+        score -= 3; tags.append("冲你日支(个人日破,忌)")
+    if "六合" in rels:
+        score += 2; tags.append("六合你日支(吉)")
+    if "三合半合" in rels:
+        score += 1.5; tags.append("三合你日支(吉)")
+    if "相刑" in rels or "自刑" in rels:
+        score -= 1.5; tags.append("刑你日支")
+    if "六害" in rels:
+        score -= 1; tags.append("害你日支")
+    r2 = branch_rel(b, natal_year_branch)
+    if "六冲" in r2:
+        score -= 2; tags.append("冲你年支(忌大动作)")
+    elif "六合" in r2 or "三合半合" in r2:
+        score += 1; tags.append("合你年支")
+    if b in _GUIREN.get(natal_day_stem, ""):
+        score += 2; tags.append("天乙贵人日(逢凶化吉)")
+    if _LUSHEN.get(natal_day_stem) == b:
+        score += 1; tags.append("禄神日(利财事)")
+    if _YANGREN.get(natal_day_stem) == b:
+        score -= 1; tags.append("羊刃日(易冲动)")
+    return round(score, 1), tags, jc
+
+
 def kongwang(day_ganzhi: str) -> str:
     """旬空(空亡):由日柱所在旬确定的两个空亡地支,如甲子旬空戌亥。"""
     idx = _cycle_index(day_ganzhi)

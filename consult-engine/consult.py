@@ -305,6 +305,36 @@ def probe_questions(context_text: str) -> dict:
     return obj
 
 
+def zeri_advise(context_text: str) -> dict:
+    """择日建议(单模型 1 次调用):输入为确定性逐日打分结果+事项。"""
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "zeri.md")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                context_text, want_array=False, max_tokens=2500,
+                                schema="zeri-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
+def hehun_forecast(matrix_text: str) -> dict:
+    """合婚研判(单模型 1 次调用):输入为双人互参矩阵。"""
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "hehun.md")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                matrix_text, want_array=False, max_tokens=4000,
+                                schema="hehun-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
+def daily_reading(context_text: str) -> dict:
+    """每日一盘(单模型 1 次调用,结果按日缓存于后端)。"""
+    system = _prompt_system(PROMPTS / "base" / "presenter" / "daily.md")
+    obj, run_id, _ = _call_json(PRESENTER["provider"], PRESENTER["model"], system,
+                                context_text, want_array=False, max_tokens=1200,
+                                schema="daily-v1")
+    obj["_run_id"] = run_id
+    return obj
+
+
 def group_forecast(matrix_text: str) -> dict:
     """组织合盘研判(单模型 1 次调用):输入为确定性互参矩阵文本。"""
     system = _prompt_system(PROMPTS / "base" / "presenter" / "group.md")

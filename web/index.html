@@ -154,6 +154,31 @@
       </div>
       <div id="gpout" style="display:none;margin-top:10px;"></div>
     </details>
+    <details style="margin-top:10px;border:1px solid #d8cfc0;border-radius:10px;background:#fbf8f2;padding:10px 14px;">
+      <summary style="cursor:pointer;font-size:14px;color:#5d4a32;font-weight:600;">择日 · 挑个好日子(签约/开播/搬家…)</summary>
+      <div style="margin-top:8px;font-size:13px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        要办的事:<select id="zrpurpose" style="font-size:13px;"><option>签约/谈判</option><option>开播/上新</option><option>开业/启动</option><option>搬家/入宅</option><option>出行</option><option>求财/回款</option></select>
+        从<input type="date" id="zrstart" style="font-size:13px;">起
+        <select id="zrdays" style="font-size:13px;"><option value="30">看30天</option><option value="60">看60天</option></select>
+        <button type="button" id="zr" style="background:#8a5a2a;font-size:13px;">开始择日</button>
+      </div>
+      <div id="zrout" style="display:none;margin-top:10px;"></div>
+    </details>
+    <details style="margin-top:10px;border:1px solid #d8cfc0;border-radius:10px;background:#fbf8f2;padding:10px 14px;">
+      <summary style="cursor:pointer;font-size:14px;color:#5d4a32;font-weight:600;">合婚 · 双人盘(和另一半/意中人)</summary>
+      <div style="margin-top:8px;font-size:13px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        对方生日:<input type="date" id="hhbirth" style="font-size:13px;">
+        <input type="time" id="hhtime" style="font-size:13px;" title="时辰不知可空">
+        <select id="hhgender" style="font-size:13px;"><option value="">性别?</option><option value="female">女</option><option value="male">男</option></select>
+        <button type="button" id="hh" style="background:#a04a5a;font-size:13px;">起合婚盘</button>
+      </div>
+      <div id="hhout" style="display:none;margin-top:10px;"></div>
+    </details>
+    <details style="margin-top:10px;border:1px solid #d8cfc0;border-radius:10px;background:#fbf8f2;padding:10px 14px;">
+      <summary style="cursor:pointer;font-size:14px;color:#5d4a32;font-weight:600;">命中率仪表盘 · 这套系统到底哪里灵</summary>
+      <div style="margin-top:8px;"><button type="button" id="db" style="background:#4a5f8c;font-size:13px;">统计全部打分</button></div>
+      <div id="dbout" style="display:none;margin-top:10px;"></div>
+    </details>
     <div id="qrout" style="display:none; margin-top:14px;"></div>
     <div id="csout" style="display:none; margin-top:18px;"></div>
     <div style="margin-top:26px; border-top:1px solid var(--line); padding-top:20px;">
@@ -370,6 +395,7 @@ function renderConsult(j) {
         const nowY = new Date().getFullYear();
         window.YLPAST = [];
         html += '<div style="margin-top:16px;font-size:12px;color:#8a7f6e;letter-spacing:2px;">流年 · 断过去 + 推未来</div>';
+        html += yearlyCurve(ps.yearly);
         html += '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-top:6px;">';
         ps.yearly.forEach(y => {
           const te = TEND[y.tendency] || TEND.neutral;
@@ -758,6 +784,128 @@ async function runProbe(){
   finally{ btn.disabled=false; }
 }
 
+// —— 运势曲线:把逐年吉凶画成一条 SVG 折线(favorable=+1, caution=-1) ——
+function yearlyCurve(yearly){
+  if(!yearly || yearly.length < 3) return '';
+  const V={favorable:1,caution:-1,neutral:0};
+  const W=680,H=70,P=24,n=yearly.length;
+  const xs=i=>P+(W-2*P)*i/(n-1), ys=v=>H/2-v*22;
+  let pts=yearly.map((y,i)=>`${xs(i).toFixed(1)},${ys(V[y.tendency]||0).toFixed(1)}`).join(' ');
+  let dots=yearly.map((y,i)=>{const v=V[y.tendency]||0;const c=v>0?'#3f7d55':(v<0?'#b5762a':'#8a7f6e');
+    return `<circle cx="${xs(i).toFixed(1)}" cy="${ys(v).toFixed(1)}" r="3.5" fill="${c}"/>`+
+      `<text x="${xs(i).toFixed(1)}" y="${H-4}" font-size="9" text-anchor="middle" fill="#8a7f6e">${String(y.year).slice(2)}</text>`;}).join('');
+  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block;margin:6px 0;">
+    <line x1="${P}" y1="${H/2}" x2="${W-P}" y2="${H/2}" stroke="#d8cfc0" stroke-dasharray="3,3"/>
+    <polyline points="${pts}" fill="none" stroke="#8c4a2f" stroke-width="1.5" opacity="0.7"/>${dots}</svg></div>`;
+}
+
+// —— 择日 ——
+document.getElementById('zr').addEventListener('click', runZeri);
+async function runZeri(){
+  const box=document.getElementById('zrout'), btn=document.getElementById('zr');
+  box.style.display='block'; btn.disabled=true;
+  box.innerHTML='<span style="color:#7a6f5f;">逐日排盘打分中(约 30–60 秒)…</span>';
+  const birth=document.getElementById('d').value+'T'+document.getElementById('t').value;
+  try{
+    const sj=await (await fetch('/api/zeri/start',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
+        industry:document.getElementById('industry').value, occupation:document.getElementById('occupation').value, situation:'',
+        purpose:document.getElementById('zrpurpose').value, start:document.getElementById('zrstart').value||'',
+        days:parseInt(document.getElementById('zrdays').value), ...birthGeo()})})).json();
+    if(!sj.ok||!sj.job_id) throw 0;
+    let rj=null;
+    for(let k=0;k<50;k++){ await new Promise(r=>setTimeout(r,3000));
+      try{ rj=await (await fetch('/api/consult/result?job_id='+encodeURIComponent(sj.job_id))).json(); }catch(e){ continue; }
+      if(rj.status!=='running') break; }
+    if(!(rj&&rj.status==='done'&&rj.result&&rj.result.ok)){ box.innerHTML='<span style="color:#a33;">择日失败,请重试</span>'; return; }
+    const r=rj.result;
+    let h=`<div style="border:2px solid #8a5a2a;border-radius:10px;background:#fff;padding:14px 18px;">
+      <div style="font-size:12px;color:#8a5a2a;letter-spacing:2px;">择日 · ${esc(r.purpose)}</div>`;
+    (r.recommendations||[]).forEach((rec,i)=>{
+      h+=`<div style="border-left:3px solid #3f7d55;background:#eef6f0;border-radius:6px;padding:8px 12px;margin-top:7px;">
+        <div style="font-size:14px;"><b>推荐${i+1}:${esc(rec.date)}</b></div>
+        <div style="font-size:13px;line-height:1.7;margin-top:2px;">${esc(rec.why||'')}</div>
+        ${rec.tip?`<div style="font-size:12px;color:#5d5346;margin-top:2px;">用法:${esc(rec.tip)}</div>`:''}</div>`;
+    });
+    if(r.avoid_note) h+=`<div style="border-left:3px solid #a33;background:#faeceb;border-radius:6px;padding:7px 11px;margin-top:7px;font-size:13px;">避开:${esc(r.avoid_note)}</div>`;
+    h+='<div style="font-size:12px;color:#8a7f6e;margin-top:10px;">逐日一览(绿吉/红忌,分数为传统规则打分):</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">';
+    (r.grid||[]).forEach(g=>{
+      const c=g.score>=1.5?'#3f7d55':(g.score<=-2?'#a33':'#b0a898');
+      const bg=g.score>=1.5?'#eef6f0':(g.score<=-2?'#faeceb':'#f2efe9');
+      h+=`<span title="${esc(g.ganzhi)} ${esc(g.jianchu)}日 ${g.score}分 ${esc((g.tags||[]).join('、'))}" style="font-size:11px;border:1px solid ${c};background:${bg};color:${c};border-radius:5px;padding:2px 6px;cursor:default;">${esc(g.date.slice(5))} ${g.score}</span>`;
+    });
+    h+='</div>';
+    if(r.note) h+=`<div style="font-size:12px;color:#8a7f6e;margin-top:8px;">${esc(r.note)}</div>`;
+    h+='</div>'; box.innerHTML=h;
+  }catch(_){ box.innerHTML='<span style="color:#a33;">请求失败</span>'; }
+  finally{ btn.disabled=false; }
+}
+
+// —— 合婚 ——
+document.getElementById('hh').addEventListener('click', runHehun);
+async function runHehun(){
+  const box=document.getElementById('hhout'), btn=document.getElementById('hh');
+  const pb=document.getElementById('hhbirth').value;
+  if(!pb){ alert('先填对方生日'); return; }
+  box.style.display='block'; btn.disabled=true;
+  box.innerHTML='<span style="color:#7a6f5f;">双盘互参研判中(约 1 分钟)…</span>';
+  const birth=document.getElementById('d').value+'T'+document.getElementById('t').value;
+  const pt=document.getElementById('hhtime').value;
+  try{
+    const sj=await (await fetch('/api/hehun/start',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({birth, zi_hour_mode:document.getElementById('mode').value, gender:document.getElementById('gender').value,
+        industry:'', occupation:'', situation:document.getElementById('situation').value,
+        partner_birth: pt? pb+'T'+pt : pb, partner_gender:document.getElementById('hhgender').value, ...birthGeo()})})).json();
+    if(!sj.ok||!sj.job_id) throw 0;
+    let rj=null;
+    for(let k=0;k<50;k++){ await new Promise(r=>setTimeout(r,3000));
+      try{ rj=await (await fetch('/api/consult/result?job_id='+encodeURIComponent(sj.job_id))).json(); }catch(e){ continue; }
+      if(rj.status!=='running') break; }
+    if(!(rj&&rj.status==='done'&&rj.result&&rj.result.ok)){ box.innerHTML='<span style="color:#a33;">合婚失败:'+esc((rj&&rj.result&&rj.result.error)||'请重试')+'</span>'; return; }
+    const r=rj.result, TC={favorable:'#3f7d55',caution:'#b5762a',neutral:'#6b6459'};
+    let h=`<div style="border:2px solid #a04a5a;border-radius:10px;background:#fff;padding:14px 18px;">
+      <div style="font-size:12px;color:#a04a5a;letter-spacing:2px;">合婚 · 双人盘</div>
+      <div style="font-size:11px;color:#8a7f6e;margin-top:4px;">你:${esc(r.charts.you)}<br>对方:${esc(r.charts.partner)}</div>
+      <div style="font-size:14px;line-height:1.8;margin-top:8px;">${esc(r.overview||'')}</div>`;
+    [['相处模式',r.mode],['互补点',r.complement],['摩擦点',r.frictions]].forEach(([t,v])=>{
+      if(v) h+=`<div style="background:#faf3f4;border-radius:6px;padding:8px 12px;margin-top:6px;font-size:13px;line-height:1.7;"><b style="color:#a04a5a;">${t}</b> ${esc(v)}</div>`;
+    });
+    (r.key_years||[]).forEach(k=>{ const c=TC[k.tendency]||TC.neutral;
+      h+=`<div style="border-left:3px solid ${c};background:#fbf8f2;border-radius:6px;padding:7px 11px;margin-top:5px;font-size:13px;"><b style="color:${c};">${k.year}年</b> ${esc(k.note||'')}</div>`; });
+    if(r.note) h+=`<div style="font-size:12px;color:#8a7f6e;margin-top:8px;">${esc(r.note)}</div>`;
+    h+='</div>'; box.innerHTML=h;
+  }catch(_){ box.innerHTML='<span style="color:#a33;">请求失败</span>'; }
+  finally{ btn.disabled=false; }
+}
+
+// —— 命中率仪表盘 ——
+document.getElementById('db').addEventListener('click', async ()=>{
+  const box=document.getElementById('dbout');
+  box.style.display='block'; box.innerHTML='<span style="color:#7a6f5f;">统计中…</span>';
+  try{
+    const birth=document.getElementById('d').value+'T'+document.getElementById('t').value;
+    const j=await (await fetch('/api/stats/dashboard?birth='+encodeURIComponent(birth))).json();
+    if(!j.ok) throw 0;
+    let h='<div style="border:2px solid #4a5f8c;border-radius:10px;background:#fff;padding:14px 18px;">';
+    const ov=j.overall;
+    if(ov && ov.scored>0){
+      h+=`<div style="font-size:15px;"><b>总命中率 ${Math.round((ov.rate||0)*100)}%</b> <span style="font-size:12px;color:#8a7f6e;">(${ov.scored} 条已回访:命中${ov.hit}/部分${ov.partial}/未中${ov.miss};部分按半分计)</span></div>`;
+      const ds=Object.entries(j.domains).filter(([k,d])=>d.rate!=null).sort((a,b)=>b[1].rate-a[1].rate);
+      if(ds.length){ h+='<div style="margin-top:10px;">';
+        ds.forEach(([k,d])=>{ const pct=Math.round(d.rate*100), n=d.hit+d.partial+d.miss;
+          h+=`<div style="display:flex;align-items:center;gap:8px;margin-top:5px;font-size:12px;">
+            <span style="width:110px;text-align:right;color:#5d5346;">${esc(k)}</span>
+            <div style="flex:1;background:#f2efe9;border-radius:5px;height:16px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${pct>=60?'#3f7d55':(pct>=40?'#b5762a':'#a33')};"></div></div>
+            <span style="width:90px;">${pct}% (${n}条)</span></div>`; });
+        h+='</div><div style="font-size:11px;color:#8a7f6e;margin-top:8px;">领域命中率告诉你该信这套系统的哪部分——样本少于5条的先别当真。</div>'; }
+    } else {
+      h+='<div style="color:#8a7f6e;font-size:13px;">还没有已回访的预测。先去「验过去」打分、把流月/会诊记录为预测并到期回访,数据会在这里汇聚。</div>';
+    }
+    if(j.backcast && j.backcast.scored>0) h+=`<div style="font-size:12px;color:#5d5346;margin-top:8px;">当前盘的盘前验证:${j.backcast.backcast_rounds} 轮,${j.backcast.scored} 条,命中率 ${j.backcast.hit_rate==null?'—':Math.round(j.backcast.hit_rate*100)+'%'}</div>`;
+    h+='</div>'; box.innerHTML=h;
+  }catch(_){ box.innerHTML='<span style="color:#a33;">统计失败</span>'; }
+});
+
 // —— 组织合盘:主盘+关键人+开业盘 互参 → 组织之势 ——
 function gAddRow(){
   const box=document.getElementById('gpeople');
@@ -920,6 +1068,7 @@ function renderRecal(out, r){
   if (r.revision) h += `<div style="margin-top:10px;padding:10px 12px;background:#f5eef5;border-radius:8px;font-size:13px;line-height:1.85;"><b style="color:#6b3f6b;">命局理解修正:</b>${esc(r.revision)}</div>`;
   if (r.yearly && r.yearly.length) {
     h += '<div style="margin-top:12px;font-size:12px;color:#8a7f6e;letter-spacing:2px;">校正后 · 今年及未来</div>';
+    h += yearlyCurve(r.yearly);
     r.yearly.forEach(y => {
       const te = T2[y.tendency] || T2.neutral;
       h += `<div style="border-left:3px solid ${te.c};background:${te.bg};border-radius:6px;padding:8px 12px;margin-top:6px;">
