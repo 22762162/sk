@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const CACHE_KEY = "sanjian.pwa.private-cache.v1";
+  const CACHE_KEY = "sanjian.pwa.private-cache.v2";
   const ROUTES = new Set(["home", "question", "records", "profile"]);
   const OUTCOMES = { hit: "命中", partial: "部分命中", miss: "未命中", unclear: "无法判断" };
   const TENDENCIES = { favorable: "偏顺", caution: "留意", neutral: "中性" };
@@ -151,11 +151,23 @@
     $("#profile-chip-label").textContent = state.activeProfile?.name || "未建基本盘";
     $("#question-no-profile").hidden = !!state.activeProfile;
     $("#question-form").hidden = !state.activeProfile;
+    renderQuestionResearch();
     renderToday();
     renderHomeReviews();
     renderRecords();
     renderProfiles();
     renderStats();
+  }
+
+  function renderQuestionResearch() {
+    const box = $("#question-research-status");
+    const profile = state.activeProfile;
+    if (!profile) { box.hidden = true; return; }
+    box.hidden = false;
+    const linked = Boolean(String(profile.research_context || "").trim());
+    box.innerHTML = linked
+      ? `<strong>已关联高级研究资料 · v${esc(profile.research_version || 1)}</strong><br>本次问事会结合已确认事实；大运、神煞与流年将重新计算。`
+      : `<strong>尚未关联高级研究资料</strong><br>本次仍会使用基本盘与流运；可到“我的 → 编辑”确认事实资料。`;
   }
 
   function renderToday() {
@@ -212,6 +224,7 @@
     const pct = Math.round(Number(c.score || prediction.confidence || 0) * 100);
     const list = values => (values || []).map(v => `<li>${esc(v)}</li>`).join("") || "<li>本次未形成额外条件</li>";
     const basis = s.rule_basis || {};
+    const research = s.research_context || {};
     const natal = basis.natal_computed_facts || {};
     const transit = basis.transit_computed_facts || {};
     return `<article class="prediction-card card">
@@ -235,6 +248,7 @@
           <dt>算法</dt><dd>${esc(prediction.algorithm_version || s.algorithm_version)}</dd>
           <dt>模型</dt><dd>${esc(prediction.model_version || s.model_version)}</dd>
           <dt>规则依据</dt><dd>${esc(basis.evidence_note || prediction.rule_version || "")}</dd>
+          <dt>研究资料</dt><dd>${research.included ? `已引用本人确认资料 v${esc(research.profile_research_version)} · ${esc(research.content_hash || "")}` : "未引用"}</dd>
           <dt>校准</dt><dd>${esc(prediction.calibration_version || s.calibration_version)}</dd>
           <dt>快照哈希</dt><dd>${esc(prediction.content_hash || "")}</dd>
         </dl></details>
@@ -293,7 +307,7 @@
       return;
     }
     box.innerHTML = state.profiles.map(p => `<div class="profile-row ${p.is_active ? "is-active" : ""}">
-      <div class="profile-main"><strong>${esc(p.name)}${p.is_active ? " · 当前" : ""}</strong><small>${esc(p.birth)} · ${p.gender === "male" ? "男" : "女"} · ${esc(p.place || "未填出生地")} · v${esc(p.version)}</small></div>
+      <div class="profile-main"><strong>${esc(p.name)}${p.is_active ? " · 当前" : ""}</strong><small>${esc(p.birth)} · ${p.gender === "male" ? "男" : "女"} · ${esc(p.place || "未填出生地")} · ${p.research_context ? `研究资料 v${esc(p.research_version)}` : "未关联研究资料"} · 基本盘 v${esc(p.version)}</small></div>
       <div class="profile-row-actions">${p.is_active ? "" : `<button type="button" class="profile-activate" data-id="${esc(p.id)}">切换</button>`}<button type="button" class="profile-edit" data-id="${esc(p.id)}">编辑</button></div>
     </div>`).join("");
     $$(".profile-activate", box).forEach(button => button.addEventListener("click", () => activateProfile(button.dataset.id)));
@@ -344,6 +358,11 @@
     $("#profile-industry").value = profile?.industry || "";
     $("#profile-occupation").value = profile?.occupation || "";
     $("#profile-situation").value = profile?.situation || "";
+    $("#profile-research").value = profile?.research_context || "";
+    $("#profile-research-source").value = profile?.research_source || "manual";
+    const researchLinked = Boolean(profile?.research_context);
+    $("#profile-research-status").textContent = researchLinked ? `已绑定 · v${profile.research_version}` : "未绑定";
+    $("#profile-research-import").disabled = !profile;
     setError("#profile-error");
     form.hidden = false;
     form.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -363,7 +382,10 @@
       longitude: longitudeText ? Number(longitudeText) : null,
       timezone: $("#profile-timezone").value, zi_hour_mode: $("#profile-zi").value,
       industry: $("#profile-industry").value.trim(), occupation: $("#profile-occupation").value.trim(),
-      situation: $("#profile-situation").value.trim(), is_active: !state.activeProfile,
+      situation: $("#profile-situation").value.trim(),
+      research_context: $("#profile-research").value.trim(),
+      research_source: $("#profile-research").value.trim() ? ($("#profile-research-source").value || "manual") : "",
+      is_active: !state.activeProfile,
     };
     if (id) body.expected_version = Number($("#profile-version").value);
     const submit = $("button[type=submit]", form);
@@ -378,6 +400,25 @@
       toast(id ? "基本盘已更新" : "基本盘已创建");
     } catch (error) { setError("#profile-error", error.message); }
     finally { submit.disabled = false; }
+  }
+
+  async function importResearchCandidates() {
+    const profileId = $("#profile-id").value;
+    if (!profileId) { toast("请先保存基本盘，再从高级研究载入"); return; }
+    const button = $("#profile-research-import");
+    button.disabled = true;
+    try {
+      const data = await api(`/api/app/profiles/${encodeURIComponent(profileId)}/research-candidates`);
+      if (!data.facts?.length) {
+        toast("高级研究中还没有本人录入的事实记录");
+        return;
+      }
+      $("#profile-research").value = data.candidate_context || "";
+      $("#profile-research-source").value = data.source || "advanced_dossier_reviewed";
+      $("#profile-research-status").textContent = `待确认 · ${data.facts.length} 条`;
+      toast(`已载入 ${data.facts.length} 条事实；检查后保存才会生效`);
+    } catch (error) { setError("#profile-error", error.message); }
+    finally { button.disabled = false; }
   }
 
   async function activateProfile(id) {
@@ -495,6 +536,7 @@
     $("#profile-form").addEventListener("submit", saveProfile);
     $("#new-profile-button").addEventListener("click", () => openProfileForm());
     $("#profile-form-close").addEventListener("click", () => { $("#profile-form").hidden = true; });
+    $("#profile-research-import").addEventListener("click", importResearchCandidates);
     $("#review-form").addEventListener("submit", submitReview);
     $("#review-close").addEventListener("click", () => $("#review-dialog").close());
     $("#clear-offline").addEventListener("click", () => {

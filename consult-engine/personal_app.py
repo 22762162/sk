@@ -19,7 +19,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = ROOT / "consult-engine" / "appdata" / "sanjian-app.sqlite3"
 DEFAULT_LEGACY_PREDICTIONS = ROOT / "consult-engine" / "predictions" / "predictions.jsonl"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MIN_CALIBRATION_SAMPLES = 8
 VALID_OUTCOMES = {"hit", "partial", "miss", "unclear"}
 
@@ -78,6 +78,10 @@ class AppStore:
                     industry TEXT NOT NULL DEFAULT '',
                     occupation TEXT NOT NULL DEFAULT '',
                     situation TEXT NOT NULL DEFAULT '',
+                    research_context TEXT NOT NULL DEFAULT '',
+                    research_source TEXT NOT NULL DEFAULT '',
+                    research_version INTEGER NOT NULL DEFAULT 0,
+                    research_confirmed_at TEXT NOT NULL DEFAULT '',
                     is_active INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
                     version INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT NOT NULL,
@@ -146,6 +150,17 @@ class AppStore:
             ).fetchone()
             if current and int(current["value"]) > SCHEMA_VERSION:
                 raise RuntimeError("App 数据库版本高于当前程序，拒绝降级打开")
+            profile_columns = {
+                str(row["name"]) for row in con.execute("PRAGMA table_info(profiles)").fetchall()
+            }
+            for name, definition in (
+                ("research_context", "TEXT NOT NULL DEFAULT ''"),
+                ("research_source", "TEXT NOT NULL DEFAULT ''"),
+                ("research_version", "INTEGER NOT NULL DEFAULT 0"),
+                ("research_confirmed_at", "TEXT NOT NULL DEFAULT ''"),
+            ):
+                if name not in profile_columns:
+                    con.execute(f"ALTER TABLE profiles ADD COLUMN {name} {definition}")
             con.execute(
                 "INSERT INTO app_meta(key,value) VALUES('schema_version',?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -189,13 +204,16 @@ class AppStore:
             con.execute(
                 """INSERT INTO profiles(
                     id,name,birth,gender,place,longitude,timezone,zi_hour_mode,
-                    industry,occupation,situation,is_active,version,created_at,updated_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
+                    industry,occupation,situation,research_context,research_source,
+                    research_version,research_confirmed_at,is_active,version,created_at,updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
                 (pid, values["name"], values["birth"], values["gender"],
                  values.get("place", ""), values.get("longitude"), values["timezone"],
                  values["zi_hour_mode"], values.get("industry", ""),
                  values.get("occupation", ""), values.get("situation", ""),
-                 int(make_active), now, now),
+                 values.get("research_context", ""), values.get("research_source", ""),
+                 1 if values.get("research_context") else 0,
+                 now if values.get("research_context") else "", int(make_active), now, now),
             )
             con.execute("COMMIT")
         return self.get_profile(pid) or {}
@@ -212,14 +230,33 @@ class AppStore:
                 con.execute("ROLLBACK")
                 raise StoreConflict("基本盘已在别处更新，请刷新后重试")
             merged = {**dict(cur), **values}
+            birth_changed = str(merged["birth"]) != str(cur["birth"])
+            research_context = str(merged.get("research_context", ""))
+            if birth_changed and "research_context" not in values:
+                research_context = ""
+            research_source = str(merged.get("research_source", "")) if research_context else ""
+            research_changed = (
+                research_context != str(cur["research_context"])
+                or research_source != str(cur["research_source"])
+                or (birth_changed and bool(research_context))
+            )
+            research_version = int(cur["research_version"]) + int(research_changed)
+            research_confirmed_at = (
+                now if research_changed and research_context
+                else str(cur["research_confirmed_at"]) if research_context
+                else ""
+            )
             con.execute(
                 """UPDATE profiles SET name=?,birth=?,gender=?,place=?,longitude=?,timezone=?,
-                    zi_hour_mode=?,industry=?,occupation=?,situation=?,version=version+1,updated_at=?
+                    zi_hour_mode=?,industry=?,occupation=?,situation=?,research_context=?,
+                    research_source=?,research_version=?,research_confirmed_at=?,
+                    version=version+1,updated_at=?
                     WHERE id=? AND version=?""",
                 (merged["name"], merged["birth"], merged["gender"], merged.get("place", ""),
                  merged.get("longitude"), merged["timezone"], merged["zi_hour_mode"],
                  merged.get("industry", ""), merged.get("occupation", ""),
-                 merged.get("situation", ""), now, profile_id, expected_version),
+                 merged.get("situation", ""), research_context, research_source,
+                 research_version, research_confirmed_at, now, profile_id, expected_version),
             )
             con.execute("COMMIT")
         return self.get_profile(profile_id)

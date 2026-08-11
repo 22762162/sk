@@ -258,6 +258,8 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 .segmented span { min-height: 42px; display: grid; place-items: center; border-radius: 12px; font-size: 13px; font-weight: 750; }
 .segmented input:checked + span { background: var(--surface-strong); color: var(--jade-dark); box-shadow: 0 3px 14px rgba(30, 60, 48, .08); }
 .privacy-line { display: flex; gap: 8px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.research-status { padding: 11px 13px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--jade-soft) 55%, transparent); color: var(--muted); font-size: 11px; line-height: 1.6; }
+.research-status strong { color: var(--jade-dark); }
 .form-error { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red); font-size: 12px; }
 .notice { display: grid; gap: 7px; margin-bottom: 14px; padding: 15px; border-radius: 16px; font-size: 13px; }
 .notice.warning { border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent); background: var(--amber-soft); }
@@ -300,7 +302,7 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 .record-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 5px; }
 .review-outcome { color: var(--muted); font-size: 12px; font-weight: 750; }
 
-.profile-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.profile-row { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
 .profile-row.is-active { border-color: var(--jade); background: var(--jade-soft); }
 .profile-main { min-width: 0; }
 .profile-main strong { display: block; font-size: 14px; }
@@ -309,6 +311,13 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 .profile-row-actions button { min-height: 40px; border: 1px solid var(--line); border-radius: 12px; padding: 7px 10px; background: var(--surface); cursor: pointer; font-size: 11px; font-weight: 750; }
 .form-title-row { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
 .form-title-row h2 { margin-top: 2px; }
+.research-editor { padding: 16px; border: 1px solid color-mix(in srgb, var(--jade) 28%, var(--line)); border-radius: 18px; background: color-mix(in srgb, var(--jade-soft) 38%, var(--surface)); }
+.research-editor h3 { margin: 0; font-size: 16px; }
+.research-editor p { margin: 10px 0 15px; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.research-title-row { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.research-title-row .eyebrow { margin-bottom: 4px; }
+.research-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 13px; }
+.research-actions .secondary-action { padding: 10px 13px; background: var(--surface); }
 
 .stats-card, .settings-card { padding: 18px; }
 .stats-overview { display: flex; align-items: center; justify-content: space-between; gap: 16px; }

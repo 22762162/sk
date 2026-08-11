@@ -70,6 +70,72 @@ class AppStoreTest(unittest.TestCase):
                 second["id"], current["version"], profile_values("过期写入")
             )
 
+    def test_confirmed_research_context_has_its_own_version(self) -> None:
+        values = {
+            **profile_values("研究资料基本盘"),
+            "research_context": "2024年：开始负责合成业务团队",
+            "research_source": "manual",
+        }
+        profile = self.store.create_profile(values)
+        self.assertEqual(profile["research_version"], 1)
+        self.assertTrue(profile["research_confirmed_at"])
+
+        unchanged = self.store.update_profile(
+            profile["id"], profile["version"], {**values, "name": "只改名称"}
+        )
+        self.assertEqual(unchanged["research_version"], 1)
+
+        changed_values = {
+            **values,
+            "research_context": "2024年：开始负责合成业务团队\n2025年：完成合成项目交付",
+            "research_source": "advanced_dossier_reviewed",
+        }
+        changed = self.store.update_profile(
+            profile["id"], unchanged["version"], changed_values
+        )
+        self.assertEqual(changed["research_version"], 2)
+
+        cleared = self.store.update_profile(
+            profile["id"], changed["version"], {
+                **changed_values, "research_context": "", "research_source": "",
+            }
+        )
+        self.assertEqual(cleared["research_version"], 3)
+        self.assertEqual(cleared["research_confirmed_at"], "")
+
+    def test_v1_database_migrates_without_losing_profiles(self) -> None:
+        legacy_db = Path(self.tmp.name) / "legacy-v1.sqlite3"
+        with sqlite3.connect(legacy_db) as con:
+            con.executescript(
+                """
+                CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                INSERT INTO app_meta(key,value) VALUES('schema_version','1');
+                CREATE TABLE profiles (
+                    id TEXT PRIMARY KEY,name TEXT NOT NULL,birth TEXT NOT NULL,gender TEXT NOT NULL,
+                    place TEXT NOT NULL DEFAULT '',longitude REAL,timezone TEXT NOT NULL,
+                    zi_hour_mode TEXT NOT NULL,industry TEXT NOT NULL DEFAULT '',
+                    occupation TEXT NOT NULL DEFAULT '',situation TEXT NOT NULL DEFAULT '',
+                    is_active INTEGER NOT NULL DEFAULT 0,version INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,updated_at TEXT NOT NULL
+                );
+                INSERT INTO profiles VALUES(
+                    'profile-legacy','旧版合成盘','1990-06-15T08:30','male','合成城市',116.4,
+                    'Asia/Shanghai','split','测试行业','测试岗位','合成背景',1,1,
+                    '2026-08-01T00:00:00+00:00','2026-08-01T00:00:00+00:00'
+                );
+                """
+            )
+        migrated = personal_app.AppStore(legacy_db, None)
+        profile = migrated.get_profile("profile-legacy")
+        self.assertEqual(profile["name"], "旧版合成盘")
+        self.assertEqual(profile["research_context"], "")
+        self.assertEqual(profile["research_version"], 0)
+        with sqlite3.connect(legacy_db) as con:
+            version = con.execute(
+                "SELECT value FROM app_meta WHERE key='schema_version'"
+            ).fetchone()[0]
+        self.assertEqual(version, "2")
+
     def test_prediction_and_review_are_append_only(self) -> None:
         profile = self.store.create_profile(profile_values("基本盘"))
         prediction = self.add_prediction(profile["id"], 0)

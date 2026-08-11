@@ -124,7 +124,8 @@
               placeholder="只写影响判断的现实条件；不要填写姓名、电话、精确地址或账号。"></textarea>
           </label>
 
-          <div class="privacy-line"><span aria-hidden="true">⌁</span> 原始生日留在本机；模型只接收命盘结构与去标识后的必要问题。</div>
+          <div id="question-research-status" class="research-status" aria-live="polite"></div>
+          <div class="privacy-line"><span aria-hidden="true">⌁</span> 原始生日留在本机；模型只接收命盘结构、去标识问题与本人确认的研究事实。</div>
           <div id="question-error" class="form-error" role="alert" hidden></div>
           <button id="question-submit" class="primary-action full" type="submit">生成并锁定预测</button>
         </form>
@@ -185,6 +186,22 @@
             <label class="field">职业 <span class="optional">选填</span><input id="profile-occupation" maxlength="40"></label>
           </div>
           <label class="field">长期背景 <span class="optional">选填</span><textarea id="profile-situation" maxlength="300" rows="2" placeholder="只写会持续影响判断的现实处境"></textarea></label>
+          <section class="research-editor" aria-labelledby="profile-research-title">
+            <div class="research-title-row">
+              <div><span class="eyebrow">高级研究联动</span><h3 id="profile-research-title">已确认研究资料</h3></div>
+              <span id="profile-research-status" class="status-badge">未绑定</span>
+            </div>
+            <p>大运、神煞与流年会在每次问事时重新计算。这里只保存你确认过的既成事实；旧模型结论不会自动回灌。</p>
+            <label class="field">事实资料 <span class="optional">选填</span>
+              <textarea id="profile-research" maxlength="1200" rows="5" placeholder="例如：2024年：开始负责新的业务团队。只写已经发生、能够核对的事实。"></textarea>
+              <span class="field-hint">从高级研究载入后仍需检查，并点击“保存基本盘”才会用于后续问事。</span>
+            </label>
+            <input id="profile-research-source" type="hidden" value="manual">
+            <div class="research-actions">
+              <button id="profile-research-import" class="secondary-action" type="button">从高级研究载入</button>
+              <a class="text-button" href="/legacy">打开高级研究</a>
+            </div>
+          </section>
           <div id="profile-error" class="form-error" role="alert" hidden></div>
           <button class="primary-action full" type="submit">保存基本盘</button>
         </form>
@@ -195,8 +212,8 @@
         </section>
 
         <section class="settings-card card" aria-labelledby="settings-title">
-          <h2 id="settings-title">本机数据与高级研究</h2>
-          <p>App 会在此浏览器缓存基本盘和历史快照，供离线查看。预测生成始终要求联网。</p>
+          <h2 id="settings-title">本机数据</h2>
+          <p>App 会在此浏览器缓存基本盘和历史快照，供离线查看。高级研究联动在基本盘编辑页确认，预测生成始终要求联网。</p>
           <div class="settings-actions">
             <button id="clear-offline" type="button" class="secondary-action">清除浏览器离线缓存</button>
             <a class="secondary-action" href="/legacy">打开原高级研究页</a>
