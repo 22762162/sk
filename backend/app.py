@@ -986,6 +986,218 @@ def probe_answer(req: ProbeAnswerReq) -> JSONResponse:
                          "total_facts": len(dossier.facts(req.birth))})
 
 
+class ZeriReq(ConsultReq):
+    purpose: str = "办大事"     # 要办的事(签约/开播/搬家/开业…)
+    start: str = ""             # 起始日期 YYYY-MM-DD(默认今天)
+    days: int = 30              # 逐日打分的天数(上限 60)
+
+
+@app.post("/api/zeri/start")
+def zeri_start(req: ZeriReq) -> JSONResponse:
+    """择日(异步 1 次调用):确定性逐日打分 → AI 结合事项挑日子。"""
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            natal_resp = paipan(req)
+            if natal_resp.status_code != 200:
+                raise RuntimeError("排盘失败")
+            no = json.loads(bytes(natal_resp.body))["output"]
+            nds, ndb, nyb = no["day"]["stem"], no["day"]["branch"], no["year"]["branch"]
+            try:
+                d0 = datetime.strptime(req.start, "%Y-%m-%d") if req.start.strip() else datetime.now()
+            except ValueError:
+                d0 = datetime.now()
+            n = max(7, min(req.days, 60))
+            grid = []
+            for k in range(n):
+                d = d0 + timedelta(days=k)
+                r = paipan(PaipanReq(birth=d.strftime("%Y-%m-%dT12:00"), zi_hour_mode="split"))
+                if r.status_code != 200:
+                    continue
+                o = json.loads(bytes(r.body))["output"]
+                gz = o["day"]["ganzhi"]
+                sc, tags, jc = luck.day_score(nds, ndb, nyb, gz, o["month"]["branch"])
+                grid.append({"date": d.strftime("%Y-%m-%d"), "weekday": "一二三四五六日"[d.weekday()],
+                             "ganzhi": gz, "score": sc, "tags": tags, "jianchu": jc})
+            good = sorted([g for g in grid if g["score"] >= 1.5], key=lambda x: -x["score"])[:6]
+            bad = [g for g in grid if g["score"] <= -2]
+            lines = [f"本命:日主 {nds},日支 {ndb},年支 {nyb}",
+                     f"要办的事:{req.purpose.strip()[:60] or '办大事'}"]
+            if req.occupation.strip() or req.industry.strip():
+                lines.append(f"背景:{req.industry.strip()} {req.occupation.strip()}")
+            lines.append("\n候选吉日(确定性打分,分高更吉):")
+            for g in good:
+                lines.append(f"- {g['date']}(周{g['weekday']}) {g['ganzhi']} {g['jianchu']}日 {g['score']}分:{'、'.join(g['tags'])}")
+            lines.append("\n忌日:")
+            for g in bad[:6]:
+                lines.append(f"- {g['date']} {g['ganzhi']} {g['score']}分:{'、'.join(g['tags'])}")
+            res = consult.zeri_advise("\n".join(lines)) if good else {"recommendations": [], "avoid_note": "", "note": "近期无明显吉日,可扩大日期范围再看"}
+            payload, status = {"ok": True, "purpose": req.purpose, "grid": grid,
+                               "recommendations": [{"date": r.get("date", ""), "why": _redline_filter(str(r.get("why", "")))[0],
+                                                    "tip": _redline_filter(str(r.get("tip", "")))[0]}
+                                                   for r in (res.get("recommendations") or []) if isinstance(r, dict)],
+                               "avoid_note": _redline_filter(str(res.get("avoid_note", "")))[0],
+                               "note": _redline_filter(str(res.get("note", "")))[0]}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"择日失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
+class HehunReq(ConsultReq):
+    partner_birth: str = ""     # 对方生日(YYYY-MM-DD 或含时刻)
+    partner_gender: str = ""
+
+
+@app.post("/api/hehun/start")
+def hehun_start(req: HehunReq) -> JSONResponse:
+    """合婚(异步 1 次调用):双人盘互参 → 相处模式/互补摩擦/关键年份。"""
+    if not req.partner_birth.strip():
+        return JSONResponse({"ok": False, "error": "缺对方生日"}, status_code=422)
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+
+    def worker() -> None:
+        try:
+            a = _entity_pack(req.birth, req.zi_hour_mode, req.longitude)
+            b = _entity_pack(req.partner_birth.strip(), req.zi_hour_mode, None)
+            pa = luck.pair_analysis(a, b)
+            tz8 = timezone(timedelta(hours=8))
+            now_dt = datetime.now(tz8)
+            by = now_dt.year if int(now_dt.timestamp()) >= _lichun.get(now_dt.year, 0) else now_dt.year - 1
+            lines = [f"你:{a['chart_line']};日主 {a['day_stem']},五行 {a['elems']}",
+                     f"对方:{b['chart_line']};日主 {b['day_stem']},五行 {b['elems']}",
+                     f"互参:对方于你为「{pa['a_views_b']}」,你于对方为「{pa['b_views_a']}」;"
+                     f"日支(夫妻宫)关系:{'/'.join(pa['day_branch_rel'])};全盘合系 {pa['bonds']}/冲系 {pa['frictions']}"
+                     + (f";对方补你所缺:{'、'.join(pa['element_supply'])}" if pa['element_supply'] else "")]
+            for label, e in (("你", a), ("对方", b)):
+                hl = luck._HONGLUAN.get(e["branches"][0]) if e["branches"] else None
+                if hl and hl in e["branches"]:
+                    lines.append(f"{label}盘中红鸾入命(婚恋之喜易动)")
+            for y in (by, by + 1):
+                gz = luck.year_ganzhi(y)
+                ha = "/".join(luck.branch_rel(gz[1], a["day_branch"]))
+                hb = "/".join(luck.branch_rel(gz[1], b["day_branch"]))
+                lines.append(f"{y}年({gz}):流年支与你日支 {ha};与对方日支 {hb};"
+                             f"流年干于你为「{luck.shishen(a['day_stem'], gz[0])}」,于对方为「{luck.shishen(b['day_stem'], gz[0])}」")
+            if req.situation.strip():
+                lines.append(f"背景:{req.situation.strip()[:200]}")
+            res = consult.hehun_forecast("\n".join(lines))
+            def _c(s):
+                return _redline_filter(str(s))[0]
+            payload, status = {"ok": True,
+                               "charts": {"you": a["chart_line"], "partner": b["chart_line"]},
+                               "overview": _c(res.get("overview", "")), "mode": _c(res.get("mode", "")),
+                               "complement": _c(res.get("complement", "")), "frictions": _c(res.get("frictions", "")),
+                               "key_years": [{"year": k.get("year"), "note": _c(k.get("note", "")),
+                                              "tendency": k.get("tendency", "neutral")}
+                                             for k in (res.get("key_years") or []) if isinstance(k, dict)],
+                               "note": _c(res.get("note", ""))}, "done"
+        except Exception as exc:  # noqa: BLE001
+            payload, status = {"ok": False, "error": f"合婚失败:{exc}"}, "error"
+        with _JOBS_LOCK:
+            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return JSONResponse({"ok": True, "job_id": job_id})
+
+
+@app.get("/api/stats/dashboard")
+def stats_dashboard(birth: str = "") -> JSONResponse:
+    """命中率仪表盘:聚合 盘前验证打分 + 各来源预测回访,按领域拆分(全确定性)。"""
+    out = {"ok": True, "backcast": dossier.stats(birth) if birth else None, "domains": {}, "overall": None}
+
+    def bump(domain: str, outcome: str) -> None:
+        d = out["domains"].setdefault(domain or "未分类", {"hit": 0, "partial": 0, "miss": 0})
+        if outcome in d:
+            d[outcome] += 1
+
+    try:  # 旧预测闭环(jsonl):status ∈ hit/partial/miss
+        for p in predictions.listing():
+            if p.get("status") in ("hit", "partial", "miss"):
+                bump(p.get("domain", ""), p["status"])
+    except Exception:  # noqa: BLE001
+        pass
+    try:  # 新 App(sqlite)回访
+        for p in APP_STORE.list_predictions(None, limit=1000):
+            rv = str((p.get("review") or {}).get("outcome") or p.get("review_outcome") or p.get("outcome") or "")
+            if rv in ("hit", "partial", "miss"):
+                bump(str(p.get("domain") or "问事"), rv)
+    except Exception:  # noqa: BLE001
+        pass
+    th = tp = tm = 0
+    for d in out["domains"].values():
+        th += d["hit"]; tp += d["partial"]; tm += d["miss"]
+        s = d["hit"] + d["partial"] + d["miss"]
+        d["rate"] = round((d["hit"] + 0.5 * d["partial"]) / s, 3) if s else None  # 部分命中折半
+    scored = th + tp + tm
+    out["overall"] = {"scored": scored, "hit": th, "partial": tp, "miss": tm,
+                      "rate": round((th + 0.5 * tp) / scored, 3) if scored else None}
+    return JSONResponse(out)
+
+
+@app.get("/api/app/today-reading")
+def app_today_reading(profile_id: str = "") -> JSONResponse:
+    """每日一盘:今日干支对本命的 AI 短读(按 日期+profile 缓存,每天最多 1 次调用)。"""
+    prof = None
+    if profile_id:
+        prof = next((p for p in APP_STORE.list_profiles() if p["id"] == profile_id), None)
+    if prof is None:
+        prof = APP_STORE.active_profile()
+    if prof is None:
+        ps = APP_STORE.list_profiles()
+        prof = ps[0] if ps else None
+    if prof is None:
+        return JSONResponse({"ok": False, "error": "无基本盘"}, status_code=404)
+    tz8 = timezone(timedelta(hours=8))
+    today = datetime.now(tz8).strftime("%Y-%m-%d")
+    cache_dir = ROOT / "consult-engine" / "appdata"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_f = cache_dir / "daily_cache.json"
+    try:
+        cache = json.loads(cache_f.read_text(encoding="utf-8")) if cache_f.exists() else {}
+    except Exception:  # noqa: BLE001
+        cache = {}
+    key = f"{today}|{prof['id']}"
+    if key in cache:
+        return JSONResponse({"ok": True, "cached": True, **cache[key]})
+    try:
+        natal = paipan(PaipanReq(birth=prof["birth"], zi_hour_mode=prof.get("zi_hour_mode", "split"),
+                                 longitude=prof.get("longitude")))
+        no = json.loads(bytes(natal.body))["output"]
+        tr = paipan(PaipanReq(birth=datetime.now(tz8).strftime("%Y-%m-%dT12:00"), zi_hour_mode="split"))
+        to = json.loads(bytes(tr.body))["output"]
+        sc, tags, jc = luck.day_score(no["day"]["stem"], no["day"]["branch"], no["year"]["branch"],
+                                      to["day"]["ganzhi"], to["month"]["branch"])
+        lines = [f"本命:{'、'.join(no[p]['ganzhi'] for p in ('year','month','day','hour'))}(日主 {no['day']['stem']})",
+                 f"今日:{to['year']['ganzhi']}年 {to['month']['ganzhi']}月 {to['day']['ganzhi']}日,{jc}日",
+                 f"今日对你(确定性标签,{sc}分):{'、'.join(tags) or '无明显作用'}"]
+        if prof.get("industry") or prof.get("occupation"):
+            lines.append(f"背景:{prof.get('industry','')} {prof.get('occupation','')}")
+        dsum = dossier.summary(prof["birth"])
+        if dsum:
+            lines.append(dsum[:400])
+        res = consult.daily_reading("\n".join(lines))
+        item = {"date": today, "day_ganzhi": to["day"]["ganzhi"], "jianchu": jc, "score": sc,
+                "reading": _redline_filter(str(res.get("reading", "")))[0],
+                "do": _redline_filter(str(res.get("do", "")))[0],
+                "avoid": _redline_filter(str(res.get("avoid", "")))[0],
+                "tendency": res.get("tendency", "neutral")}
+        cache = {k: v for k, v in cache.items() if k.startswith(today)}  # 只留今天,防膨胀
+        cache[key] = item
+        cache_f.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        return JSONResponse({"ok": True, "cached": False, **item})
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"日读失败:{exc}"}, status_code=500)
+
+
 @app.get("/api/records/list")
 def records_list() -> JSONResponse:
     """历史会诊记录摘要(新→旧)。"""

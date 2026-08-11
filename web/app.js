@@ -115,6 +115,7 @@
       state.today = { error: error.message };
     }
     renderToday();
+    loadTodayReading();
   }
 
   function updateNetwork() {
@@ -191,7 +192,24 @@
         <div class="transit-pillar"><small>年柱</small><strong>${esc(transit.year || "—")}</strong></div>
         <div class="transit-pillar"><small>月柱</small><strong>${esc(transit.month || "—")}</strong></div>
         <div class="transit-pillar"><small>日柱</small><strong>${esc(transit.day || "—")}</strong></div>
-      </div><p class="today-note">${esc(state.today.note || "")}${state.offline ? " 当前为离线缓存。" : ""}</p>`;
+      </div><p class="today-note">${esc(state.today.note || "")}${state.offline ? " 当前为离线缓存。" : ""}</p>
+      <div id="today-reading" class="muted"></div>`;
+  }
+
+  async function loadTodayReading() {
+    const slot = document.getElementById("today-reading");
+    if (!slot || !state.activeProfile || !navigator.onLine) return;
+    slot.textContent = "今日解读生成中…";
+    try {
+      const d = await api(`/api/app/today-reading?profile_id=${encodeURIComponent(state.activeProfile.id)}`);
+      const t = { favorable: "#3f7d55", caution: "#b5762a", neutral: "#6b6459" }[d.tendency] || "#6b6459";
+      slot.innerHTML = `<div style="border-left:3px solid ${t};padding:6px 10px;border-radius:6px;background:rgba(125,90,60,0.06);margin-top:8px;">
+        <div>${esc(d.reading || "")}</div>
+        <div style="margin-top:4px;"><b>宜</b> ${esc(d.do || "")} ｜ <b>忌</b> ${esc(d.avoid || "")}</div>
+        <div style="font-size:11px;opacity:.7;margin-top:3px;">${esc(d.day_ganzhi || "")}日 · ${esc(d.jianchu || "")}日 · 传统日课参考</div></div>`;
+    } catch (error) {
+      slot.textContent = "";
+    }
   }
 
   const duePredictions = () => {
