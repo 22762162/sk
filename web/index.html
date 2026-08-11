@@ -353,6 +353,12 @@ function renderConsult(j) {
     const cs = j.consultation;
     window.LASTC = {line: (j.chart && j.chart.line) || '', hash: cs.consultation_id || ''};
     let html = `<div style="font-size:13px;color:#7a6f5f;margin-bottom:12px;">会诊 ${cs.consultation_id} · 实验臂 ${cs.arm} · 三家异构模型互证</div>`;
+    if (j._record_id) {
+      html += `<div style="border:1px solid #b9d2c5;border-radius:8px;background:#eef6f0;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:12px;color:#2c6a66;">这是历史高级研究记录，可直接绑定到同生日的 App 基本盘。</span>
+        <button type="button" id="bind-current-record" style="font-size:12px;background:#2c6a66;">绑定到 App</button>
+      </div>`;
+    }
 
     // —— 白话解读(主呈现;说人话)——
     const ps = cs.plain_summary;
@@ -487,6 +493,8 @@ function renderConsult(j) {
         <button type="button" id="chatsend" style="background:#2c6a66;">发问</button>
       </div></div>`;
     box.innerHTML = html;
+    const bindCurrent=document.getElementById('bind-current-record');
+    if(bindCurrent) bindCurrent.onclick=()=>bindRecordToApp(j._record_id,j._birth||'',bindCurrent);
     box.querySelectorAll('.recbtn').forEach(b => b.onclick = () => recordPred(b));
     // 过去流年打分(断过去可验证) → 入档案命中率
     box.querySelectorAll('.ylsc').forEach(b => b.onclick = () => {
@@ -1141,23 +1149,58 @@ async function addFact(){
 
 // —— 历史记录:会诊自动存档,随时回看并继续追问 ——
 document.getElementById('hist').addEventListener('click', loadHist);
+if(location.hash==='#history') setTimeout(()=>{
+  document.getElementById('result').style.display='block';
+  loadHist();
+},0);
 async function loadHist(){
   const box=document.getElementById('histout');
   if(box.style.display==='block'){ box.style.display='none'; return; }
   box.style.display='block'; box.innerHTML='加载中…';
+  box.scrollIntoView({block:'start'});
   try{
     const j=await (await fetch('/api/records/list')).json();
     if(!j.ok){ box.innerHTML='加载失败'; return; }
     if(!j.records.length){ box.innerHTML='<div style="font-size:13px;color:#8a7f6e;">还没有会诊记录。做一次三模型会诊后自动存档,刷新也不丢。</div>'; return; }
-    box.innerHTML = j.records.map(r=>{
+    box.innerHTML = `<div style="border:1px solid #b9d2c5;border-radius:8px;background:#eef6f0;padding:10px 14px;font-size:12px;line-height:1.8;color:#2c6a66;">
+      选择与 App 基本盘出生时间一致的旧记录，点击“绑定到 App”。旧结论只作历史参考，不会当作事实或自身验证。 <a href="/" style="font-weight:700;">返回 App</a>
+    </div>` + j.records.map(r=>{
       const t=(r.saved_at||'').replace('T',' ').slice(0,16);
       return `<div style="border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px 14px;margin-top:8px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
         <div style="font-size:13px;line-height:1.7;"><b>${esc(r.birth||'')}</b> · ${esc(r.chart_line||'')}<br>
           <span style="font-size:11px;color:#8a7f6e;">${t}(UTC)${r.profile?' · '+esc(r.profile.slice(0,42)):''}${r.n_chats?` · 追问${r.n_chats}轮`:''}</span></div>
-        <button type="button" data-rid="${esc(r.id||'')}" class="viewrec" style="font-size:12px;background:#6b5b3f;">查看</button></div>`;
+        <div style="display:flex;gap:7px;flex-wrap:wrap;">
+          <button type="button" data-rid="${esc(r.id||'')}" class="viewrec" style="font-size:12px;background:#6b5b3f;">查看</button>
+          <button type="button" data-rid="${esc(r.id||'')}" data-birth="${esc(r.birth||'')}" class="bindrec" style="font-size:12px;background:#2c6a66;">绑定到 App</button>
+        </div></div>`;
     }).join('');
     box.querySelectorAll('.viewrec').forEach(b=>b.onclick=()=>viewRecord(b.dataset.rid));
+    box.querySelectorAll('.bindrec').forEach(b=>b.onclick=()=>bindRecordToApp(b.dataset.rid,b.dataset.birth,b));
   }catch(_){ box.innerHTML='请求失败'; }
+}
+
+async function bindRecordToApp(recordId, recordBirth, button){
+  const oldText=button.textContent;
+  button.disabled=true; button.textContent='检查基本盘…';
+  try{
+    const boot=await (await fetch('/api/app/bootstrap')).json();
+    const minute=v=>String(v||'').slice(0,16);
+    const matches=(boot.profiles||[]).filter(p=>minute(p.birth)===minute(recordBirth));
+    if(!matches.length){ alert('App 中没有与这条记录出生时间一致的基本盘。请先返回 App 创建或修正基本盘。'); return; }
+    const profile=matches.find(p=>p.is_active)||matches[0];
+    if(!confirm(`把这条历史高级研究记录绑定到 App 基本盘“${profile.name}”？\n\n旧研究只作参考，不会被当作事实或自身验证。`)) return;
+    button.textContent='绑定中…';
+    const response=await fetch('/api/app/profiles/'+encodeURIComponent(profile.id)+'/research-record-bind',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({record_id:recordId,expected_version:profile.version})
+    });
+    const result=await response.json();
+    if(!result.ok) throw new Error(result.error||'绑定失败');
+    button.textContent='✓ 已绑定到 '+result.profile.name;
+    button.style.background='#3f7d55';
+    alert('绑定完成。返回 App 后，问事会把这条旧研究作为历史参考；大运、神煞与流年仍会重新计算。');
+  }catch(error){ alert(error.message||'绑定失败，请重试'); button.textContent=oldText; button.disabled=false; }
+  finally{ if(!button.textContent.startsWith('✓')){ button.textContent=oldText; button.disabled=false; } }
 }
 async function viewRecord(rid){
   try{
@@ -1175,6 +1218,7 @@ async function viewRecord(rid){
     p._profile = rec.profile || '';
     p._chats = rec.chats || [];
     p._birth = rec.birth || '';
+    p._record_id = rec.id || '';
     renderConsult(p);
     document.getElementById('csout').scrollIntoView({behavior:'smooth'});
   }catch(_){}

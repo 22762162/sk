@@ -167,7 +167,7 @@
     box.hidden = false;
     const linked = Boolean(String(profile.research_context || "").trim());
     box.innerHTML = linked
-      ? `<strong>已关联高级研究资料 · v${esc(profile.research_version || 1)}</strong><br>本次问事会结合已确认事实；大运、神煞与流年将重新计算。`
+      ? `<strong>已关联高级研究资料 · v${esc(profile.research_version || 1)}</strong><br>本次问事会结合已确认事实或本人点选的历史参考；大运、神煞与流年将重新计算。`
       : `<strong>尚未关联高级研究资料</strong><br>本次仍会使用基本盘与流运；可到“我的 → 编辑”确认事实资料。`;
   }
 
@@ -428,13 +428,28 @@
     try {
       const data = await api(`/api/app/profiles/${encodeURIComponent(profileId)}/research-candidates`);
       if (!data.facts?.length) {
-        toast("高级研究中还没有本人录入的事实记录");
+        if (data.records?.length) {
+          toast(`找到 ${data.records.length} 条同生日历史记录，正在打开绑定页`);
+          window.setTimeout(() => { window.location.href = "/legacy#history"; }, 650);
+        } else {
+          toast("高级研究中还没有可绑定的事实或同生日历史记录");
+        }
         return;
       }
-      $("#profile-research").value = data.candidate_context || "";
-      $("#profile-research-source").value = data.source || "advanced_dossier_reviewed";
+      const existing = $("#profile-research").value || "";
+      const markerAt = existing.indexOf("【历史高级研究参考");
+      const historyReference = markerAt >= 0 ? existing.slice(markerAt).trim() : "";
+      const importedFacts = historyReference
+        ? String(data.candidate_context || "").slice(0, 650).trim()
+        : String(data.candidate_context || "").trim();
+      $("#profile-research").value = [importedFacts, historyReference.slice(0, 540)]
+        .filter(Boolean).join("\n\n").slice(0, 1200);
+      $("#profile-research-source").value = historyReference
+        ? "advanced_record_reviewed"
+        : (data.source || "advanced_dossier_reviewed");
       $("#profile-research-status").textContent = `待确认 · ${data.facts.length} 条`;
-      toast(`已载入 ${data.facts.length} 条事实；检查后保存才会生效`);
+      const recordHint = data.records?.length ? `；另有 ${data.records.length} 条历史记录可在高级研究页绑定` : "";
+      toast(`已载入 ${data.facts.length} 条事实；检查后保存才会生效${recordHint}`);
     } catch (error) { setError("#profile-error", error.message); }
     finally { button.disabled = false; }
   }

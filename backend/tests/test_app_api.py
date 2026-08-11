@@ -71,7 +71,15 @@ class AppApiTest(unittest.TestCase):
             {"year": 2024, "text": "开始负责合成业务团队"},
             {"year": 2025, "text": "完成合成项目交付"},
         ]
-        with patch.object(backend_app.dossier, "facts", return_value=synthetic_facts):
+        synthetic_records = [{
+            "id": "consult-compatible", "saved_at": "2026-08-01T00:00:00+00:00",
+            "birth": "1993-04-05T10:20", "chart_line": "合成四柱", "n_chats": 2,
+        }, {
+            "id": "consult-other", "saved_at": "2026-08-02T00:00:00+00:00",
+            "birth": "1994-04-05T10:20", "chart_line": "另一合成盘", "n_chats": 0,
+        }]
+        with patch.object(backend_app.dossier, "facts", return_value=synthetic_facts), \
+             patch.object(backend_app.records, "listing", return_value=synthetic_records):
             response = self.client.get(
                 f"/api/app/profiles/{profile['id']}/research-candidates"
             )
@@ -81,6 +89,51 @@ class AppApiTest(unittest.TestCase):
         self.assertIn("2024年：开始负责合成业务团队", data["candidate_context"])
         self.assertIn("不会自动导入", data["excluded"])
         self.assertIn("大运", data["computed_each_question"])
+        self.assertEqual([item["id"] for item in data["records"]], ["consult-compatible"])
+
+    def test_historical_research_record_binds_only_to_same_birth_as_reference(self) -> None:
+        profile = self.client.post("/api/app/profiles", json={
+            "name": "旧记录绑定合成盘", "birth": "1993-04-05T10:20", "gender": "male",
+            "timezone": "Asia/Shanghai", "zi_hour_mode": "split",
+            "research_context": "2025年：完成合成项目交付", "research_source": "manual",
+        }).json()["profile"]
+        synthetic_record = {
+            "id": "consult-compatible", "saved_at": "2026-08-01T00:00:00+00:00",
+            "birth": "1993-04-05T10:20",
+            "payload": {"consultation": {"plain_summary": {
+                "overview": "合成旧研究，联系电话13800138000",
+                "dayun": "合成大运参考",
+                "consensus": "合成共识参考",
+                "domains": [{"domain": "事业", "reading": "合成事业参考"}],
+                "yearly": [{"year": 2027, "reading": "不应导入的逐年断语"}],
+            }, "judge": {"summary": "不应导入的裁判细节"}}},
+        }
+        with patch.object(backend_app.records, "get", return_value=synthetic_record):
+            response = self.client.post(
+                f"/api/app/profiles/{profile['id']}/research-record-bind",
+                json={"record_id": "consult-compatible", "expected_version": profile["version"]},
+            )
+        self.assertEqual(response.status_code, 200)
+        updated = response.json()["profile"]
+        self.assertEqual(updated["research_source"], "advanced_record_reviewed")
+        self.assertEqual(updated["research_version"], 2)
+        self.assertIn("2025年：完成合成项目交付", updated["research_context"])
+        self.assertIn("历史高级研究参考·非事实参考", updated["research_context"])
+        self.assertIn("[手机号已省略]", updated["research_context"])
+        self.assertNotIn("不应导入的逐年断语", updated["research_context"])
+        self.assertNotIn("不应导入的裁判细节", updated["research_context"])
+        facts, reference = backend_app._app_research_parts(updated)
+        self.assertEqual(facts, "2025年：完成合成项目交付")
+        self.assertIn("历史高级研究参考·非事实参考", reference)
+
+        mismatch = {**synthetic_record, "birth": "1994-04-05T10:20"}
+        with patch.object(backend_app.records, "get", return_value=mismatch):
+            rejected = self.client.post(
+                f"/api/app/profiles/{profile['id']}/research-record-bind",
+                json={"record_id": "consult-other", "expected_version": updated["version"]},
+            )
+        self.assertEqual(rejected.status_code, 422)
+        self.assertIn("出生时间不一致", rejected.json()["error"])
 
     def test_question_job_locks_structured_snapshot_and_review_is_separate(self) -> None:
         created = self.client.post("/api/app/profiles", json={
@@ -138,12 +191,14 @@ class AppApiTest(unittest.TestCase):
         self.assertEqual(snapshot["question"], "本月合成岗位事项是否适合继续推进？")
         self.assertTrue(snapshot["key_time_windows"])
         self.assertFalse(captured["kwargs"]["include_dossier"])
-        self.assertIn("本人已确认的高级研究事实", captured["request"].situation)
+        self.assertIn("本人已确认事实资料", captured["request"].situation)
         self.assertNotIn("13800138000", captured["request"].situation)
         self.assertIn("[手机号已省略]", captured["request"].situation)
         self.assertTrue(snapshot["research_context"]["included"])
         self.assertEqual(snapshot["research_context"]["profile_research_version"], 1)
         self.assertEqual(len(snapshot["research_context"]["content_hash"]), 64)
+        self.assertIn("2024年：开始负责合成团队", snapshot["research_context"]["facts"])
+        self.assertEqual(snapshot["research_context"]["historical_reference"], "")
         self.assertTrue(prediction["content_hash"])
 
         reviewed = self.client.post(f"/api/app/predictions/{prediction['id']}/review", json={
