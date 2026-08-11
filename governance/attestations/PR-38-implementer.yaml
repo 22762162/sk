@@ -1,0 +1,24 @@
+artifact_id: PR-38-implementer
+timestamp: "2026-08-11T23:44:00+07:00"
+provider: openai
+model_id: gpt-5
+model_release: Codex session 2026-08-11(exact build unavailable)
+agent_role: implementer
+session_id: codex-main-repo-session(research-record-binding)
+run_manifest_id: none(synthetic API and browser smoke only)
+source_repository: https://github.com/22762162/sk
+source_commit: c591c0d3a769c60feea39ce7cc042959d4e69430(origin/main,PR #37 merge point)
+generated_files:
+  - backend/app.py(research record candidate listing, same-birth binding, split snapshot context)
+  - backend/tests/test_app_api.py
+  - web/app.html + web/app.js + web/index.html + web/sw.js
+  - backend/README.md + web/README.md
+  - docs/reviews/PR-38-research-record-binding-risk.md
+reviewed_files: []
+notes: >-
+  主仓常规模块实现会话；未修改 engine-paipan、contracts、prompts、rulebase/approved 或 evals。
+  同盘历史研究记录新增“本人点选→出生分钟校验→受限摘要绑定”路径，绑定内容是非事实参考，
+  不含辩手过程、裁判细节或逐年结论且不能验证自身。已确认事实与历史参考在问事输入和不可变
+  快照中分开标注。开发、API 测试与浏览器验收只使用合成资料，未读取或输出个人记录内容。
+  高风险路径涉及 backend/、web/ 与 governance/attestations，合入前仍需异厂商 reviewer
+  attestation 与本人完整审阅签署；本 attestation 不替代人类裁决。
