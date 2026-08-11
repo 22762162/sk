@@ -191,6 +191,19 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
   background: color-mix(in srgb, var(--surface) 95%, transparent);
   box-shadow: var(--shadow);
 }
+.role-protocol { margin-top: 26px; padding: 20px; }
+.role-protocol-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; }
+.role-protocol-heading .eyebrow { margin: 0; }
+.role-protocol-heading h2 { font-family: "Songti SC", serif; }
+.role-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+.role-chip { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+.role-chip strong, .role-chip span { display: block; }
+.role-chip strong { font-size: 14px; }
+.role-chip span { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.role-claude { border-top: 3px solid #b7794b; }
+.role-gpt { border-top: 3px solid var(--jade); }
+.role-deepseek { border-top: 3px solid #5679a6; }
+.role-protocol p { margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
 .today-card { position: relative; overflow: hidden; margin-top: 28px; padding: 22px; }
 .today-card::after {
   content: "";
@@ -208,6 +221,7 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 .transit-pillar small { display: block; color: var(--muted); font-size: 10px; letter-spacing: .12em; }
 .transit-pillar strong { display: block; margin-top: 5px; font-family: "Songti SC", serif; font-size: 25px; }
 .today-note { position: relative; z-index: 1; margin: 14px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.today-consult { position: relative; z-index: 2; margin-top: 14px; }
 .skeleton-row { display: flex; gap: 10px; margin: 18px 0 10px; }
 .skeleton-row span { width: 90px; height: 54px; border-radius: 14px; background: var(--jade-soft); animation: pulse 1.4s ease infinite alternate; }
 @keyframes pulse { to { opacity: .42; } }
@@ -229,6 +243,12 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 .quick-card:hover { border-color: var(--jade); background: var(--jade-soft); }
 .quick-card span { display: block; font-family: "Songti SC", serif; font-size: 20px; font-weight: 700; }
 .quick-card small { display: block; margin-top: 23px; color: var(--muted); font-size: 11px; }
+.feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.feature-card { min-height: 128px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-content: start; gap: 6px 10px; padding: 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); text-align: left; cursor: pointer; }
+.feature-card:hover { border-color: var(--jade); background: color-mix(in srgb, var(--jade-soft) 58%, var(--surface)); }
+.feature-card strong { align-self: center; font-size: 14px; }
+.feature-card small { grid-column: 1 / -1; margin-top: 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.feature-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 12px; background: var(--jade-soft); color: var(--jade-dark); font-family: "Songti SC", serif; font-weight: 800; }
 .compact-list, .profile-list, .record-list { display: grid; gap: 10px; }
 .empty-state { padding: 24px 16px; border: 1px dashed var(--line); border-radius: 18px; color: var(--muted); text-align: center; font-size: 13px; line-height: 1.7; }
 
@@ -284,6 +304,17 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 .snapshot-panel { padding: 14px; border-radius: 16px; background: color-mix(in srgb, var(--paper) 70%, transparent); }
 .snapshot-panel h3 { margin: 0 0 9px; font-size: 13px; }
 .snapshot-panel ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.role-analysis { padding: 16px; border: 1px solid color-mix(in srgb, var(--jade) 30%, var(--line)); border-radius: 18px; background: color-mix(in srgb, var(--jade-soft) 32%, transparent); }
+.role-analysis-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.role-analysis-heading h3 { margin: 0; font-size: 14px; }
+.role-analysis-heading span { color: var(--jade-dark); font-size: 10px; font-weight: 800; }
+.role-analysis-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.role-analysis-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.role-analysis-card strong { display: block; font-size: 12px; }
+.role-analysis-card small { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+.role-analysis-card ul { margin: 9px 0 0; padding-left: 16px; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.arbitration-note { margin: 12px 0 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.protocol-warning { padding: 12px; border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent); border-radius: 14px; background: var(--amber-soft); color: var(--muted); font-size: 11px; line-height: 1.65; }
 .snapshot-details { border-top: 1px solid var(--line); padding-top: 13px; }
 .snapshot-details summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 700; }
 .snapshot-details dl { display: grid; grid-template-columns: auto 1fr; gap: 7px 12px; margin-bottom: 0; color: var(--muted); font-size: 11px; word-break: break-all; }
@@ -378,6 +409,9 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
   .hero-row { align-items: start; flex-direction: column; }
   .hero-action { width: 100%; }
   .quick-grid { grid-template-columns: 1fr 1fr; }
+  .feature-grid { grid-template-columns: 1fr 1fr; }
+  .role-protocol-heading { align-items: start; flex-direction: column; }
+  .role-strip, .role-analysis-grid { grid-template-columns: 1fr; }
   .quick-card { min-height: 94px; }
   .field-grid, .snapshot-grid { grid-template-columns: 1fr; }
   .profile-chip { max-width: 118px; }

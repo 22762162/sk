@@ -135,6 +135,16 @@ class AppApiTest(unittest.TestCase):
         self.assertEqual(rejected.status_code, 422)
         self.assertIn("出生时间不一致", rejected.json()["error"])
 
+    def test_three_role_guard_rejects_single_provider_or_missing_view(self) -> None:
+        roles, protocol = backend_app._app_three_role_analysis({"debaters": [{
+            "role": "debater_a", "provider": "anthropic", "model": "synthetic",
+            "school": "ziping", "school_name": "子平格局派",
+            "claims": [{"claim": "只有一个合成观点"}],
+        }]})
+        self.assertEqual(len(roles), 1)
+        self.assertFalse(protocol["complete"])
+        self.assertTrue(protocol["fail_closed"])
+
     def test_question_job_locks_structured_snapshot_and_review_is_separate(self) -> None:
         created = self.client.post("/api/app/profiles", json={
             "name": "问事合成盘", "birth": "1991-02-03T09:15", "gender": "female",
@@ -153,10 +163,21 @@ class AppApiTest(unittest.TestCase):
             "chart": {"output": pillar_output},
             "consultation": {
                 "consultation_id": "consult-synthetic", "manifest_id": "consult-synthetic",
-                "arm": "S1",
-                "debaters": [{"provider": "synthetic", "model": "model-v1", "claims": [
-                    {"claim": "本月事业事项或有推进，但应以实际反馈为准"}
-                ]}],
+                "arm": "D3J",
+                "debaters": [
+                    {"role": "debater_a", "provider": "anthropic", "model": "claude-synthetic",
+                     "school": "ziping", "school_name": "子平格局派", "claims": [
+                         {"claim": "子平视角提示事项或有推进", "basis": "合成依据甲"}]},
+                    {"role": "debater_b", "provider": "openai", "model": "gpt-synthetic",
+                     "school": "wangshuai", "school_name": "旺衰扶抑派", "claims": [
+                         {"claim": "旺衰视角建议观察现实条件", "basis": "合成依据乙"}]},
+                    {"role": "debater_c", "provider": "deepseek", "model": "deepseek-synthetic",
+                     "school": "tiaohou", "school_name": "调候派", "claims": [
+                         {"claim": "调候视角提醒保留调整空间", "basis": "合成依据丙"}]},
+                ],
+                "judge": {"summary": "三方合成盲评摘要", "issues": [
+                    {"verdict": "unresolved"},
+                ]},
                 "plain_summary": {"overview": "合成综述", "domains": [{
                     "domain": "事业方向", "reading": "本月事业事项或有推进，但应以实际反馈为准",
                     "tendency": "favorable", "confidence": "medium",
@@ -191,6 +212,7 @@ class AppApiTest(unittest.TestCase):
         self.assertEqual(snapshot["question"], "本月合成岗位事项是否适合继续推进？")
         self.assertTrue(snapshot["key_time_windows"])
         self.assertFalse(captured["kwargs"]["include_dossier"])
+        self.assertEqual(captured["request"].arm, "D3J")
         self.assertIn("本人已确认事实资料", captured["request"].situation)
         self.assertNotIn("13800138000", captured["request"].situation)
         self.assertIn("[手机号已省略]", captured["request"].situation)
@@ -199,6 +221,11 @@ class AppApiTest(unittest.TestCase):
         self.assertEqual(len(snapshot["research_context"]["content_hash"]), 64)
         self.assertIn("2024年：开始负责合成团队", snapshot["research_context"]["facts"])
         self.assertEqual(snapshot["research_context"]["historical_reference"], "")
+        self.assertTrue(snapshot["three_role_protocol"]["complete"])
+        self.assertEqual(snapshot["three_role_protocol"]["distinct_providers"], 3)
+        self.assertEqual([r["provider_label"] for r in snapshot["three_role_analysis"]],
+                         ["Claude", "GPT", "DeepSeek"])
+        self.assertEqual(snapshot["arbitration"]["unresolved"], 1)
         self.assertTrue(prediction["content_hash"])
 
         reviewed = self.client.post(f"/api/app/predictions/{prediction['id']}/review", json={

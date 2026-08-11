@@ -1237,7 +1237,7 @@ APP_CATEGORIES = {
     "general": "其他事项",
 }
 APP_PERIODS = {"day", "month"}
-_APP_ALGORITHM_VERSION = "app-forecast-compose-v1.2.0"
+_APP_ALGORITHM_VERSION = "app-forecast-compose-v1.3.0"
 _APP_RESEARCH_SOURCES = {"manual", "advanced_dossier_reviewed", "advanced_record_reviewed"}
 
 
@@ -1315,6 +1315,66 @@ def _app_research_parts(profile: dict) -> tuple[str, str]:
         return "", context
     facts, reference = context.split(marker, 1)
     return facts.strip(), f"{marker}{reference}".strip()
+
+
+def _app_three_role_analysis(consultation: dict) -> tuple[list[dict], dict]:
+    """提取三家独立观点；任一角色、供应商或观点缺失时标记为不完整。"""
+    provider_labels = {"anthropic": "Claude", "openai": "GPT", "deepseek": "DeepSeek"}
+    roles = []
+    seen_roles, seen_providers = set(), set()
+    debaters = consultation.get("debaters", [])
+    if not isinstance(debaters, list):
+        debaters = []
+    for debater in debaters:
+        if not isinstance(debater, dict):
+            continue
+        role = _app_text(debater.get("role", ""), 30)
+        provider = _app_text(debater.get("provider", ""), 30).lower()
+        findings = []
+        claims = debater.get("claims", [])
+        if not isinstance(claims, list):
+            claims = []
+        for claim in claims[:3]:
+            if not isinstance(claim, dict):
+                continue
+            text = _model_minimize(claim.get("claim", ""), 280)
+            if not text:
+                continue
+            findings.append({
+                "claim": text,
+                "basis": _model_minimize(claim.get("basis", ""), 220),
+            })
+        roles.append({
+            "role": role,
+            "provider": provider,
+            "provider_label": provider_labels.get(provider, provider or "未知模型"),
+            "model": _app_text(debater.get("model", ""), 80),
+            "school": _app_text(debater.get("school", ""), 30),
+            "school_name": _app_text(debater.get("school_name", "独立视角"), 40),
+            "findings": findings,
+        })
+        if role:
+            seen_roles.add(role)
+        if provider:
+            seen_providers.add(provider)
+    seen_schools = {role["school"] for role in roles if role["school"]}
+    complete = (
+        len(roles) == 3
+        and seen_roles == {"debater_a", "debater_b", "debater_c"}
+        and seen_providers == {"anthropic", "openai", "deepseek"}
+        and seen_schools == {"ziping", "wangshuai", "tiaohou"}
+        and all(role["findings"] for role in roles)
+    )
+    return roles, {
+        "required_roles": 3,
+        "required_providers": ["anthropic", "openai", "deepseek"],
+        "actual_roles": len(roles),
+        "distinct_providers": len(seen_providers),
+        "distinct_schools": len(seen_schools),
+        "complete": complete,
+        "mode": "D3J_three_debaters_cross_exam_blind_judge",
+        "fail_closed": True,
+    }
 
 
 def _app_same_birth(left: str, right: str) -> bool:
@@ -1515,11 +1575,12 @@ def _app_snapshot(profile: dict, inquiry: dict, consultation_payload: dict,
     rule_version = "none-v0"
     research_context = _app_research_context(profile)
     research_facts, historical_reference = _app_research_parts(profile)
+    three_roles, three_role_protocol = _app_three_role_analysis(consultation)
     research_hash = hashlib.sha256(research_context.encode("utf-8")).hexdigest() if research_context else ""
     window_label = "今天" if inquiry["period"] == "day" else "本月"
     snapshot = {
         "schema_version": "prediction-snapshot-v1",
-        "source": "sanjian_s1_consultation",
+        "source": "sanjian_d3j_consultation",
         "profile_id": profile["id"],
         "profile_version": profile["version"],
         "period": inquiry["period"],
@@ -1557,8 +1618,15 @@ def _app_snapshot(profile: dict, inquiry: dict, consultation_payload: dict,
             "manifest_id": consultation.get("manifest_id"),
             "experiment_arm": consultation.get("arm"),
             "rulebase_version": rule_version,
-            "evidence_note": "当前规则库未启用；解读属于模型综合，确定性事实仅来自排盘引擎",
+            "evidence_note": "当前规则库未启用；解读来自三家模型独立分析与质证，确定性事实仅来自排盘引擎",
             "calendar_sources": transit.get("meta", {}).get("sources", ""),
+        },
+        "three_role_protocol": three_role_protocol,
+        "three_role_analysis": three_roles,
+        "arbitration": {
+            "summary": _model_minimize((consultation.get("judge") or {}).get("summary", ""), 500),
+            "unresolved": sum(1 for issue in (consultation.get("judge") or {}).get("issues", [])
+                              if isinstance(issue, dict) and issue.get("verdict") == "unresolved"),
         },
         "research_context": {
             "included": bool(research_context),
@@ -1765,7 +1833,7 @@ def app_question_start(req: AppQuestionReq) -> JSONResponse:
             consultation_req = ConsultReq(
                 birth=profile["birth"], zi_hour_mode=profile["zi_hour_mode"],
                 longitude=profile.get("longitude"), place=profile.get("place", ""),
-                arm="S1", gender=profile["gender"],
+                arm="D3J", gender=profile["gender"],
                 industry=_model_minimize(profile.get("industry", ""), 40),
                 occupation=_model_minimize(profile.get("occupation", ""), 40),
                 situation=situation,
@@ -1773,6 +1841,9 @@ def app_question_start(req: AppQuestionReq) -> JSONResponse:
             result = _run_consult_payload(consultation_req, include_dossier=False)
             if not result.get("ok"):
                 raise RuntimeError(result.get("error", "推演失败"))
+            _, protocol = _app_three_role_analysis(result.get("consultation") or {})
+            if not protocol["complete"]:
+                raise RuntimeError("三方会诊未完整返回，已停止生成单方结果，请稍后重试")
             snapshot, model_version, rule_version, calibration_version, confidence = _app_snapshot(
                 profile, inquiry, result, transit
             )

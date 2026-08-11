@@ -5,6 +5,26 @@
   const ROUTES = new Set(["home", "question", "records", "profile"]);
   const OUTCOMES = { hit: "命中", partial: "部分命中", miss: "未命中", unclear: "无法判断" };
   const TENDENCIES = { favorable: "偏顺", caution: "留意", neutral: "中性" };
+  const FEATURE_PRESETS = {
+    daily: {
+      period: "day", category: "general",
+      question: "请三方分别判断我今天最需要关注的机会、风险和可验证信号。",
+    },
+    month: {
+      period: "month", category: "general",
+      question: "请三方分别判断我本月的关键节点、主要风险和适合推进的行动窗口。",
+    },
+    zeri: {
+      period: "month", category: "general",
+      question: "请三方结合我要办的具体事情，判断本月更适合推进的时间窗口、避开条件和验证信号。",
+      background: "请补充：具体事项、最早与最晚日期、不可调整的现实条件。",
+    },
+    hehun: {
+      period: "month", category: "relationship",
+      question: "请三方分别判断这段关系本月的互动走向、主要分歧和可验证信号。",
+      background: "请补充：对方情况、当前关系阶段、你真正想确认的一件事。",
+    },
+  };
   const state = {
     profiles: [], activeProfile: null, predictions: [], stats: null, today: null,
     route: "home", filter: "", offline: !navigator.onLine, deferredInstall: null,
@@ -115,7 +135,6 @@
       state.today = { error: error.message };
     }
     renderToday();
-    loadTodayReading();
   }
 
   function updateNetwork() {
@@ -193,23 +212,7 @@
         <div class="transit-pillar"><small>月柱</small><strong>${esc(transit.month || "—")}</strong></div>
         <div class="transit-pillar"><small>日柱</small><strong>${esc(transit.day || "—")}</strong></div>
       </div><p class="today-note">${esc(state.today.note || "")}${state.offline ? " 当前为离线缓存。" : ""}</p>
-      <div id="today-reading" class="muted"></div>`;
-  }
-
-  async function loadTodayReading() {
-    const slot = document.getElementById("today-reading");
-    if (!slot || !state.activeProfile || !navigator.onLine) return;
-    slot.textContent = "今日解读生成中…";
-    try {
-      const d = await api(`/api/app/today-reading?profile_id=${encodeURIComponent(state.activeProfile.id)}`);
-      const t = { favorable: "#3f7d55", caution: "#b5762a", neutral: "#6b6459" }[d.tendency] || "#6b6459";
-      slot.innerHTML = `<div style="border-left:3px solid ${t};padding:6px 10px;border-radius:6px;background:rgba(125,90,60,0.06);margin-top:8px;">
-        <div>${esc(d.reading || "")}</div>
-        <div style="margin-top:4px;"><b>宜</b> ${esc(d.do || "")} ｜ <b>忌</b> ${esc(d.avoid || "")}</div>
-        <div style="font-size:11px;opacity:.7;margin-top:3px;">${esc(d.day_ganzhi || "")}日 · ${esc(d.jianchu || "")}日 · 传统日课参考</div></div>`;
-    } catch (error) {
-      slot.textContent = "";
-    }
+      <button type="button" class="small-action today-consult" data-home-feature="daily">发起今日三方研判</button>`;
   }
 
   const duePredictions = () => {
@@ -245,6 +248,21 @@
     const research = s.research_context || {};
     const natal = basis.natal_computed_facts || {};
     const transit = basis.transit_computed_facts || {};
+    const roles = Array.isArray(s.three_role_analysis) ? s.three_role_analysis : [];
+    const protocol = s.three_role_protocol || {};
+    const roleCards = roles.map(role => `<div class="role-analysis-card">
+      <strong>${esc(role.provider_label || role.provider || "独立模型")}</strong>
+      <small>${esc(role.school_name || role.school || "独立视角")}</small>
+      <ul>${(role.findings || []).map(finding => `<li>${esc(finding.claim || "")}${finding.basis ? `<small>依据：${esc(finding.basis)}</small>` : ""}</li>`).join("") || "<li>未保存观点</li>"}</ul>
+    </div>`).join("");
+    const arbitration = s.arbitration || {};
+    const roleBlock = protocol.complete && roles.length === 3
+      ? `<section class="role-analysis">
+          <div class="role-analysis-heading"><h3>三方独立判断</h3><span>3/3 完整 · 缺一不出结论</span></div>
+          <div class="role-analysis-grid">${roleCards}</div>
+          ${arbitration.summary ? `<p class="arbitration-note"><strong>盲评汇总：</strong>${esc(arbitration.summary)}${arbitration.unresolved ? ` · 保留 ${esc(arbitration.unresolved)} 项未决分歧` : ""}</p>` : ""}
+        </section>`
+      : `<div class="protocol-warning"><strong>旧版记录未保存三方拆分证据。</strong><br>这条记录可以继续复盘，但不能作为“三方完整会诊”的新样本；新版问事会在任一方缺席时停止生成结论。</div>`;
     return `<article class="prediction-card card">
       <div class="prediction-head">
         <div class="prediction-meta"><span>${esc(s.category_label || prediction.category)} · ${s.period === "day" ? "今天" : "本月"} · ${esc(fmtDate(s.asked_at || prediction.asked_at))}</span><span class="lock-badge">🔒 原始预测已锁定</span></div>
@@ -253,6 +271,7 @@
       </div>
       <div class="prediction-body">
         <div class="confidence-row" aria-label="${esc(confidenceLabel(s))}，${pct}%"><strong>${esc(confidenceLabel(s))}</strong><div class="confidence-track"><span style="width:${Math.max(0, Math.min(pct, 100))}%"></span></div><small>${pct}%</small></div>
+        ${roleBlock}
         <div class="snapshot-grid">
           <section class="snapshot-panel"><h3>有利触发条件</h3><ul>${list(s.favorable_triggers)}</ul></section>
           <section class="snapshot-panel"><h3>不利触发条件</h3><ul>${list(s.unfavorable_triggers)}</ul></section>
@@ -488,10 +507,10 @@
     try {
       const start = await api("/api/app/questions/start", { method: "POST", body: JSON.stringify(body) });
       let final = null;
-      for (let i = 0; i < 100; i += 1) {
+      for (let i = 0; i < 160; i += 1) {
         await new Promise(resolve => setTimeout(resolve, 3000));
         const elapsed = Math.round((Date.now() - started) / 1000);
-        progressText.textContent = `原问题已锁定，推演进行中 · ${elapsed} 秒`;
+        progressText.textContent = `原问题已锁定，三方独立分析、质证与盲评进行中 · ${elapsed} 秒`;
         const job = await api(`/api/consult/result?job_id=${encodeURIComponent(start.job_id)}`);
         if (job.status !== "running") { final = job; break; }
       }
@@ -551,8 +570,37 @@
     finally { button.disabled = false; }
   }
 
+  function openHomeFeature(feature) {
+    if (feature === "accuracy") {
+      routeTo("profile");
+      window.setTimeout(() => $("#stats-card")?.scrollIntoView({ behavior: "smooth", block: "center" }), 180);
+      return;
+    }
+    if (feature === "backup") {
+      toast("主机每天自动备份到“文稿/三鉴备份”，保留最近 14 份");
+      return;
+    }
+    const preset = FEATURE_PRESETS[feature];
+    if (!preset) return;
+    if (!state.activeProfile) {
+      routeTo("profile");
+      toast("先创建或选择基本盘，再发起三方会诊");
+      return;
+    }
+    const period = $(`input[name=period][value="${preset.period}"]`);
+    if (period) period.checked = true;
+    $("#question-category").value = preset.category;
+    $("#question-text").value = preset.question;
+    $("#question-background").value = preset.background || "";
+    routeTo("question");
+    window.setTimeout(() => (preset.background ? $("#question-background") : $("#question-text"))?.focus(), 180);
+    toast("已准备三方会诊问题，请补充现实背景后提交");
+  }
+
   function wireEvents() {
     document.addEventListener("click", event => {
+      const featureButton = event.target.closest("[data-home-feature]");
+      if (featureButton) { openHomeFeature(featureButton.dataset.homeFeature); return; }
       const routeButton = event.target.closest("[data-route]");
       if (routeButton) routeTo(routeButton.dataset.route);
     });
