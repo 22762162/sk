@@ -248,29 +248,46 @@
     const research = s.research_context || {};
     const natal = basis.natal_computed_facts || {};
     const transit = basis.transit_computed_facts || {};
+    const metrics = s.computed_metrics || {};
+    const metricNumber = value => Number.isFinite(Number(value))
+      ? Number(value).toLocaleString("zh-CN", { maximumFractionDigits: 2 }) : "—";
+    const metricsBlock = metrics.kind === "business_target"
+      ? `<section class="business-metrics" aria-label="经营目标确定性计算">
+          <div class="business-metrics-heading"><h3>先算清任务缺口</h3><span>确定性算术 · 非 AI 猜测</span></div>
+          <div class="business-metrics-grid">
+            <div><small>当前完成率</small><strong>${esc(metricNumber(metrics.completion_pct))}%</strong></div>
+            <div><small>距离目标</small><strong>${esc(metricNumber(metrics.gap))} 万元</strong></div>
+            <div><small>剩余日均要求</small><strong>${esc(metricNumber(metrics.required_daily))} 万元</strong></div>
+            <div><small>较前期需提升</small><strong>${metrics.required_lift_pct == null ? "数据不足" : `${esc(metricNumber(metrics.required_lift_pct))}%`}</strong></div>
+          </div>
+        </section>` : "";
     const roles = Array.isArray(s.three_role_analysis) ? s.three_role_analysis : [];
     const protocol = s.three_role_protocol || {};
+    const shownConclusion = s.source === "sanjian_d3j_consultation" && !protocol.direct_question
+      ? "这条旧结果没有直接回答原问题，已标记为不可用于行动判断；请用新版重新发起。"
+      : (s.conclusion || "");
     const roleCards = roles.map(role => `<div class="role-analysis-card">
       <strong>${esc(role.provider_label || role.provider || "独立模型")}</strong>
       <small>${esc(role.school_name || role.school || "独立视角")}</small>
-      <ul>${(role.findings || []).map(finding => `<li>${esc(finding.claim || "")}${finding.basis ? `<small>依据：${esc(finding.basis)}</small>` : ""}</li>`).join("") || "<li>未保存观点</li>"}</ul>
+      <ul>${(role.findings || []).map(finding => `<li>${esc(finding.claim || "")}${finding.basis ? `<small>依据 / 验证：${esc(finding.basis)}</small>` : ""}</li>`).join("") || "<li>未保存观点</li>"}</ul>
     </div>`).join("");
     const arbitration = s.arbitration || {};
-    const roleBlock = protocol.complete && roles.length === 3
+    const roleBlock = protocol.complete && protocol.direct_question && roles.length === 3
       ? `<section class="role-analysis">
           <div class="role-analysis-heading"><h3>三方独立判断</h3><span>3/3 完整 · 缺一不出结论</span></div>
           <div class="role-analysis-grid">${roleCards}</div>
           ${arbitration.summary ? `<p class="arbitration-note"><strong>盲评汇总：</strong>${esc(arbitration.summary)}${arbitration.unresolved ? ` · 保留 ${esc(arbitration.unresolved)} 项未决分歧` : ""}</p>` : ""}
         </section>`
-      : `<div class="protocol-warning"><strong>旧版记录未保存三方拆分证据。</strong><br>这条记录可以继续复盘，但不能作为“三方完整会诊”的新样本；新版问事会在任一方缺席时停止生成结论。</div>`;
+      : `<div class="protocol-warning"><strong>这条旧记录没有“三方直接回答原问题”的证据。</strong><br>它可保留作问题记录，但不应拿来指导行动或作为新版准确率样本；新版问事会在答非所问、基础十神矛盾或任一方缺席时停止保存。</div>`;
     return `<article class="prediction-card card">
       <div class="prediction-head">
         <div class="prediction-meta"><span>${esc(s.category_label || prediction.category)} · ${s.period === "day" ? "今天" : "本月"} · ${esc(fmtDate(s.asked_at || prediction.asked_at))}</span><span class="lock-badge">🔒 原始预测已锁定</span></div>
         <div class="prediction-question">${esc(s.question || prediction.question)}</div>
-        <p class="prediction-conclusion">${esc(s.conclusion || "")}</p>
+        <p class="prediction-conclusion">${esc(shownConclusion)}</p>
       </div>
       <div class="prediction-body">
         <div class="confidence-row" aria-label="${esc(confidenceLabel(s))}，${pct}%"><strong>${esc(confidenceLabel(s))}</strong><div class="confidence-track"><span style="width:${Math.max(0, Math.min(pct, 100))}%"></span></div><small>${pct}%</small></div>
+        ${metricsBlock}
         ${roleBlock}
         <div class="snapshot-grid">
           <section class="snapshot-panel"><h3>有利触发条件</h3><ul>${list(s.favorable_triggers)}</ul></section>
@@ -297,11 +314,14 @@
   function recordCard(p, compact = false) {
     const s = p.snapshot || {};
     const review = p.review;
+    const shownConclusion = s.source === "sanjian_d3j_consultation" && !s.three_role_protocol?.direct_question
+      ? "旧结果未直接回答原问题，已标记为不可用于行动判断。"
+      : (s.conclusion || "");
     return `<article class="record-card card">
       <div class="record-summary">
         <div class="record-top"><span class="record-category">${esc(s.category_label || p.category || "问事")}</span><span class="record-date">${esc(fmtDate(p.locked_at))}</span></div>
         <div class="record-question">${esc(s.question || p.question)}</div>
-        <p class="record-conclusion">${esc(s.conclusion || "")}</p>
+        <p class="record-conclusion">${esc(shownConclusion)}</p>
         <div class="record-actions">
           ${review ? `<span class="review-outcome">复盘：${esc(OUTCOMES[review.outcome] || review.outcome)}</span>` : `<button type="button" class="small-action review-open" data-id="${esc(p.id)}">结果复盘</button>`}
           <button type="button" class="text-button snapshot-open" data-id="${esc(p.id)}">${compact ? "查看" : "完整快照"}</button>
@@ -507,10 +527,10 @@
     try {
       const start = await api("/api/app/questions/start", { method: "POST", body: JSON.stringify(body) });
       let final = null;
-      for (let i = 0; i < 160; i += 1) {
+      for (let i = 0; i < 240; i += 1) {
         await new Promise(resolve => setTimeout(resolve, 3000));
         const elapsed = Math.round((Date.now() - started) / 1000);
-        progressText.textContent = `原问题已锁定，三方独立分析、质证与盲评进行中 · ${elapsed} 秒`;
+        progressText.textContent = `原问题已锁定，三方命盘分析、原问题直答与盲评进行中 · ${elapsed} 秒`;
         const job = await api(`/api/consult/result?job_id=${encodeURIComponent(start.job_id)}`);
         if (job.status !== "running") { final = job; break; }
       }

@@ -1,0 +1,24 @@
+artifact_id: PR-41-implementer
+timestamp: "2026-08-12T01:07:58+07:00"
+provider: openai
+model_id: gpt-5
+model_release: Codex session 2026-08-12(exact build unavailable)
+agent_role: implementer
+session_id: codex-main-repo-session(question-relevance)
+run_manifest_id: none(synthetic unit and browser validation only)
+source_repository: https://github.com/22762162/sk
+source_commit: 7a4b4f7cd257aea1b46c1ed6c20fc291ac3d3da3(origin/main,PR #40 merge point)
+generated_files:
+  - backend/app.py(original-question direct-answer round, deterministic business metrics, relevance and ten-god guards)
+  - backend/tests/test_app_api.py
+  - web/app.js + web/app.css + web/sw.js
+  - backend/README.md + web/README.md
+  - docs/reviews/PR-41-question-relevance-risk.md
+reviewed_files: []
+notes: >-
+  主仓常规模块实现会话；未修改 engine-paipan、consult-engine/luck.py、contracts、prompts、
+  rulebase/approved 或 evals。复用已有 Claude/Fable 起草的 chat/judge system prompts，不参与
+  prompts 编写。App 在基础 D3J 后要求 Claude、GPT、DeepSeek 分别直接回答原问题，再做轮换
+  盲评；经营任务先做确定性缺口与日均计算。答非所问、可识别十神/生克错误或任一方缺席时不
+  锁定预测。开发与测试仅使用合成命盘、合成问题和合成金额，未把本人记录写入仓库或日志。
+  高风险路径合入前仍需异厂商 reviewer attestation 与本人完整审阅签署。
