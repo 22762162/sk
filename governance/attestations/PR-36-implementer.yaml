@@ -1,0 +1,28 @@
+artifact_id: PR-36-implementer
+timestamp: "2026-08-11T22:14:38+07:00"
+provider: openai
+model_id: gpt-5
+model_release: Codex session 2026-08-10(exact build unavailable)
+agent_role: implementer
+session_id: codex-main-repo-session(pwa-prediction-loop)
+run_manifest_id: consult-20260810-165702-464ee5a8(synthetic live smoke only)
+source_repository: https://github.com/22762162/sk
+source_commit: 5aaccd48e0364283cef00cae08e8ddbca59764e1(main,PR #35 merge point)
+generated_files:
+  - consult-engine/personal_app.py(SQLite versioning, profiles, immutable snapshots/reviews, legacy import, calibration statistics)
+  - backend/app.py(/api/app profiles, today, async questions, predictions, reviews, PWA routes)
+  - backend/tests/test_personal_app.py + backend/tests/test_app_api.py
+  - web/app.html + web/app.css + web/app.js + web/manifest.webmanifest + web/sw.js + web/icons/*
+  - docs/screenshots/pwa-* + README.md + backend/README.md + web/README.md
+  - Makefile + .gitignore
+  - docs/reviews/PR-36-pwa-prediction-loop-risk.md
+reviewed_files: []
+notes: >-
+  主仓常规模块实现会话；未修改 engine-paipan、contracts、prompts、rulebase/approved 或 evals。
+  后续升级将旧高级研究档案中的本人事实改为“候选载入→人工检查→保存确认→问事引用”，
+  问事不再隐式注入未经当前基本盘确认的 dossier 摘要；大运、神煞与流年仍按场重新计算。
+  研究资料在基本盘中独立版本化，实际使用的去标识内容、版本和哈希进入不可变快照。
+  开发与浏览器验收仅使用合成命盘。真实 S1 合成问事在约 78 秒完成并锁定 64 位内容哈希，
+  对应测试会诊记录已移出既有 records 私有目录，避免污染个人历史。高风险路径涉及
+  backend/、consult-engine/ 与 governance/attestations，合入前仍需异厂商 reviewer attestation
+  与本人完整审阅签署；本 attestation 不替代人类裁决。

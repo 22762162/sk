@@ -1,7 +1,7 @@
 # 三鉴(SanJian)· 私人研究项目
 
 研究「确定性排盘 + 多模型互证」技术架构:**开发态** Fable 5(Claude Code)× Codex 双模型,
-**运行态** DeepSeek × GPT × Claude 三师会诊。工程设计见 `docs/DESIGN.md`(V2.1)。
+**运行态** DeepSeek × GPT × Claude 三师会诊。工程设计见 `docs/DESIGN.md`(V3.0)。
 本项目不上架、不收费、不向第三方提供服务;性质变更闸门见 DESIGN 第 9.3 节。
 
 ## 仓库结构(DESIGN V3.0 第 4 节,三仓之主仓)
@@ -36,6 +36,7 @@ make duipai         # 双实现对拍(需同级目录克隆 sk-paipan-reference)
 make redline        # 输出文案红线扫描(backend/、web/)
 make governance-check  # CLAUDE.md/AGENTS.md 与治理事实源同步校验
 make install-hooks  # 安装 git pre-commit 闸门(本机执行一次)
+make v1-serve       # 启动手机优先 PWA（/）与原高级研究页（/legacy）
 ```
 
 ## 三条核心纪律(全文见 governance/ai-invariants.yaml)
