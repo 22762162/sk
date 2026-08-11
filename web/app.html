@@ -191,15 +191,15 @@
               <div><span class="eyebrow">高级研究联动</span><h3 id="profile-research-title">已确认研究资料</h3></div>
               <span id="profile-research-status" class="status-badge">未绑定</span>
             </div>
-            <p>大运、神煞与流年会在每次问事时重新计算。这里只保存你确认过的既成事实；旧模型结论不会自动回灌。</p>
-            <label class="field">事实资料 <span class="optional">选填</span>
+            <p>大运、神煞与流年会在每次问事时重新计算。可保存你确认过的事实，也可从高级研究历史记录中显式绑定一条旧研究作为非事实参考。</p>
+            <label class="field">研究资料 <span class="optional">选填</span>
               <textarea id="profile-research" maxlength="1200" rows="5" placeholder="例如：2024年：开始负责新的业务团队。只写已经发生、能够核对的事实。"></textarea>
               <span class="field-hint">从高级研究载入后仍需检查，并点击“保存基本盘”才会用于后续问事。</span>
             </label>
             <input id="profile-research-source" type="hidden" value="manual">
             <div class="research-actions">
               <button id="profile-research-import" class="secondary-action" type="button">从高级研究载入</button>
-              <a class="text-button" href="/legacy">打开高级研究</a>
+              <a id="profile-research-open" class="text-button" href="/legacy#history">打开高级研究历史记录</a>
             </div>
           </section>
           <div id="profile-error" class="form-error" role="alert" hidden></div>
