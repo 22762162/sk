@@ -422,29 +422,54 @@ def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int =
     case_hash = _sha(json.dumps(chart, ensure_ascii=False, sort_keys=True))
     order = [DEBATERS[(i + seed) % 3]["role"] for i in range(3)]  # 脱敏呈现顺序(可复现)
 
-    # S1:单模型基线(取 debater_a 一路,不辩论)
+    # 降级容错(诚实降级):单家欠费/宕机不废整场,但缺席必须如实标注,决不冒充满编
+    absent: list[dict] = []
+
+    # S1:单模型基线(优先 debater_a,不可用则按序补位,不辩论)
     if arm == "S1":
-        d0 = _call_debater(DEBATERS[0], chart_line, profile)
+        d0 = None
+        for cand in DEBATERS:
+            try:
+                d0 = _call_debater(cand, chart_line, profile)
+                break
+            except Exception as exc:  # noqa: BLE001
+                absent.append({"provider": cand["provider"], "model": cand["model"],
+                               "reason": str(exc)[:120]})
+        if d0 is None:
+            raise ConsultError("单模型会诊失败:三家供应商均不可用")
         assignments = [d0]
         cross, judge = [], None
     else:
         # 第一轮:三辩手并发独立出观点(带本人职业/处境背景,推演落地不泛化)
+        def _try_debater(d: dict):
+            try:
+                return ("ok", _call_debater(d, chart_line, profile))
+            except Exception as exc:  # noqa: BLE001
+                return ("fail", {"provider": d["provider"], "model": d["model"],
+                                 "reason": str(exc)[:120]})
         with ThreadPoolExecutor(max_workers=3) as ex:
-            assignments = list(ex.map(lambda d: _call_debater(d, chart_line, profile), DEBATERS))
+            results = list(ex.map(_try_debater, DEBATERS))
+        assignments = [r[1] for r in results if r[0] == "ok"]
+        absent = [r[1] for r in results if r[0] == "fail"]
+        if len(assignments) < 2:
+            raise ConsultError("会诊失败:可用辩手不足两位("
+                               + "；".join(f"{a['provider']}:{a['reason']}" for a in absent) + ")")
+        alive = [d for d in DEBATERS if d["role"] in {a["role"] for a in assignments}]
+        order = [alive[(i + seed) % len(alive)]["role"] for i in range(len(alive))]
         claims_by_role = {a["role"]: a["claims"] for a in assignments}
 
         cross = []
         if arm in ("D3", "D3J"):
-            # 第二轮:每位辩手看另两方匿名观点后质证(并发)
+            # 第二轮:每位在场辩手看其余匿名观点后质证(并发)
             with ThreadPoolExecutor(max_workers=3) as ex:
                 cross = list(ex.map(
                     lambda d: _call_cross_exam(d, _anon_blob(claims_by_role, d["role"], order)),
-                    DEBATERS))
+                    alive))
 
         judge = None
         if arm == "D3J":
-            # 裁判轮换:从三家取一路(由 seed 决定),盲评脱敏材料
-            jd = DEBATERS[seed % 3]
+            # 裁判轮换:从在场各家取一路(由 seed 决定),盲评脱敏材料
+            jd = alive[seed % len(alive)]
             material_parts = []
             for role in order:
                 a = next(x for x in assignments if x["role"] == role)
@@ -507,5 +532,6 @@ def run_consultation(chart: dict, chart_line: str, arm: str = "D3J", seed: int =
         "judge": ({"by": f"{judge['provider']}(轮换盲评)", **judge["verdict"]}
                   if judge else None),
         "plain_summary": ({k: v for k, v in plain.items() if k != "_run_id"} if plain else None),
+        "absent": absent,  # 缺席供应商(降级会诊时非空,前端必须明示)
         "manifest_id": cid,
     }

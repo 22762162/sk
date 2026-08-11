@@ -1,25 +1,18 @@
 artifact_id: PR-39-implementer
-timestamp: "2026-08-12T00:20:14+07:00"
-provider: openai
-model_id: gpt-5
-model_release: Codex session 2026-08-12(exact build unavailable)
+timestamp: "2026-08-12T01:20:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
 agent_role: implementer
-session_id: codex-main-repo-session(app-three-role-home)
-run_manifest_id: none(synthetic API and browser smoke only)
+session_id: claude-code-session(会诊诚实降级;OpenAI 欠费事故驱动)
+run_manifest_id: null
 source_repository: https://github.com/22762162/sk
-source_commit: 862d12c07f279d12df1ee78685ac61e7a22d8e34(origin/main,PR #38 merge point)
+source_commit: 862d12c(main,PR #38 合并点)
 generated_files:
-  - backend/app.py(D3J-only App questions, strict three-role guard, auditable snapshot)
-  - backend/tests/test_app_api.py
-  - web/app.html + web/app.css + web/app.js + web/index.html + web/sw.js
-  - backend/README.md + web/README.md
-  - docs/reviews/PR-39-app-three-role-home-risk.md
+  - consult-engine/consult.py(run_consultation:辩手 try-map,≥2 在场降级续跑;order/质证/裁判改按在场者;absent 入 payload;S1 按序补位;<2 家如实报错)
+  - web/index.html(renderConsult:absent 黄条警示,标题按实际辩手数措辞)
 reviewed_files: []
 notes: >-
-  主仓常规模块实现会话；未修改 engine-paipan、consult-engine/luck.py、contracts、prompts、
-  rulebase/approved 或 evals。App 用户问事从单模型 S1 改为 D3J，严格校验 Claude/子平、
-  GPT/旺衰、DeepSeek/调候三方完整后才锁定预测，并在快照中分别保存观点与盲评摘要。
-  首页加入六个生活化入口，单模型今日解读不再自动调用；高级研究绑定改为页面内二次确认，
-  规避 iOS WebView 弹窗无响应。开发、API 测试与浏览器验收只使用合成资料，未读取或输出
-  个人记录内容。高风险路径涉及 backend/、web/ 与治理 attestation，合入前仍需异厂商
-  reviewer attestation 与本人完整审阅签署；本 attestation 不替代人类裁决。
+  事故:OpenAI 额度耗尽导致 D3J 整场失败(fail_closed 原语义)。修正为「诚实降级」:不冒充满编,
+  缺席方、原因、互证力度警示全部明示;研究模式不降级。实测:假 OpenAI 钥匙 → 2辩手/2质证/裁判轮换/白话
+  全链路通过,absent=[openai,401]。用户已为 OpenAI 充值,满编路径亦恢复。本人签署由合并动作承载。

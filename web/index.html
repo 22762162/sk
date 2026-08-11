@@ -350,7 +350,11 @@ function renderConsult(j) {
   {
     const cs = j.consultation;
     window.LASTC = {line: (j.chart && j.chart.line) || '', hash: cs.consultation_id || ''};
-    let html = `<div style="font-size:13px;color:#7a6f5f;margin-bottom:12px;">会诊 ${cs.consultation_id} · 实验臂 ${cs.arm} · 三家异构模型互证</div>`;
+    let html = `<div style="font-size:13px;color:#7a6f5f;margin-bottom:12px;">会诊 ${cs.consultation_id} · 实验臂 ${cs.arm} · ${(cs.debaters||[]).length>=3?'三家异构模型互证':'异构模型互证'}</div>`;
+    if (cs.absent && cs.absent.length) {
+      html += `<div style="border:1px solid #b5762a;background:#fbf3e6;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;color:#8a5a2a;">
+        ⚠ 本场降级会诊:缺席 ${cs.absent.map(a=>esc(a.provider)+'('+esc((a.reason||'').slice(0,40))+')').join('、')} —— 仅 ${(cs.debaters||[]).length} 位辩手出场,结论互证力度弱于满编,重要决定建议供应商恢复后重跑。</div>`;
+    }
     if (j._record_id) {
       html += `<div style="border:1px solid #b9d2c5;border-radius:8px;background:#eef6f0;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
         <span style="font-size:12px;color:#2c6a66;">这是历史高级研究记录，可直接绑定到同生日的 App 基本盘。</span>
