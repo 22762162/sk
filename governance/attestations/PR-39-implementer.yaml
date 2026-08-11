@@ -1,0 +1,18 @@
+artifact_id: PR-39-implementer
+timestamp: "2026-08-12T01:20:00+07:00"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+session_id: claude-code-session(会诊诚实降级;OpenAI 欠费事故驱动)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 862d12c(main,PR #38 合并点)
+generated_files:
+  - consult-engine/consult.py(run_consultation:辩手 try-map,≥2 在场降级续跑;order/质证/裁判改按在场者;absent 入 payload;S1 按序补位;<2 家如实报错)
+  - web/index.html(renderConsult:absent 黄条警示,标题按实际辩手数措辞)
+reviewed_files: []
+notes: >-
+  事故:OpenAI 额度耗尽导致 D3J 整场失败(fail_closed 原语义)。修正为「诚实降级」:不冒充满编,
+  缺席方、原因、互证力度警示全部明示;研究模式不降级。实测:假 OpenAI 钥匙 → 2辩手/2质证/裁判轮换/白话
+  全链路通过,absent=[openai,401]。用户已为 OpenAI 充值,满编路径亦恢复。本人签署由合并动作承载。

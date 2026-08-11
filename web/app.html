@@ -43,11 +43,24 @@
         <div class="eyebrow" id="today-label">今日</div>
         <div class="hero-row">
           <div>
-            <h1 id="home-title">先问清楚，再交给时间验证。</h1>
-            <p>每次推演都会原样锁定。事实发生后复盘，样本够了才谈个人准确率。</p>
+            <h1 id="home-title">三方独立判断，再给出可验证结论。</h1>
+            <p>Claude、GPT、DeepSeek 分别判断、交叉质证，再由盲评汇总。任一方缺席，APP 不生成单方结论。</p>
           </div>
-          <button class="primary-action hero-action" type="button" data-route="question">开始问事</button>
+          <button class="primary-action hero-action" type="button" data-route="question">发起三方会诊</button>
         </div>
+
+        <section class="role-protocol card" aria-labelledby="role-protocol-title">
+          <div class="role-protocol-heading">
+            <span class="eyebrow">三鉴核心协议</span>
+            <h2 id="role-protocol-title">三种模型 · 三种命理视角</h2>
+          </div>
+          <div class="role-strip">
+            <div class="role-chip role-claude"><strong>Claude</strong><span>子平格局</span></div>
+            <div class="role-chip role-gpt"><strong>GPT</strong><span>旺衰扶抑</span></div>
+            <div class="role-chip role-deepseek"><strong>DeepSeek</strong><span>调候平衡</span></div>
+          </div>
+          <p>独立分析 → 匿名质证 → 轮换盲评；分歧会保留，不用一方意见冒充共识。</p>
+        </section>
 
         <article id="today-card" class="today-card card" aria-live="polite" aria-busy="true">
           <div class="card-kicker">今日流运 · 计算事实</div>
@@ -56,6 +69,20 @@
           </div>
           <p class="muted">正在读取今日年、月、日柱…</p>
         </article>
+
+        <section class="section-block" aria-labelledby="features-title">
+          <div class="section-heading">
+            <div><span class="eyebrow">最新能力</span><h2 id="features-title">都从三方会诊进入</h2></div>
+          </div>
+          <div class="feature-grid">
+            <button type="button" class="feature-card" data-home-feature="daily"><span class="feature-icon" aria-hidden="true">日</span><strong>今日三方研判</strong><small>机会、风险与验证信号</small></button>
+            <button type="button" class="feature-card" data-home-feature="month"><span class="feature-icon" aria-hidden="true">月</span><strong>本月流月研判</strong><small>关键节点与行动窗口</small></button>
+            <button type="button" class="feature-card" data-home-feature="zeri"><span class="feature-icon" aria-hidden="true">时</span><strong>三方择时</strong><small>结合事项筛选时间窗口</small></button>
+            <button type="button" class="feature-card" data-home-feature="hehun"><span class="feature-icon" aria-hidden="true">合</span><strong>关系 / 合盘</strong><small>分别判断关系与互动</small></button>
+            <button type="button" class="feature-card" data-home-feature="accuracy"><span class="feature-icon" aria-hidden="true">准</span><strong>命中率仪表盘</strong><small>只用锁定后的未来复盘</small></button>
+            <button type="button" class="feature-card" data-home-feature="backup"><span class="feature-icon" aria-hidden="true">备</span><strong>本机数据备份</strong><small>每日备份，保留最近 14 份</small></button>
+          </div>
+        </section>
 
         <section class="section-block" aria-labelledby="quick-title">
           <div class="section-heading">
@@ -80,9 +107,9 @@
 
       <section id="view-question" class="app-view" data-view="question" aria-labelledby="question-title" hidden>
         <div class="page-heading">
-          <span class="eyebrow">每日 / 当月问事</span>
-          <h1 id="question-title">把问题说具体。</h1>
-          <p>提问时间由系统自动记录；结果生成后即锁定，之后的校准不会改写它。</p>
+          <span class="eyebrow">三方独立问事</span>
+          <h1 id="question-title">一件事，听完三方再判断。</h1>
+          <p>三种模型先独立分析再质证；提问时间与结果都会锁定，之后的校准不会改写原结论。</p>
         </div>
 
         <div id="question-no-profile" class="notice warning" hidden>
@@ -125,14 +152,14 @@
           </label>
 
           <div id="question-research-status" class="research-status" aria-live="polite"></div>
-          <div class="privacy-line"><span aria-hidden="true">⌁</span> 原始生日留在本机；模型只接收命盘结构、去标识问题与本人确认的研究事实。</div>
+          <div class="privacy-line"><span aria-hidden="true">⌁</span> 原始生日留在本机；三方只接收命盘结构、去标识问题与本人确认的研究事实。</div>
           <div id="question-error" class="form-error" role="alert" hidden></div>
-          <button id="question-submit" class="primary-action full" type="submit">生成并锁定预测</button>
+          <button id="question-submit" class="primary-action full" type="submit">启动三方会诊并锁定预测</button>
         </form>
 
         <div id="question-progress" class="progress-card card" aria-live="polite" hidden>
           <div class="orb" aria-hidden="true"></div>
-          <div><strong>正在结合基本盘与当前流运</strong><p id="question-progress-text">已记录提问时间，正在生成结构化预测…</p></div>
+          <div><strong>Claude、GPT、DeepSeek 正在独立分析</strong><p id="question-progress-text">已记录提问时间，三方完成后才会进入质证与盲评…</p></div>
         </div>
         <div id="prediction-result" aria-live="polite"></div>
       </section>

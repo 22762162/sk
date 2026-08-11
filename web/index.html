@@ -134,7 +134,6 @@
       <button type="button" id="bc" style="background:#8a5a2a;">① 验过去 · 铁口直断</button>
       <button type="button" id="cs" style="background:#6b3f6b;">② 三模型会诊(推未来)</button>
       <button type="button" id="ly" style="background:#2c6a66;">本年流月(逐月)</button>
-      <button type="button" id="qc" style="background:#4a5f8c;">快速会诊(约1分钟)</button>
       <button type="button" id="pb" style="background:#7d5a3c;">AI 发问(补精度)</button>
       <span style="font-size:12px;color:#8a7f6e;">建议先「验过去」打分——说得准过去,未来才有分量;打分自动校准后续推演。</span>
     </div>
@@ -288,12 +287,11 @@ const VERDICT = {
   dissent:   {t:'流派分歧(保留)', c:'#8c6a2f'},
   unresolved:{t:'证据不足·未决', c:'#7a6f5f'}
 };
-document.getElementById('cs').addEventListener('click', () => runConsultFlow('D3J', 'cs'));
-document.getElementById('qc').addEventListener('click', () => runConsultFlow('S1', 'qc'));
-async function runConsultFlow(arm, btnId) {
-  const box = document.getElementById('csout'), btn = document.getElementById(btnId);
+document.getElementById('cs').addEventListener('click', runConsultFlow);
+async function runConsultFlow() {
+  const box = document.getElementById('csout'), btn = document.getElementById('cs');
   box.style.display = 'block';
-  box.innerHTML = '<span style="color:#7a6f5f;">' + (arm==='S1' ? '快速会诊启动中(单模型,约 1–2 分钟)…' : '三模型会诊启动中…') + '</span>';
+  box.innerHTML = '<span style="color:#7a6f5f;">三模型会诊启动中…</span>';
   btn.disabled = true;
   const birth = document.getElementById('d').value + 'T' + document.getElementById('t').value;
   try {
@@ -301,7 +299,7 @@ async function runConsultFlow(arm, btnId) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({birth, zi_hour_mode: document.getElementById('mode').value, gender: document.getElementById('gender').value,
         industry: document.getElementById('industry').value, occupation: document.getElementById('occupation').value,
-        situation: document.getElementById('situation').value, arm: arm, ...birthGeo()})
+        situation: document.getElementById('situation').value, arm: 'D3J', ...birthGeo()})
     });
     const sj = await sr.json();
     if (!sj.ok || !sj.job_id) { box.innerHTML = '<span style="color:#a33;">会诊启动失败,请确认服务运行</span>'; return; }
@@ -352,7 +350,11 @@ function renderConsult(j) {
   {
     const cs = j.consultation;
     window.LASTC = {line: (j.chart && j.chart.line) || '', hash: cs.consultation_id || ''};
-    let html = `<div style="font-size:13px;color:#7a6f5f;margin-bottom:12px;">会诊 ${cs.consultation_id} · 实验臂 ${cs.arm} · 三家异构模型互证</div>`;
+    let html = `<div style="font-size:13px;color:#7a6f5f;margin-bottom:12px;">会诊 ${cs.consultation_id} · 实验臂 ${cs.arm} · ${(cs.debaters||[]).length>=3?'三家异构模型互证':'异构模型互证'}</div>`;
+    if (cs.absent && cs.absent.length) {
+      html += `<div style="border:1px solid #b5762a;background:#fbf3e6;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;color:#8a5a2a;">
+        ⚠ 本场降级会诊:缺席 ${cs.absent.map(a=>esc(a.provider)+'('+esc((a.reason||'').slice(0,40))+')').join('、')} —— 仅 ${(cs.debaters||[]).length} 位辩手出场,结论互证力度弱于满编,重要决定建议供应商恢复后重跑。</div>`;
+    }
     if (j._record_id) {
       html += `<div style="border:1px solid #b9d2c5;border-radius:8px;background:#eef6f0;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
         <span style="font-size:12px;color:#2c6a66;">这是历史高级研究记录，可直接绑定到同生日的 App 基本盘。</span>
@@ -1180,15 +1182,47 @@ async function loadHist(){
 }
 
 async function bindRecordToApp(recordId, recordBirth, button){
-  const oldText=button.textContent;
+  const oldText=button.dataset.originalText||button.textContent;
+  button.dataset.originalText=oldText;
+  const host=button.parentElement;
+  let status=host.querySelector('.app-bind-status');
+  if(!status){
+    status=document.createElement('div');
+    status.className='app-bind-status';
+    status.style.cssText='flex-basis:100%;font-size:12px;line-height:1.6;color:#2c6a66;';
+    host.appendChild(status);
+  }
+  const showStatus=(message,isError=false)=>{
+    status.textContent=message;
+    status.style.color=isError?'#9d453f':'#2c6a66';
+  };
+  if(button.dataset.confirmRecord!==recordId){
+    button.dataset.confirmRecord=recordId;
+    button.textContent='再次点击确认绑定';
+    showStatus('再次点击后绑定到同生日的 App 基本盘。旧研究只作非事实参考。');
+    clearTimeout(button._bindResetTimer);
+    button._bindResetTimer=setTimeout(()=>{
+      if(!button.disabled && button.dataset.confirmRecord===recordId){
+        delete button.dataset.confirmRecord;
+        button.textContent=oldText;
+        status.textContent='';
+      }
+    },10000);
+    return;
+  }
+  delete button.dataset.confirmRecord;
+  clearTimeout(button._bindResetTimer);
   button.disabled=true; button.textContent='检查基本盘…';
   try{
     const boot=await (await fetch('/api/app/bootstrap')).json();
+    if(!boot.ok) throw new Error(boot.error||'读取 App 基本盘失败');
     const minute=v=>String(v||'').slice(0,16);
     const matches=(boot.profiles||[]).filter(p=>minute(p.birth)===minute(recordBirth));
-    if(!matches.length){ alert('App 中没有与这条记录出生时间一致的基本盘。请先返回 App 创建或修正基本盘。'); return; }
+    if(!matches.length){
+      showStatus('App 中没有与这条记录出生时间一致的基本盘。请先返回 App 创建或修正基本盘。',true);
+      return;
+    }
     const profile=matches.find(p=>p.is_active)||matches[0];
-    if(!confirm(`把这条历史高级研究记录绑定到 App 基本盘“${profile.name}”？\n\n旧研究只作参考，不会被当作事实或自身验证。`)) return;
     button.textContent='绑定中…';
     const response=await fetch('/api/app/profiles/'+encodeURIComponent(profile.id)+'/research-record-bind',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -1198,8 +1232,8 @@ async function bindRecordToApp(recordId, recordBirth, button){
     if(!result.ok) throw new Error(result.error||'绑定失败');
     button.textContent='✓ 已绑定到 '+result.profile.name;
     button.style.background='#3f7d55';
-    alert('绑定完成。返回 App 后，问事会把这条旧研究作为历史参考；大运、神煞与流年仍会重新计算。');
-  }catch(error){ alert(error.message||'绑定失败，请重试'); button.textContent=oldText; button.disabled=false; }
+    showStatus('绑定完成。返回 App 后，三方问事会引用这条历史参考；大运、神煞与流年仍会重新计算。');
+  }catch(error){ showStatus(error.message||'绑定失败，请重试',true); button.textContent=oldText; button.disabled=false; }
   finally{ if(!button.textContent.startsWith('✓')){ button.textContent=oldText; button.disabled=false; } }
 }
 async function viewRecord(rid){
