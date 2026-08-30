@@ -1,6 +1,7 @@
 """L3 推理网关(最小实现,DESIGN V3.1 §0/§3.3)。
 
-- 多供应商抽象:anthropic / gemini / deepseek(密钥从环境读取,进程内使用,
+- 多供应商抽象:anthropic / gemini / deepseek，加上仅供评测的 openai
+  (密钥从环境读取,进程内使用,
   永不写日志、永不返回给调用方之外的通道;INV-07)。
 - fail_closed:密钥缺失、供应商报错、超出日调用熔断 → 抛 GatewayError,不静默降级。
 - 每次调用落 run manifest(INV-06;schema 见 contracts/schemas/run-manifest.schema.json),
@@ -45,6 +46,10 @@ PROVIDERS = {
         "env": "GEMINI_API_KEY",
         "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
     },
+    "openai": {
+        "env": "OPENAI_API_KEY",
+        "url": "https://api.openai.com/v1/chat/completions",
+    },
     "deepseek": {
         "env": "DEEPSEEK_API_KEY",
         "url": "https://api.deepseek.com/chat/completions",
@@ -88,11 +93,15 @@ def call(provider: str, model_id: str, system: str, user: str,
         }
         # Gemini 3.x 使用模型默认推理配置；官方迁移说明建议移除旧采样参数。
         send_temp = False
-    else:  # DeepSeek 的 OpenAI 兼容协议
+    else:  # OpenAI / DeepSeek 的 Chat Completions 协议
         headers = {"Authorization": f"Bearer {key}", "content-type": "application/json"}
-        payload = {"model": model_id, "max_tokens": max_tokens,
+        token_field = "max_completion_tokens" if provider == "openai" else "max_tokens"
+        payload = {"model": model_id, token_field: max_tokens,
                    "messages": [{"role": "system", "content": system},
                                 {"role": "user", "content": user}]}
+        # GPT-5.6 使用推理模型默认采样；不发送 temperature。
+        if provider == "openai":
+            send_temp = False
     if send_temp:
         payload["temperature"] = temperature
 

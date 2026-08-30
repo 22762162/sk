@@ -63,6 +63,28 @@ class GeminiGatewayTest(unittest.TestCase):
             with self.assertRaisesRegex(gateway.GatewayError, "未返回正文:SAFETY"):
                 gateway.call("gemini", "gemini-3.6-flash", "system", "user")
 
+    def test_openai_is_available_for_bakeoff_without_joining_runtime_three(self) -> None:
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            "model": "gpt-5.6-sol",
+            "choices": [{"message": {"content": '{"ok":true}'}}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 4},
+        }
+        with tempfile.TemporaryDirectory() as temp_dir, \
+                patch.dict(os.environ, {"OPENAI_API_KEY": "synthetic-key"}), \
+                patch.object(gateway, "MANIFEST_DIR", Path(temp_dir)), \
+                patch.object(gateway.httpx, "post", return_value=response) as post:
+            result = gateway.call(
+                "openai", "gpt-5.6-sol", "system", "user",
+                max_tokens=222, temperature=0.0,
+            )
+
+        self.assertEqual(result["text"], '{"ok":true}')
+        self.assertEqual(post.call_args.args[0], "https://api.openai.com/v1/chat/completions")
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["max_completion_tokens"], 222)
+        self.assertNotIn("temperature", payload)
+
 
 if __name__ == "__main__":
     unittest.main()

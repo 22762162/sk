@@ -1,0 +1,55 @@
+{
+  "schema_version": "four-model-bakeoff-config-v1",
+  "frozen_at": "2026-08-30",
+  "seed": 20260830,
+  "repetitions": 3,
+  "questions_per_repeat": 60,
+  "batch_size": 15,
+  "models": [
+    {
+      "family": "Claude",
+      "provider": "anthropic",
+      "model_id": "claude-fable-5"
+    },
+    {
+      "family": "ChatGPT",
+      "provider": "openai",
+      "model_id": "gpt-5.6-sol"
+    },
+    {
+      "family": "Gemini",
+      "provider": "gemini",
+      "model_id": "gemini-3.1-pro-preview"
+    },
+    {
+      "family": "DeepSeek",
+      "provider": "deepseek",
+      "model_id": "deepseek-v4-pro"
+    }
+  ],
+  "categories": {
+    "shishen": 20,
+    "branch_rel": 16,
+    "chart_elements": 8,
+    "dayun": 8,
+    "ganzhi_calendar": 8
+  },
+  "oracle": {
+    "module": "consult-engine/luck.py",
+    "meaning": "current_rule_contract_consistency",
+    "not_claimed": "scientific_or_real_world_predictive_validity"
+  },
+  "scoring": {
+    "primary": "exact_choice_accuracy",
+    "secondary": [
+      "category_accuracy",
+      "missing_answer_rate",
+      "schema_valid_rate",
+      "cross_repeat_stability",
+      "latency_seconds",
+      "token_usage"
+    ],
+    "minimum_closed_cases_for_preliminary_prediction_ranking": 30,
+    "minimum_closed_cases_for_stage_prediction_ranking": 100
+  }
+}

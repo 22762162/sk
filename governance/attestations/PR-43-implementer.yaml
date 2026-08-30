@@ -1,0 +1,24 @@
+artifact_id: PR-43-implementer
+timestamp: "2026-08-30T22:00:00+07:00"
+provider: openai
+model_id: gpt-5
+model_release: Codex session 2026-08-30(exact build unavailable)
+agent_role: implementer
+session_id: codex-main-repo-session(four-model-bakeoff-protocol)
+run_manifest_id: local ignored manifests(four synthetic connectivity checks only)
+source_repository: https://github.com/22762162/sk
+source_commit: d9efda7(PR #42 head,stacked base)
+generated_files:
+  - consult-engine/gateway.py(OpenAI provider for evaluation only)
+  - backend/tests/test_gateway.py(OpenAI request mapping unit test)
+  - evals/four_model_bakeoff/README.md
+  - evals/four_model_bakeoff/config.json
+  - evals/four_model_bakeoff/request-system.txt
+  - docs/reviews/PR-43-four-model-protocol-risk.md
+reviewed_files: []
+notes: >-
+  冻结 Claude、ChatGPT、Gemini、DeepSeek 四家高能力型号的同题评测协议，并为评测用途恢复
+  OpenAI Chat Completions 网关适配。未修改 prompts、评测指标计算代码、真人数据、生产三方路由
+  或前端。四家只用合成 OK 请求做了连通性确认，密钥未读取、回显或提交。基础题只能衡量当前
+  规则契约一致性；真实问事在事前封存案例不足时不得排名。该高风险叠加 PR 合入前仍需异厂商
+  reviewer attestation 与本人完整审阅签署。
