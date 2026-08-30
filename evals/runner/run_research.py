@@ -98,9 +98,9 @@ def main() -> int:
           "## 3×3 单元(模型 × 流派)——观点数 / 概率化措辞率\n",
           "| 模型＼流派 | 子平格局派 | 旺衰扶抑派 | 调候派 |",
           "| --- | --- | --- | --- |"]
-    prov_name = {"anthropic": "Claude", "openai": "GPT", "deepseek": "DeepSeek"}
+    prov_name = {"anthropic": "Claude", "gemini": "Gemini", "deepseek": "DeepSeek"}
     grid = {(c["provider"], c["school"]): c["_m"] for c in cells}
-    for p in ("anthropic", "openai", "deepseek"):
+    for p in ("anthropic", "gemini", "deepseek"):
         row = [prov_name[p]]
         for s in ("ziping", "wangshuai", "tiaohou"):
             m = grid.get((p, s), {})

@@ -1,7 +1,7 @@
 # 三鉴(SanJian)· 私人研究项目
 
 研究「确定性排盘 + 多模型互证」技术架构:**开发态** Fable 5(Claude Code)× Codex 双模型,
-**运行态** DeepSeek × GPT × Claude 三师会诊。工程设计见 `docs/DESIGN.md`(V3.0)。
+**运行态** DeepSeek × Gemini × Claude 三师会诊。工程设计见 `docs/DESIGN.md`(V3.1)。
 本项目不上架、不收费、不向第三方提供服务;性质变更闸门见 DESIGN 第 9.3 节。
 
 ## 仓库结构(DESIGN V3.0 第 4 节,三仓之主仓)

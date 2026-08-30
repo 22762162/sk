@@ -39,7 +39,7 @@ PRESENTER = {"provider": os.environ.get("SANJIAN_PRESENTER_PROVIDER", "deepseek"
 # 三个供应商(模型层);流派为可轮换维度(DESIGN §2.3 拉丁方)
 PROVIDERS_ORDER = [
     {"role": "debater_a", "provider": "anthropic", "model": "claude-sonnet-5"},
-    {"role": "debater_b", "provider": "openai", "model": "gpt-5.1"},
+    {"role": "debater_b", "provider": "gemini", "model": "gemini-3.6-flash"},
     {"role": "debater_c", "provider": "deepseek", "model": "deepseek-chat"},
 ]
 SCHOOL_NAMES = {"ziping": "子平格局派", "wangshuai": "旺衰扶抑派", "tiaohou": "调候派"}
@@ -53,9 +53,9 @@ DEBATERS = [
 
 # 研究模式 3×3 拉丁方(DESIGN §2.3):每模型演每流派各一次,解模型×流派混杂
 LATIN_SQUARE = {
-    "A": ["ziping", "wangshuai", "tiaohou"],   # Claude 子平 / GPT 旺衰 / DeepSeek 调候
-    "B": ["wangshuai", "tiaohou", "ziping"],   # Claude 旺衰 / GPT 调候 / DeepSeek 子平
-    "C": ["tiaohou", "ziping", "wangshuai"],   # Claude 调候 / GPT 子平 / DeepSeek 旺衰
+    "A": ["ziping", "wangshuai", "tiaohou"],   # Claude 子平 / Gemini 旺衰 / DeepSeek 调候
+    "B": ["wangshuai", "tiaohou", "ziping"],   # Claude 旺衰 / Gemini 调候 / DeepSeek 子平
+    "C": ["tiaohou", "ziping", "wangshuai"],   # Claude 调候 / Gemini 子平 / DeepSeek 旺衰
 }
 
 

@@ -33,6 +33,6 @@
 ## 四、成本护栏(需本人在各控制台手动设置的动作项)
 
 - [ ] Anthropic 控制台:月度预算硬上限
-- [ ] OpenAI 控制台:月度预算硬上限
+- [ ] Google AI Studio / Cloud 控制台:Gemini 月度预算硬上限
 - [ ] DeepSeek 控制台:月度预算硬上限(接入运行态时)
 - 网关侧单日调用熔断在 L3 推理网关实现时落地;run manifest 的 cost 字段周度汇总。

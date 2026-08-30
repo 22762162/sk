@@ -201,7 +201,7 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 .role-chip strong { font-size: 14px; }
 .role-chip span { margin-top: 4px; color: var(--muted); font-size: 11px; }
 .role-claude { border-top: 3px solid #b7794b; }
-.role-gpt { border-top: 3px solid var(--jade); }
+.role-gemini { border-top: 3px solid var(--jade); }
 .role-deepseek { border-top: 3px solid #5679a6; }
 .role-protocol p { margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
 .today-card { position: relative; overflow: hidden; margin-top: 28px; padding: 22px; }

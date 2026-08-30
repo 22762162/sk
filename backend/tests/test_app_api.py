@@ -200,7 +200,7 @@ class AppApiTest(unittest.TestCase):
                     {"role": "debater_a", "provider": "anthropic", "model": "claude-synthetic",
                      "school": "ziping", "school_name": "子平格局派",
                      "claims": [{"claim": "火为财星，任务需看现实节奏", "basis": "合成有效依据"}]},
-                    {"role": "debater_b", "provider": "openai", "model": "gpt-synthetic",
+                    {"role": "debater_b", "provider": "gemini", "model": "gemini-synthetic",
                      "school": "wangshuai", "school_name": "旺衰扶抑派",
                      "claims": [{"claim": "财星土弱", "basis": "合成错误依据"}]},
                     {"role": "debater_c", "provider": "deepseek", "model": "deepseek-synthetic",
@@ -215,7 +215,7 @@ class AppApiTest(unittest.TestCase):
             packets[provider] = json.loads(user.split("\n", 1)[0])
             answers = {
                 "anthropic": "按剩余目标和日均要求看，本月完成流水任务有条件，但需连续达标。",
-                "openai": "当前流水缺口明确，本月完成任务较难，除非剩余日均持续达到要求。",
+                "gemini": "当前流水缺口明确，本月完成任务较难，除非剩余日均持续达到要求。",
                 "deepseek": "本月流水仍有望完成，条件是后续进度不再低于剩余日均目标。",
             }
             return ({"answer": answers[provider], "revised": "", "suggestion": "每5天核对一次进度"},
@@ -233,7 +233,7 @@ class AppApiTest(unittest.TestCase):
         self.assertEqual(len(result["responses"]), 3)
         self.assertTrue(all(item["relevant_and_valid"] for item in result["responses"]))
         self.assertEqual(
-            packets["openai"]["independent_role"]["valid_prior_observations"], []
+            packets["gemini"]["independent_role"]["valid_prior_observations"], []
         )
         self.assertEqual(result["judge"]["summary"], "三方认为本月流水任务有条件完成。")
 
@@ -260,7 +260,7 @@ class AppApiTest(unittest.TestCase):
                     {"role": "debater_a", "provider": "anthropic", "model": "claude-synthetic",
                      "school": "ziping", "school_name": "子平格局派", "claims": [
                          {"claim": "子平视角提示事项或有推进", "basis": "合成依据甲"}]},
-                    {"role": "debater_b", "provider": "openai", "model": "gpt-synthetic",
+                    {"role": "debater_b", "provider": "gemini", "model": "gemini-synthetic",
                      "school": "wangshuai", "school_name": "旺衰扶抑派", "claims": [
                          {"claim": "旺衰视角建议观察现实条件", "basis": "合成依据乙"}]},
                     {"role": "debater_c", "provider": "deepseek", "model": "deepseek-synthetic",
@@ -298,7 +298,7 @@ class AppApiTest(unittest.TestCase):
                      "answer": "本月合成流水目标有条件完成，但需要保持剩余日均要求。",
                      "revised": "", "suggestion": "月末按是否完成目标复盘。",
                      "relevant_and_valid": True, "run_id": "run-a"},
-                    {"role": "debater_b", "provider": "openai", "model": "gpt-synthetic",
+                    {"role": "debater_b", "provider": "gemini", "model": "gemini-synthetic",
                      "school": "wangshuai", "school_name": "旺衰扶抑派",
                      "answer": "本月完成该流水任务有难度，应把剩余目标拆成可核对节点。",
                      "revised": "", "suggestion": "每周核对一次日均进度。",
@@ -351,7 +351,7 @@ class AppApiTest(unittest.TestCase):
         self.assertTrue(snapshot["three_role_protocol"]["complete"])
         self.assertEqual(snapshot["three_role_protocol"]["distinct_providers"], 3)
         self.assertEqual([r["provider_label"] for r in snapshot["three_role_analysis"]],
-                         ["Claude", "GPT", "DeepSeek"])
+                         ["Claude", "Gemini", "DeepSeek"])
         self.assertTrue(snapshot["three_role_protocol"]["direct_question"])
         self.assertIn("三方盲评", snapshot["conclusion"])
         self.assertIn("有条件完成", snapshot["three_role_analysis"][0]["findings"][0]["claim"])
