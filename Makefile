@@ -17,8 +17,10 @@ test-ref:
 	else echo "跳过参考实现测试:$(REF_DIR) 未就位(git clone https://github.com/22762162/sk-paipan-reference.git)"; fi
 
 test-backend:
-	uv run --with fastapi --with uvicorn --with httpx \
+	uv run --with-requirements backend/tests/requirements.lock \
 	  python3 -m unittest discover -s backend/tests -p 'test_*.py' -v
+	uv run --with-requirements backend/tests/requirements.lock \
+	  python3 -m pytest integrations/huohuo_bridge/tests -q
 
 lint:
 	cargo fmt --manifest-path engine-paipan/Cargo.toml --all -- --check

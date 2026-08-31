@@ -49,8 +49,8 @@ def router(app_store) -> APIRouter:
     def desk():
         return {"ok": True, "companies": store.list_companies(), "projects": store.list_projects(),
                 "memberships": store.list_memberships(),
-                "brain": {"status": "not_connected", "mode": "read_only_planned",
-                          "note": "大脑数据尚未接入；当前只使用你明确确认的背景。"}}
+                "brain": {"status": "requires_explicit_unlock", "mode": "read_only_opt_in",
+                          "note": "大脑资料需独立解锁、绑定范围、逐次确认；不自动加入问事。"}}
 
     @routes.post("/companies")
     def create_company(req: CompanyInput):

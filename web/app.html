@@ -167,6 +167,17 @@
               placeholder="只写影响判断的现实条件；不要填写姓名、电话、精确地址或账号。"></textarea>
           </label>
 
+          <section id="question-brain" class="brain-panel" hidden aria-labelledby="question-brain-title">
+            <span class="eyebrow">可选 · 现实依据</span><h3 id="question-brain-title">带上已确认的公司资料</h3>
+            <p class="field-hint">只读本次公司／项目的绑定范围。资料来自大脑，不等于已经核验的事实。</p>
+            <div class="settings-actions"><button id="brain-preview" type="button" class="secondary-action" disabled>预览本月资料</button><button id="brain-clear" type="button" class="text-button">本次不带资料</button><button type="button" class="text-button" data-route="company">解锁／管理绑定</button></div>
+            <p id="brain-preview-status" class="field-hint" aria-live="polite"></p>
+            <div id="brain-items"></div>
+            <div id="brain-confirm-area" hidden>
+              <label class="check-line"><input id="brain-external-confirm" type="checkbox"><span>我已核对所选摘要、去除身份信息与机密，同意摘要发给 Claude、Gemini、DeepSeek 做本次分析。原文不发送。</span></label>
+              <button id="brain-confirm" type="button" class="secondary-action">冻结所选摘要 · 仅用一次</button>
+            </div>
+          </section>
           <div id="question-research-status" class="research-status" aria-live="polite"></div>
           <div class="privacy-line"><span aria-hidden="true">⌁</span> 三方模型在云端运行。仅发送必要命盘结构、去标识问题和所选背景；请勿输入联系方式、账号或商业机密。传统解读仅作研究参考，不替代经营与财务核验。</div>
           <label class="check-line"><input id="question-scope-confirm" type="checkbox" required><span>我已核对主体、资料与人员范围，并同意本次最小化资料用于三方分析。</span></label>
@@ -265,11 +276,24 @@
 
       <section id="view-company" class="app-view" data-view="company" aria-labelledby="company-title" hidden>
         <div class="page-heading"><span class="eyebrow">经营事实优先</span><h1 id="company-title">公司是一件共同的事。</h1><p>公司、项目与关键人分别建档。每次分析只带你勾选的人，不用命盘给人员排名或作任用判断。</p></div>
-        <div class="notice"><strong>火火大脑 · 尚未接入</strong><p>当前使用手动确认的背景，不含实时营收。公司收入不等于个人收入；未提供开业时间时不生成公司盘。</p></div>
+        <div class="notice"><strong>公司事实与传统推演分开核对</strong><p>公司收入不等于个人收入；未提供开业时间时不生成公司盘。大脑资料需授权、绑定和逐次确认，不会自动进入问事。</p></div>
         <section class="section-block">
           <div class="section-heading"><h2>公司档案</h2><button id="company-new" type="button" class="small-action">＋ 新建</button></div>
           <label class="field">当前公司<select id="company-select"></select></label>
           <div id="company-detail"></div>
+        </section>
+        <section class="form-card card brain-panel" aria-labelledby="brain-title">
+          <span class="eyebrow">火火大脑 · 只读连接</span><h2 id="brain-title">先确认来源，再用于判断</h2>
+          <p id="brain-status" class="field-hint" aria-live="polite">未解锁 · 只读出口需先由管理员安全配置。</p>
+          <label class="field">大脑访问口令<input id="brain-access" type="password" autocomplete="off" maxlength="256" placeholder="不是模型 API Key；仅在此页面临时保留"></label>
+          <div class="settings-actions"><button id="brain-unlock" type="button" class="secondary-action">解锁连接</button><button id="brain-lock" type="button" class="text-button">锁定并清除预览</button></div>
+          <div id="brain-binding-area" hidden>
+            <label class="field">当前公司下的事项范围<select id="brain-project"></select></label>
+            <label class="field">出口明确授权的来源<select id="brain-scope"></select></label>
+            <p id="brain-binding-status" class="field-hint" aria-live="polite"></p>
+            <button id="brain-bind" type="button" class="secondary-action" disabled>确认绑定到当前公司／项目</button>
+          </div>
+          <p class="field-hint">不会搜索或读取你的密钥文件。敏感级别 L3/L4 仅在受保护页面查看，不进入云端分析。断网不拿旧数据替代。</p>
         </section>
         <form id="company-form" class="form-card card" hidden>
           <h2>公司资料</h2><input id="company-id" type="hidden"><input id="company-version" type="hidden">
@@ -353,6 +377,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/static/brain.js" defer></script>
   <script src="/static/app.js" defer></script>
 </body>
 </html>

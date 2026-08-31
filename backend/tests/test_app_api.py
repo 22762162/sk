@@ -30,6 +30,7 @@ class AppApiTest(unittest.TestCase):
             call.assert_not_called()
 
     def test_company_packet_is_minimized_and_excludes_personal_context(self):
+        from backend.tests.test_brain_context import SyntheticClient, TEST_TOKEN
         profile = self.client.post("/api/app/profiles", json={
             "name": "合成隔离甲", "birth": "1990-06-15T08:30", "gender": "male",
             "situation": "个人私事哨兵", "research_context": "个人旧研究哨兵",
@@ -40,6 +41,10 @@ class AppApiTest(unittest.TestCase):
         member = self.client.post(f"/api/app/companies/{company['id']}/memberships", json={
             "profile_id": profile["id"], "role": "合成负责人", "consent_confirmed": True,
         }).json()["membership"]
+        brain_service = backend_app.brain_context.BrainStore(backend_app.APP_STORE, SyntheticClient())
+        brain_service.bind(company["id"], "", "synthetic-scope", 0)
+        preview = brain_service.preview(company["id"], "", backend_app.datetime.now(backend_app.TZ).strftime("%Y-%m"))
+        approval = brain_service.confirm(preview["id"], {"knowledge:synthetic": "合成隔离甲负责合成匿名公司，已核对进度哨兵"}, True)
         captured = {}
         def stop_after_capture(req, **kwargs):
             captured["situation"] = req.situation
@@ -47,12 +52,19 @@ class AppApiTest(unittest.TestCase):
             return {"ok": False, "error": "合成停止（未调用模型）"}
         with patch.object(backend_app, "_run_consult_payload", side_effect=stop_after_capture), \
              patch.object(backend_app, "_app_transit", return_value=({"output": {}}, None)), \
-             patch.object(backend_app, "_desk_chart", return_value={"pillars": {"day": "甲子"}}):
+             patch.object(backend_app, "_desk_chart", return_value={"pillars": {"day": "甲子"}}), \
+             patch.dict(os.environ, {"SANJIAN_BRAIN_ACCESS_TOKEN": TEST_TOKEN}):
+            rejected = self.client.post("/api/app/questions/start", json={
+                "profile_id": profile["id"], "period": "month", "category": "career",
+                "question": "合成未授权不能调用", "brain_snapshot_id": approval["id"],
+            })
+            self.assertEqual(rejected.status_code, 401)
             started = self.client.post("/api/app/questions/start", json={
                 "profile_id": profile["id"], "period": "month", "category": "career",
                 "question": "合成匿名公司本月的项目如何推进", "scene": "company",
                 "company_id": company["id"], "membership_ids": [member["id"]], "scope_confirmed": True,
-            })
+                "brain_snapshot_id": approval["id"],
+            }, headers={"X-Sanjian-Brain-Access": TEST_TOKEN})
             self.assertEqual(started.status_code, 202)
             for _ in range(100):
                 result = self.client.get("/api/consult/result", params={"job_id": started.json()["job_id"]}).json()
@@ -62,6 +74,10 @@ class AppApiTest(unittest.TestCase):
         for forbidden in (profile["name"], profile["id"], profile["birth"], company["name"], company["id"], "13800138000", "个人私事哨兵", "个人旧研究哨兵"):
             self.assertNotIn(forbidden, text)
         self.assertIn("已完成阶段验收", text)
+        self.assertIn("已核对进度哨兵", text)
+        for forbidden in ("合成敏感流水原文哨兵", "合成公司来源原文哨兵", "synthetic-scope", TEST_TOKEN):
+            self.assertNotIn(forbidden, text)
+        self.assertEqual(captured["context"]["brain_evidence"]["content_hash"], approval["content_hash"])
         self.assertEqual(captured["context"]["confirmed_personal_events"], [])
         self.assertEqual(result["status"], "error")
         self.assertEqual(self.client.get("/api/app/predictions", params={"scene": "company", "company_id": company["id"]}).json()["predictions"], [])

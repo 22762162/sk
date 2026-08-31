@@ -1,0 +1,27 @@
+artifact_id: decision-desk-p2-claude-reviewer
+timestamp: "2026-08-31T15:42:40.474Z"
+original_reported_timestamp: "2026-08-31T23:55:00+07:00"
+timestamp_basis: "Codex归档时使用源文件mtime；原自报时间领先主机时钟，保留上字段供审计。未代替Claude签署内容。"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: reviewer
+scope: 仅只读审核 Codex 的 App 侧大脑接入(agent/decision-desk-p2 工作树);未修改任何被审文件
+session_id: claude-code-session(交叉审核;双 AI 协同 P2)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: b179f3a(main,PR #46 合并点;被审为该工作树未提交状态)
+generated_files:
+  - docs/coordination/claude-app-review.md(审核报告)
+reviewed_files:
+  - consult-engine/brain_context.py(客户端校验/预览/确认/单次消费/不可变快照)
+  - consult-engine/personal_app.py(schema v4 接线/BEGIN IMMEDIATE 事务)
+  - consult-engine/decision_desk.py(brain_connection 状态字样)
+  - backend/brain_routes.py(访问口令/PrivateJSON/固定错误)
+  - backend/app.py(问事接线/中间件 no-store/brain_evidence 组装)
+  - web/brain.js / web/app.js / web/app.html / web/sw.js(token 仅内存/预览定时清除/壳缓存 v9)
+  - backend/tests/test_brain_context.py / test_app_api.py(独立复跑 21 passed + 8 subtests)
+notes: >-
+  结论:通过,无阻断;5 条低危建议+2 条部署备注,见 docs/coordination/claude-app-review.md。
+  审核为只读,未接触真实数据/密钥。
+  人工签署仍待定:本 attestation 仅为评审方自述,发布批准权在本人,不构成任何人工签名。

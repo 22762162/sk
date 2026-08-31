@@ -1,6 +1,6 @@
-const CACHE = "sanjian-shell-v8";
+const CACHE = "sanjian-shell-v9";
 const SHELL = [
-  "/", "/manifest.webmanifest", "/static/app.css", "/static/app.js",
+  "/", "/manifest.webmanifest", "/static/app.css", "/static/brain.js", "/static/app.js",
   "/static/icons/icon.svg", "/static/icons/icon-192.png", "/static/icons/icon-512.png",
   "/static/icons/icon-maskable-512.png"
 ];

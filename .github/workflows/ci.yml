@@ -7,6 +7,19 @@ on:
   pull_request:
 
 jobs:
+  decision-desk:
+    name: 决策台与大脑只读接口（合成数据）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install --require-hashes -r backend/tests/requirements.lock
+      - run: python3 -m unittest discover -s backend/tests -p 'test_*.py'
+      - run: python3 -m pytest integrations/huohuo_bridge/tests -q
+      - run: node --check web/brain.js && node --check web/app.js
+
   rust:
     name: Rust（fmt + clippy pedantic + test）
     runs-on: ubuntu-latest

@@ -1,0 +1,41 @@
+artifact_id: decision-desk-p2-codex-implementer
+timestamp: "2026-08-31T15:44:28Z"
+provider: openai
+model_id: Codex (exact runtime model id unavailable)
+model_release: Codex session 2026-08-31
+agent_role: implementer
+session_id: codex-main-repo-session(decision-desk-p2)
+run_manifest_id: not-applicable (synthetic tests only; no hosted model calls)
+source_repository: https://github.com/22762162/sk
+source_commit: b179f3a1a5eff4e7e2093d91bcf121614c620c0f
+generated_files:
+  - Makefile
+  - backend/README.md
+  - consult-engine/brain_context.py
+  - consult-engine/personal_app.py
+  - consult-engine/decision_desk.py
+  - backend/brain_routes.py
+  - backend/app.py
+  - backend/decision_routes.py
+  - backend/tests/test_brain_context.py
+  - backend/tests/test_brain_bridge_integration.py
+  - backend/tests/test_app_api.py
+  - backend/tests/preview_decision_desk.py
+  - backend/tests/requirements.in
+  - backend/tests/requirements.lock
+  - web/brain.js
+  - web/app.js
+  - web/app.html
+  - web/app.css
+  - web/sw.js
+  - .github/workflows/ci.yml
+  - docs/specs/rfc-0003-brain-readonly.md
+  - docs/reviews/decision-desk-p2-verification.md
+reviewed_files: []
+notes: >-
+  公司/项目绑定、受保护原文预览、人工L1/L2摘要确认、十分钟一次性使用及来源凭证。
+  SQLite schema v4为高风险变更。App及实际出口适配串联46项合成测试通过，手机390px与桌面1024px
+  浏览器交互验证通过。出口由本机Claude Code独立编写，本会话仅审查后整合；App由Claude交叉审查。
+  处理其低危月份长度、单worker与口令部署说明、尽快提交文案建议。未改L1、contracts、prompts或
+  参考仓；未读取真实数据或密钥、未调用付费模型、未连接真实大脑数据库、未发布或安装。
+  不宣称术数准确率提高。本人完整审阅及发布签署仍待定，此文件不构成人工签名。

@@ -44,6 +44,7 @@
       new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
   };
   const shortDate = value => String(value || "").replace("T", " ").slice(0, 16);
+  const brain = window.createSanjianBrain({ $, $$, esc, api, state, options });
 
   function toast(message) {
     const el = $("#toast");
@@ -192,7 +193,7 @@
     if (!profile) { box.hidden = true; return; }
     box.hidden = false;
     if ($("#question-scene").value === "company") {
-      box.innerHTML = "<strong>公司事项独立资料范围</strong><br>使用勾选人员的命盘与公司、项目背景，不自动带入个人大事记和个人旧研究。大脑数据尚未接入。";
+      box.innerHTML = "<strong>公司事项独立资料范围</strong><br>使用勾选人员的命盘与公司、项目背景，不自动带入个人大事记和个人旧研究。大脑资料仅在上方逐条确认后带入本次问事。";
       return;
     }
     const linked = Boolean(String(profile.research_context || "").trim());
@@ -258,6 +259,8 @@
     const basis = s.rule_basis || {};
     const research = s.research_context || {};
     const scope = s.decision_scope || {};
+    const brainEvidence = s.decision_material?.brain_evidence;
+    const brainReceipt = brainEvidence ? `<details class="snapshot-details"><summary>本次大脑依据 · ${brainEvidence.items?.length || 0} 条已确认摘要</summary><p>${esc(brainEvidence.period)} · 读取于 ${esc(fmtDate(brainEvidence.fetched_at))}。来源标记不等于审计确认，未外发敏感原文。</p>${(brainEvidence.items || []).map(item => `<div class="brain-source"><strong>${esc(item.level)} · ${esc(fmtDate(item.known_at))}</strong><p>${esc(item.summary)}</p><small>原来源散列：${esc(item.source_hash)}</small></div>`).join("")}<p class="field-hint">冻结摘要散列：${esc(brainEvidence.content_hash)}</p></details>` : "";
     const natal = basis.natal_computed_facts || {};
     const transit = basis.transit_computed_facts || {};
     const metrics = s.computed_metrics || {};
@@ -302,6 +305,7 @@
         <div class="confidence-row" aria-label="${esc(confidenceLabel(s))}，${pct}%"><strong>${esc(confidenceLabel(s))}</strong><div class="confidence-track"><span style="width:${Math.max(0, Math.min(pct, 100))}%"></span></div><small>${pct}%</small></div>
         ${metricsBlock}
         ${roleBlock}
+        ${brainReceipt}
         <div class="snapshot-grid">
           <section class="snapshot-panel"><h3>有利触发条件</h3><ul>${list(s.favorable_triggers)}</ul></section>
           <section class="snapshot-panel"><h3>不利触发条件</h3><ul>${list(s.unfavorable_triggers)}</ul></section>
@@ -544,6 +548,8 @@
       }));
       if (!body.company_id || !body.membership_ids.length) { setError("#question-error", "请选择公司及本次相关人员"); return; }
     }
+    try { Object.assign(body, brain.forQuestion()); }
+    catch (error) { setError("#question-error", error.message); return; }
     const button = $("#question-submit");
     const progress = $("#question-progress");
     const progressText = $("#question-progress-text");
@@ -554,7 +560,9 @@
     $("#prediction-result").innerHTML = "";
     const started = Date.now();
     try {
-      const start = await api("/api/app/questions/start", { method: "POST", body: JSON.stringify(body) });
+      const start = await api("/api/app/questions/start", { method: "POST", body: JSON.stringify(body),
+        headers: body.brain_snapshot_id ? brain.headers() : {}, cache: "no-store" });
+      brain.reset();
       let final = null;
       for (let i = 0; i < 240; i += 1) {
         await new Promise(resolve => setTimeout(resolve, 3000));
@@ -678,6 +686,7 @@
   }
 
   function renderScope() {
+    brain.reset();
     const subject = $("#question-subject");
     options(subject, state.profiles, null, subject.value || state.activeProfile?.id);
     options($("#records-subject"), state.profiles, "全部个人档案");
@@ -707,6 +716,7 @@
   }
 
   function renderCompany() {
+    brain.companyChanged();
     options($("#company-select"), state.desk.companies, "请选择公司", state.companyId);
     const company = state.desk.companies.find(c => c.id === state.companyId);
     const box = $("#company-detail");
