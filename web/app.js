@@ -2,7 +2,7 @@
   "use strict";
 
   const CACHE_KEY = "sanjian.pwa.private-cache.v2";
-  const ROUTES = new Set(["home", "question", "records", "profile"]);
+  const ROUTES = new Set(["home", "question", "records", "profile", "company", "settings"]);
   const OUTCOMES = { hit: "命中", partial: "部分命中", miss: "未命中", unclear: "无法判断" };
   const TENDENCIES = { favorable: "偏顺", caution: "留意", neutral: "中性" };
   const FEATURE_PRESETS = {
@@ -28,6 +28,8 @@
   const state = {
     profiles: [], activeProfile: null, predictions: [], stats: null, today: null,
     route: "home", filter: "", offline: !navigator.onLine, deferredInstall: null,
+    desk: { companies: [], projects: [], memberships: [] }, companyId: "",
+    companyPredictions: [], workspaceId: "", workspaceRequest: 0, questionBusy: false,
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -64,7 +66,7 @@
     });
     let data;
     try { data = await response.json(); } catch (_) { data = { ok: false, error: "服务返回了无法解析的内容" }; }
-    if (!response.ok || !data.ok) throw new Error(data.error || `请求失败（${response.status}）`);
+    if (!response.ok || !data.ok) throw new Error(data.error || (typeof data.detail === "string" ? data.detail : "") || `请求失败（${response.status}），请检查必填项`);
     return data;
   }
 
@@ -110,6 +112,10 @@
       state.offline = false;
       applyBootstrap(data);
       await loadToday();
+      await loadDesk();
+      const personal = await api("/api/app/predictions?scene=personal");
+      state.predictions = personal.predictions || [];
+      persistCache(); renderHomeReviews(); renderRecords();
     } catch (error) {
       state.offline = true;
       const cached = loadCache();
@@ -140,7 +146,7 @@
   function updateNetwork() {
     state.offline = state.offline || !navigator.onLine;
     $("#network-banner").hidden = !state.offline;
-    $("#question-submit").disabled = state.offline || !state.activeProfile;
+    $("#question-submit").disabled = state.questionBusy || state.offline || !state.activeProfile;
   }
 
   function routeTo(route, focus = true) {
@@ -155,6 +161,7 @@
     if (location.hash !== `#${next}`) history.replaceState(null, "", `#${next}`);
     if (next === "records") renderRecords();
     if (next === "profile") renderProfiles();
+    if (next === "company") { renderCompany(); loadCompanyRecords(); }
     if (focus) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       const heading = $(`#view-${next} h1`);
@@ -168,10 +175,10 @@
     $("#today-label").textContent = new Intl.DateTimeFormat("zh-CN", {
       month: "long", day: "numeric", weekday: "long",
     }).format(now);
-    $("#profile-chip-label").textContent = state.activeProfile?.name || "未建基本盘";
+    $("#profile-chip-label").textContent = state.activeProfile ? `默认 · ${state.activeProfile.name}` : "未建基本盘";
     $("#question-no-profile").hidden = !!state.activeProfile;
     $("#question-form").hidden = !state.activeProfile;
-    renderQuestionResearch();
+    renderScope();
     renderToday();
     renderHomeReviews();
     renderRecords();
@@ -181,13 +188,17 @@
 
   function renderQuestionResearch() {
     const box = $("#question-research-status");
-    const profile = state.activeProfile;
+    const profile = state.profiles.find(p => p.id === $("#question-subject").value);
     if (!profile) { box.hidden = true; return; }
     box.hidden = false;
+    if ($("#question-scene").value === "company") {
+      box.innerHTML = "<strong>公司事项独立资料范围</strong><br>使用勾选人员的命盘与公司、项目背景，不自动带入个人大事记和个人旧研究。大脑数据尚未接入。";
+      return;
+    }
     const linked = Boolean(String(profile.research_context || "").trim());
     box.innerHTML = linked
       ? `<strong>已关联高级研究资料 · v${esc(profile.research_version || 1)}</strong><br>本次问事会结合已确认事实或本人点选的历史参考；大运、神煞与流年将重新计算。`
-      : `<strong>尚未关联高级研究资料</strong><br>本次仍会使用基本盘与流运；可到“我的 → 编辑”确认事实资料。`;
+      : `<strong>使用所选主体的基本盘、流运与大事记</strong><br>可到“看盘 → 查看”核对事实；不会带入其他主体资料。`;
   }
 
   function renderToday() {
@@ -217,7 +228,7 @@
 
   const duePredictions = () => {
     const today = new Date().toISOString().slice(0, 10);
-    return state.predictions.filter(p => !p.review && String(p.period_end || "") <= today);
+    return state.predictions.filter(p => p.profile_id === state.activeProfile?.id && !p.review && String(p.period_end || "") <= today);
   };
 
   function renderHomeReviews() {
@@ -246,6 +257,7 @@
     const list = values => (values || []).map(v => `<li>${esc(v)}</li>`).join("") || "<li>本次未形成额外条件</li>";
     const basis = s.rule_basis || {};
     const research = s.research_context || {};
+    const scope = s.decision_scope || {};
     const natal = basis.natal_computed_facts || {};
     const transit = basis.transit_computed_facts || {};
     const metrics = s.computed_metrics || {};
@@ -286,6 +298,7 @@
         <p class="prediction-conclusion">${esc(shownConclusion)}</p>
       </div>
       <div class="prediction-body">
+        <div class="scope-receipt"><strong>${scope.scene === "company" ? "公司事项" : "个人事项"} · ${esc(scope.subject?.name || "旧记录未锁定主体名称")}</strong><p>${esc(scope.company?.name || "仅当前主体")}${scope.project ? ` / ${esc(scope.project.name)}` : ""}${scope.participants?.length ? ` · ${scope.participants.map(p => esc(`${p.name}（${p.role}）`)).join("、")}` : ""}</p><small>资料范围以提交时快照为准；之后编辑档案不会改写此处。</small></div>
         <div class="confidence-row" aria-label="${esc(confidenceLabel(s))}，${pct}%"><strong>${esc(confidenceLabel(s))}</strong><div class="confidence-track"><span style="width:${Math.max(0, Math.min(pct, 100))}%"></span></div><small>${pct}%</small></div>
         ${metricsBlock}
         ${roleBlock}
@@ -319,7 +332,7 @@
       : (s.conclusion || "");
     return `<article class="record-card card">
       <div class="record-summary">
-        <div class="record-top"><span class="record-category">${esc(s.category_label || p.category || "问事")}</span><span class="record-date">${esc(fmtDate(p.locked_at))}</span></div>
+        <div class="record-top"><span class="record-category">${esc(s.decision_scope?.subject?.name || state.profiles.find(profile => profile.id === p.profile_id)?.name || "旧记录")} · ${esc(s.category_label || p.category || "问事")}</span><span class="record-date">${esc(fmtDate(p.locked_at))}</span></div>
         <div class="record-question">${esc(s.question || p.question)}</div>
         <p class="record-conclusion">${esc(shownConclusion)}</p>
         <div class="record-actions">
@@ -344,6 +357,7 @@
   function renderRecords() {
     const box = $("#records-list");
     const records = state.predictions.filter(p => {
+      if ($("#records-subject").value && p.profile_id !== $("#records-subject").value) return false;
       if (state.filter === "pending") return !p.review;
       if (state.filter === "reviewed") return !!p.review;
       return true;
@@ -364,11 +378,12 @@
       return;
     }
     box.innerHTML = state.profiles.map(p => `<div class="profile-row ${p.is_active ? "is-active" : ""}">
-      <div class="profile-main"><strong>${esc(p.name)}${p.is_active ? " · 当前" : ""}</strong><small>${esc(p.birth)} · ${p.gender === "male" ? "男" : "女"} · ${esc(p.place || "未填出生地")} · ${p.research_context ? `研究资料 v${esc(p.research_version)}` : "未关联研究资料"} · 基本盘 v${esc(p.version)}</small></div>
-      <div class="profile-row-actions">${p.is_active ? "" : `<button type="button" class="profile-activate" data-id="${esc(p.id)}">切换</button>`}<button type="button" class="profile-edit" data-id="${esc(p.id)}">编辑</button></div>
+      <div class="profile-main"><strong>${esc(p.name)}${p.is_active ? " · 默认" : ""}</strong><small>${esc(p.birth)} · ${p.gender === "male" ? "男" : "女"} · ${esc(p.place || "未填出生地")} · ${p.research_context ? `研究资料 v${esc(p.research_version)}` : "未关联研究资料"} · 基本盘 v${esc(p.version)}</small></div>
+      <div class="profile-row-actions"><button type="button" class="profile-view" data-id="${esc(p.id)}">查看</button>${p.is_active ? "" : `<button type="button" class="profile-activate" data-id="${esc(p.id)}">设为默认</button>`}<button type="button" class="profile-edit" data-id="${esc(p.id)}">编辑</button></div>
     </div>`).join("");
     $$(".profile-activate", box).forEach(button => button.addEventListener("click", () => activateProfile(button.dataset.id)));
     $$(".profile-edit", box).forEach(button => button.addEventListener("click", () => openProfileForm(button.dataset.id)));
+    $$(".profile-view", box).forEach(button => button.addEventListener("click", () => loadWorkspace(button.dataset.id)));
   }
 
   function renderStats() {
@@ -394,7 +409,7 @@
       groupBlock("按模型版本", state.stats.by_model_version),
       groupBlock("按规则版本", state.stats.by_rule_version),
     ].join("");
-    box.innerHTML = `<div class="stats-overview"><div class="stats-copy"><strong>${esc(headline)}</strong><p>${esc(copy)}<br>${esc(state.stats.policy || "")}</p></div><div class="sample-ring" aria-label="${esc(headline)}">${n}/${min}</div></div>${groups}`;
+    box.innerHTML = `<div class="eyebrow">${esc(state.activeProfile.name)} · 个人事项</div><div class="stats-overview"><div class="stats-copy"><strong>${esc(headline)}</strong><p>${esc(copy)}<br>${esc(state.stats.policy || "")}</p></div><div class="sample-ring" aria-label="${esc(headline)}">${n}/${min}</div></div>${groups}`;
   }
 
   function openProfileForm(profileId = "") {
@@ -467,12 +482,8 @@
     try {
       const data = await api(`/api/app/profiles/${encodeURIComponent(profileId)}/research-candidates`);
       if (!data.facts?.length) {
-        if (data.records?.length) {
-          toast(`找到 ${data.records.length} 条同生日历史记录，正在打开绑定页`);
-          window.setTimeout(() => { window.location.href = "/legacy#history"; }, 650);
-        } else {
-          toast("高级研究中还没有可绑定的事实或同生日历史记录");
-        }
+        await loadWorkspace(profileId);
+        toast(data.records?.length ? "可绑定记录已在看盘页列出，请核对后点选" : "还没有可绑定的事实或同生日历史记录");
         return;
       }
       const existing = $("#profile-research").value || "";
@@ -487,7 +498,7 @@
         ? "advanced_record_reviewed"
         : (data.source || "advanced_dossier_reviewed");
       $("#profile-research-status").textContent = `待确认 · ${data.facts.length} 条`;
-      const recordHint = data.records?.length ? `；另有 ${data.records.length} 条历史记录可在高级研究页绑定` : "";
+      const recordHint = data.records?.length ? `；另有 ${data.records.length} 条历史记录可在看盘页绑定` : "";
       toast(`已载入 ${data.facts.length} 条事实；检查后保存才会生效${recordHint}`);
     } catch (error) { setError("#profile-error", error.message); }
     finally { button.disabled = false; }
@@ -507,20 +518,38 @@
     event.preventDefault();
     const form = event.currentTarget;
     setError("#question-error");
+    if (state.questionBusy) return;
     if (!navigator.onLine) { setError("#question-error", "当前离线，不能生成预测；已缓存记录仍可查看。"); return; }
     if (!state.activeProfile) { setError("#question-error", "请先创建基本盘"); return; }
     if (!form.reportValidity()) return;
     const body = {
-      profile_id: state.activeProfile.id,
+      profile_id: $("#question-subject").value,
+      scene: $("#question-scene").value,
+      scope_confirmed: $("#question-scope-confirm").checked,
+      expected_profile_version: state.profiles.find(p => p.id === $("#question-subject").value)?.version,
       period: $("input[name=period]:checked", form).value,
       category: $("#question-category").value,
       question: $("#question-text").value.trim(),
       background: $("#question-background").value.trim(),
     };
+    if (body.scene === "company") {
+      body.company_id = $("#question-company").value;
+      body.project_id = $("#question-project").value;
+      body.membership_ids = $$("#question-members input:checked").map(input => input.value);
+      body.expected_company_version = state.desk.companies.find(c => c.id === body.company_id)?.version;
+      body.expected_project_version = state.desk.projects.find(p => p.id === body.project_id)?.version;
+      body.expected_memberships = Object.fromEntries(body.membership_ids.map(id => {
+        const member = state.desk.memberships.find(m => m.id === id);
+        return [id, { version: member?.version, profile_version: member?.profile_version }];
+      }));
+      if (!body.company_id || !body.membership_ids.length) { setError("#question-error", "请选择公司及本次相关人员"); return; }
+    }
     const button = $("#question-submit");
     const progress = $("#question-progress");
     const progressText = $("#question-progress-text");
-    button.disabled = true;
+    state.questionBusy = true;
+    const controls = $$("input,select,textarea,button", form).map(el => ({ el, disabled: el.disabled }));
+    controls.forEach(({ el }) => { el.disabled = true; });
     progress.hidden = false;
     $("#prediction-result").innerHTML = "";
     const started = Date.now();
@@ -538,21 +567,33 @@
         throw new Error(final?.result?.error || "生成超时；服务端若仍在运行，可稍后到记录页刷新查看");
       }
       const prediction = final.result.prediction;
-      state.predictions = [prediction, ...state.predictions.filter(p => p.id !== prediction.id)];
+      if (body.scene === "company") {
+        if (body.company_id === state.companyId) {
+          state.companyPredictions = [prediction, ...state.companyPredictions.filter(p => p.id !== prediction.id)];
+          renderCompanyRecords();
+        }
+      }
+      else state.predictions = [prediction, ...state.predictions.filter(p => p.id !== prediction.id)];
       persistCache();
       $("#prediction-result").innerHTML = snapshotCard(prediction);
       renderHomeReviews();
       renderRecords();
       form.reset();
+      renderScope();
       toast("预测已锁定，可在记录页随时查看");
       $("#prediction-result").scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) { setError("#question-error", error.message); }
-    finally { button.disabled = state.offline || !state.activeProfile; progress.hidden = true; }
+    finally {
+      state.questionBusy = false;
+      controls.forEach(({ el, disabled }) => { el.disabled = disabled; });
+      button.disabled = state.offline || !state.activeProfile; progress.hidden = true;
+      renderScope();
+    }
   }
 
   function openReview(id) {
     if (state.offline) { toast("离线时只能查看，联网后再提交复盘"); return; }
-    const prediction = state.predictions.find(p => p.id === id);
+    const prediction = [...state.predictions, ...state.companyPredictions].find(p => p.id === id);
     if (!prediction || prediction.review) return;
     const dialog = $("#review-dialog");
     $("#review-form").reset();
@@ -581,10 +622,12 @@
         method: "POST", body: JSON.stringify(body),
       });
       state.predictions = state.predictions.map(p => p.id === id ? data.prediction : p);
-      state.stats = data.stats;
+      state.companyPredictions = state.companyPredictions.map(p => p.id === id ? data.prediction : p);
+      if (data.prediction.profile_id === state.activeProfile?.id) state.stats = data.stats;
       persistCache();
       $("#review-dialog").close();
       renderAll();
+      renderCompanyRecords();
       toast("复盘已锁定，历史预测保持不变");
     } catch (error) { setError("#review-error", error.message); }
     finally { button.disabled = false; }
@@ -592,7 +635,7 @@
 
   function openHomeFeature(feature) {
     if (feature === "accuracy") {
-      routeTo("profile");
+      routeTo("settings");
       window.setTimeout(() => $("#stats-card")?.scrollIntoView({ behavior: "smooth", block: "center" }), 180);
       return;
     }
@@ -607,6 +650,11 @@
       toast("先创建或选择基本盘，再发起三方会诊");
       return;
     }
+    if (state.questionBusy) { toast("已有问事正在进行，请等待完成"); return; }
+    clearQuestionDraft();
+    $("#question-scene").value = "personal";
+    $("#question-subject").value = state.activeProfile.id;
+    renderScope();
     const period = $(`input[name=period][value="${preset.period}"]`);
     if (period) period.checked = true;
     $("#question-category").value = preset.category;
@@ -617,14 +665,215 @@
     toast("已准备三方会诊问题，请补充现实背景后提交");
   }
 
+  function options(select, rows, placeholder, preferred = "") {
+    const previous = preferred || select.value;
+    select.innerHTML = (placeholder == null ? "" : `<option value="">${esc(placeholder)}</option>`) + rows.map(row => `<option value="${esc(row.id)}">${esc(row.name)}</option>`).join("");
+    if (rows.some(row => row.id === previous)) select.value = previous;
+  }
+
+  function clearQuestionDraft() {
+    $("#question-text").value = ""; $("#question-background").value = "";
+    $("#prediction-result").innerHTML = ""; setError("#question-error");
+    $("#question-scope-confirm").checked = false;
+  }
+
+  function renderScope() {
+    const subject = $("#question-subject");
+    options(subject, state.profiles, null, subject.value || state.activeProfile?.id);
+    options($("#records-subject"), state.profiles, "全部个人档案");
+    const isCompany = $("#question-scene").value === "company";
+    $("#question-company-fields").hidden = !isCompany;
+    $("#question-company").required = isCompany;
+    options($("#question-company"), state.desk.companies, "请选择公司");
+    const companyId = $("#question-company").value;
+    options($("#question-project"), state.desk.projects.filter(p => p.company_id === companyId), "公司整体（非单个项目）");
+    const projectId = $("#question-project").value;
+    const selected = new Set($$("#question-members input:checked").map(input => input.value));
+    const members = state.desk.memberships.filter(m => m.company_id === companyId && (!m.project_id || m.project_id === projectId));
+    $("#question-members").innerHTML = members.map(m => `<label class="check-line"><input type="checkbox" value="${esc(m.id)}" ${selected.has(m.id) ? "checked" : ""} ${m.consent_confirmed ? "" : "disabled"}><span>${esc(m.profile_name)} · ${esc(m.role)}${m.consent_confirmed ? "" : " · 未授权"}${m.ends_on ? ` · 至 ${esc(m.ends_on)}` : ""}</span></label>`).join("") || '<p class="field-hint">还没有适用关联，请先在公司页添加。</p>';
+    $("#question-scope-summary").textContent = isCompany
+      ? "只使用本次勾选的人员与所选公司、项目背景；不自动汇入个人私事。任职有效期会在提交时复核。"
+      : `只分析「${state.profiles.find(p => p.id === subject.value)?.name || "未选择"}」：本命、流运、已确认事实与显式绑定参考。不包含公司、合伙人或其他档案。`;
+    $("#question-scope-confirm").checked = false;
+    renderQuestionResearch();
+  }
+
+  async function loadDesk() {
+    try {
+      state.desk = await api("/api/app/desk");
+      if (!state.desk.companies.some(c => c.id === state.companyId)) state.companyId = state.desk.companies[0]?.id || "";
+      renderCompany(); renderScope();
+    } catch (error) { setError("#company-error", error.message); }
+  }
+
+  function renderCompany() {
+    options($("#company-select"), state.desk.companies, "请选择公司", state.companyId);
+    const company = state.desk.companies.find(c => c.id === state.companyId);
+    const box = $("#company-detail");
+    if (!company) { box.innerHTML = '<div class="empty-state">先建立公司，再关联项目和相关人员。</div>'; return; }
+    const projects = state.desk.projects.filter(p => p.company_id === company.id);
+    const members = state.desk.memberships.filter(m => m.company_id === company.id);
+    box.innerHTML = `<article class="desk-card card"><span class="eyebrow">手动录入 · v${esc(company.version)} · ${esc(fmtDate(company.updated_at))}</span><h2>${esc(company.name)}</h2><p>${esc(company.context || "尚未填写发展情况")}</p><div class="settings-actions"><button type="button" class="small-action" data-edit-company="${esc(company.id)}">编辑</button><button type="button" class="primary-action" id="company-ask">发起公司问事</button></div></article>
+      <div class="section-heading"><h3>项目</h3><button class="text-button" type="button" data-edit-project="">＋ 添加项目</button></div>
+      <div class="compact-list">${projects.map(p => `<article class="desk-row"><div><strong>${esc(p.name)}</strong><p>${esc(p.context || "尚未填背景")}</p></div><button class="text-button" type="button" data-edit-project="${esc(p.id)}">编辑</button></article>`).join("") || '<p class="field-hint">暂无项目，公司整体问事不要求项目。</p>'}</div>
+      <div class="section-heading"><h3>相关人员与授权</h3><button class="text-button" type="button" data-edit-member="">＋ 关联人员</button></div>
+      <div class="compact-list">${members.map(m => `<article class="desk-row"><div><strong>${esc(m.profile_name)} · ${esc(m.role)}</strong><p>${esc(projects.find(p => p.id === m.project_id)?.name || "公司整体")} · ${m.consent_confirmed ? "已确认授权" : "未授权 / 已撤回"} · ${esc(m.starts_on || "开始不限")} — ${esc(m.ends_on || "结束不限")}</p></div><button class="text-button" type="button" data-edit-member="${esc(m.id)}">编辑</button></article>`).join("") || '<p class="field-hint">每次问事仍需手动勾选，不会自动把全部人员送入分析。</p>'}</div>`;
+  }
+
+  function openDeskForm(kind, id = "") {
+    if (state.offline) { toast("离线时不能编辑公司资料"); return; }
+    if (kind !== "company" && !state.companyId) return;
+    setError("#company-error");
+    ["company", "project", "member"].forEach(name => { $(`#${name}-form`).hidden = name !== kind; });
+    const form = $(`#${kind}-form`); form.reset();
+    if (kind === "company") {
+      const row = state.desk.companies.find(c => c.id === id);
+      $("#company-id").value = row?.id || ""; $("#company-version").value = row?.version || 0;
+      ["name", "industry", "context"].forEach(key => { $(`#company-${key}`).value = row?.[key] || ""; });
+    } else if (kind === "project") {
+      const row = state.desk.projects.find(p => p.id === id);
+      $("#project-company").value = state.companyId;
+      $("#project-id").value = row?.id || ""; $("#project-version").value = row?.version || 0;
+      $("#project-name").value = row?.name || ""; $("#project-context").value = row?.context || "";
+    } else {
+      const row = state.desk.memberships.find(m => m.id === id);
+      $("#member-company").value = state.companyId;
+      $("#member-version").value = row?.version || 0;
+      options($("#member-profile"), state.profiles, "请选择基本盘", row?.profile_id);
+      options($("#member-project"), state.desk.projects.filter(p => p.company_id === state.companyId), "公司整体", row?.project_id);
+      $("#member-profile").disabled = !!row; $("#member-project").disabled = !!row;
+      $("#member-role").value = row?.role || ""; $("#member-consent").checked = !!row?.consent_confirmed;
+      $("#member-start").value = row?.starts_on || ""; $("#member-end").value = row?.ends_on || "";
+    }
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function saveDeskForm(event, kind) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (state.offline || !form.reportValidity()) return;
+    const button = $("button[type=submit]", form); button.disabled = true;
+    let body, url, method = "POST";
+    if (kind === "company") {
+      const id = $("#company-id").value;
+      url = `/api/app/companies${id ? `/${encodeURIComponent(id)}` : ""}`; if (id) method = "PUT";
+      body = { name: $("#company-name").value.trim(), industry: $("#company-industry").value.trim(), context: $("#company-context").value.trim(), expected_version: Number($("#company-version").value) };
+    } else if (kind === "project") {
+      const id = $("#project-id").value;
+      url = `/api/app/companies/${encodeURIComponent($("#project-company").value)}/projects${id ? `/${encodeURIComponent(id)}` : ""}`; if (id) method = "PUT";
+      body = { name: $("#project-name").value.trim(), context: $("#project-context").value.trim(), expected_version: Number($("#project-version").value) };
+    } else {
+      url = `/api/app/companies/${encodeURIComponent($("#member-company").value)}/memberships`;
+      body = { profile_id: $("#member-profile").value, project_id: $("#member-project").value, role: $("#member-role").value.trim(), consent_confirmed: $("#member-consent").checked, starts_on: $("#member-start").value, ends_on: $("#member-end").value, expected_version: Number($("#member-version").value) };
+    }
+    try {
+      const result = await api(url, { method, body: JSON.stringify(body) });
+      if (result.company) state.companyId = result.company.id;
+      form.hidden = true; await loadDesk(); toast("已保存；之后问事会冻结新版本资料");
+    } catch (error) { setError("#company-error", error.message); }
+    finally { button.disabled = false; }
+  }
+
+  function renderCompanyRecords() {
+    const box = $("#company-records");
+    box.innerHTML = state.companyPredictions.map(p => recordCard(p)).join("") || '<div class="empty-state">当前公司暂无已锁定事项。公司复盘不混入个人校准。</div>';
+    wireRecordActions(box);
+  }
+
+  async function loadCompanyRecords() {
+    const companyId = state.companyId;
+    state.companyPredictions = []; renderCompanyRecords();
+    if (!companyId || state.offline) return;
+    try {
+      const data = await api(`/api/app/predictions?scene=company&company_id=${encodeURIComponent(companyId)}`);
+      if (companyId !== state.companyId) return;
+      state.companyPredictions = data.predictions || []; renderCompanyRecords();
+    } catch (error) { setError("#company-error", error.message); }
+  }
+
+  async function loadWorkspace(id) {
+    if (!id || state.offline) { toast("查看最新计算资料需要联网"); return; }
+    const token = ++state.workspaceRequest;
+    state.workspaceId = id;
+    $("#event-form").hidden = true;
+    const box = $("#chart-workspace"); box.innerHTML = '<div class="empty-state">正在读取该主体的计算资料…</div>';
+    try {
+      const data = await api(`/api/app/profiles/${encodeURIComponent(id)}/workspace`);
+      if (token !== state.workspaceRequest) return;
+      const profile = state.profiles.find(p => p.id === id);
+      const pillars = data.computed?.pillars || {};
+      const candidates = data.legacy_candidates?.records || [];
+      box.innerHTML = `<article class="desk-card card"><span class="eyebrow">计算资料 · 基本盘 v${esc(data.profile_version)}</span><h2>${esc(profile?.name)}</h2><div class="chart-pillars">${["year", "month", "day", "hour"].map((key, i) => `<div><small>${["年柱", "月柱", "日柱", "时柱"][i]}</small><strong>${esc(pillars[key])}</strong></div>`).join("")}</div><p>${esc(data.note)}</p><button type="button" class="primary-action" id="workspace-ask">问这位的事情</button><details class="computed-detail"><summary>大运与神煞 · 计算明细（待独立对拍）</summary><pre>${esc(JSON.stringify({ dayun: data.computed.dayun, shensha: data.computed.shensha }, null, 2))}</pre></details></article>
+        <article class="desk-card card"><span class="eyebrow">本人确认 · 非模型猜测</span><h3>现实背景与大事记</h3><p>${esc(data.confirmed_context || "未填写长期事实资料")}</p>${data.events.map(e => `<div class="event-row"><strong>${esc(e.occurred_on)}</strong><p>${esc(e.content)}</p><small>录入 ${esc(fmtDate(e.known_at))}</small></div>`).join("") || '<p class="field-hint">暂无追加事实。</p>'}</article>
+        <article class="desk-card card"><span class="eyebrow">非事实参考 · 不计入验证证据</span><h3>历史研究</h3><p>${esc(data.historical_reference || "尚未绑定历史模型研究")}</p><p class="field-hint">同生日只用于寻找候选，不能证明是同一个人。请确认记录确属该主体再绑定。</p>${candidates.map(r => `<div class="desk-row"><div><strong>${esc(fmtDate(r.saved_at))}</strong><p>${esc(r.chart_line)}</p></div><button type="button" class="text-button" data-bind-reference="${esc(r.id)}">预览并绑定</button></div>`).join("") || '<p class="field-hint">没有匹配的旧记录。</p>'}</article>`;
+      $("#event-form").hidden = false; $("#event-form").reset();
+      $("#event-date").max = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Shanghai" });
+      box.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) { if (token === state.workspaceRequest) box.innerHTML = `<div class="notice warning">${esc(error.message)}</div>`; }
+  }
+
+  async function bindReference(recordId) {
+    const id = state.workspaceId;
+    const profile = state.profiles.find(p => p.id === id);
+    if (!profile) return;
+    try {
+      const preview = await api(`/api/app/profiles/${encodeURIComponent(id)}/research-record-preview?record_id=${encodeURIComponent(recordId)}`);
+      if (!window.confirm(`确认这条记录属于「${profile.name}」？绑定后仅作历史参考，不是事实。\n\n${preview.reference}`)) return;
+      await api(`/api/app/profiles/${encodeURIComponent(id)}/research-record-bind`, { method: "POST", body: JSON.stringify({ record_id: recordId, expected_version: profile.version }) });
+      await bootstrap({ quiet: true }); await loadWorkspace(id);
+      // Do not leave a pre-binding version in an open profile editor.
+      if ($("#profile-id").value === id) $("#profile-form").hidden = true;
+      toast("已绑定为非事实参考");
+    } catch (error) { toast(error.message); }
+  }
+
+  async function saveEvent(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (state.offline || !form.reportValidity()) return;
+    const id = state.workspaceId, button = $("button[type=submit]", form);
+    button.disabled = true; setError("#event-error");
+    try {
+      await api(`/api/app/profiles/${encodeURIComponent(id)}/events`, { method: "POST", body: JSON.stringify({ occurred_on: $("#event-date").value, content: $("#event-content").value.trim(), confirmed: $("#event-confirm").checked }) });
+      if (state.workspaceId === id) await loadWorkspace(id);
+      toast("事实已追加；已有预测保持原样");
+    } catch (error) { setError("#event-error", error.message); }
+    finally { button.disabled = false; }
+  }
+
   function wireEvents() {
     document.addEventListener("click", event => {
+      for (const kind of ["company", "project", "member"]) {
+        const edit = event.target.closest(`[data-edit-${kind}]`);
+        if (edit) { openDeskForm(kind, edit.getAttribute(`data-edit-${kind}`)); return; }
+      }
+      const close = event.target.closest("[data-close-form]");
+      if (close) { document.getElementById(close.dataset.closeForm).hidden = true; return; }
+      const bind = event.target.closest("[data-bind-reference]");
+      if (bind) { bindReference(bind.dataset.bindReference); return; }
+      if (event.target.closest("#workspace-ask")) {
+        if (state.questionBusy) { toast("已有问事正在进行"); return; }
+        clearQuestionDraft();
+        $("#question-scene").value = "personal"; $("#question-subject").value = state.workspaceId;
+        renderScope(); routeTo("question"); return;
+      }
+      if (event.target.closest("#company-ask")) {
+        if (state.questionBusy) { toast("已有问事正在进行"); return; }
+        clearQuestionDraft();
+        $("#question-scene").value = "company"; $("#question-company").value = state.companyId;
+        renderScope(); routeTo("question"); return;
+      }
       const featureButton = event.target.closest("[data-home-feature]");
       if (featureButton) { openHomeFeature(featureButton.dataset.homeFeature); return; }
       const routeButton = event.target.closest("[data-route]");
       if (routeButton) routeTo(routeButton.dataset.route);
     });
     $$(".quick-card").forEach(button => button.addEventListener("click", () => {
+      if (state.questionBusy) { toast("已有问事正在进行"); return; }
+      clearQuestionDraft();
+      $("#question-scene").value = "personal";
+      $("#question-subject").value = state.activeProfile?.id || "";
+      renderScope();
       $("#question-category").value = button.dataset.category;
       routeTo("question");
       $("#question-text").focus();
@@ -634,6 +883,19 @@
       renderRecords();
     }));
     $("#question-form").addEventListener("submit", submitQuestion);
+    ["scene", "subject", "company", "project"].forEach(key => $("#question-" + key).addEventListener("change", () => { clearQuestionDraft(); renderScope(); }));
+    $("#question-form").addEventListener("input", event => { if (event.target.id !== "question-scope-confirm") $("#question-scope-confirm").checked = false; });
+    $("#records-subject").addEventListener("change", renderRecords);
+    $("#company-select").addEventListener("change", () => {
+      state.companyId = $("#company-select").value;
+      ["company", "project", "member"].forEach(kind => { $(`#${kind}-form`).hidden = true; });
+      renderCompany(); loadCompanyRecords();
+    });
+    $("#company-new").addEventListener("click", () => openDeskForm("company"));
+    ["company", "project", "member"].forEach(kind => $(`#${kind}-form`).addEventListener("submit", event => saveDeskForm(event, kind)));
+    $("#company-refresh-records").addEventListener("click", loadCompanyRecords);
+    $("#event-form").addEventListener("submit", saveEvent);
+    $("#profile-research-open").addEventListener("click", () => loadWorkspace($("#profile-id").value));
     $("#profile-form").addEventListener("submit", saveProfile);
     $("#new-profile-button").addEventListener("click", () => openProfileForm());
     $("#profile-form-close").addEventListener("click", () => { $("#profile-form").hidden = true; });

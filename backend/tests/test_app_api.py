@@ -17,6 +17,55 @@ from backend import app as backend_app  # noqa: E402
 
 
 class AppApiTest(unittest.TestCase):
+    def test_scope_confirmation_and_personal_injection_fail_before_any_model_call(self):
+        profile = self.client.post("/api/app/profiles", json={
+            "name": "合成隔离主体", "birth": "1990-06-15T08:30", "gender": "male",
+        }).json()["profile"]
+        base = {"profile_id": profile["id"], "period": "day", "category": "career", "question": "合成测试工作如何推进"}
+        with patch.object(backend_app, "_run_consult_payload") as call:
+            self.assertEqual(self.client.post("/api/app/questions/start", json=base).status_code, 422)
+            self.assertEqual(self.client.post("/api/app/questions/start", json={
+                **base, "scope_confirmed": True, "scene": "personal", "company_id": "wrong-company",
+            }).status_code, 422)
+            call.assert_not_called()
+
+    def test_company_packet_is_minimized_and_excludes_personal_context(self):
+        profile = self.client.post("/api/app/profiles", json={
+            "name": "合成隔离甲", "birth": "1990-06-15T08:30", "gender": "male",
+            "situation": "个人私事哨兵", "research_context": "个人旧研究哨兵",
+        }).json()["profile"]
+        company = self.client.post("/api/app/companies", json={
+            "name": "合成匿名公司", "context": "合成隔离甲负责合成匿名公司，电话13800138000；已完成阶段验收",
+        }).json()["company"]
+        member = self.client.post(f"/api/app/companies/{company['id']}/memberships", json={
+            "profile_id": profile["id"], "role": "合成负责人", "consent_confirmed": True,
+        }).json()["membership"]
+        captured = {}
+        def stop_after_capture(req, **kwargs):
+            captured["situation"] = req.situation
+            captured["context"] = kwargs["decision_context"]
+            return {"ok": False, "error": "合成停止（未调用模型）"}
+        with patch.object(backend_app, "_run_consult_payload", side_effect=stop_after_capture), \
+             patch.object(backend_app, "_app_transit", return_value=({"output": {}}, None)), \
+             patch.object(backend_app, "_desk_chart", return_value={"pillars": {"day": "甲子"}}):
+            started = self.client.post("/api/app/questions/start", json={
+                "profile_id": profile["id"], "period": "month", "category": "career",
+                "question": "合成匿名公司本月的项目如何推进", "scene": "company",
+                "company_id": company["id"], "membership_ids": [member["id"]], "scope_confirmed": True,
+            })
+            self.assertEqual(started.status_code, 202)
+            for _ in range(100):
+                result = self.client.get("/api/consult/result", params={"job_id": started.json()["job_id"]}).json()
+                if result["status"] != "running": break
+                time.sleep(.01)
+        text = json.dumps(captured, ensure_ascii=False)
+        for forbidden in (profile["name"], profile["id"], profile["birth"], company["name"], company["id"], "13800138000", "个人私事哨兵", "个人旧研究哨兵"):
+            self.assertNotIn(forbidden, text)
+        self.assertIn("已完成阶段验收", text)
+        self.assertEqual(captured["context"]["confirmed_personal_events"], [])
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(self.client.get("/api/app/predictions", params={"scene": "company", "company_id": company["id"]}).json()["predictions"], [])
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.client_context = TestClient(backend_app.app)
@@ -315,10 +364,12 @@ class AppApiTest(unittest.TestCase):
             }
 
         with patch.object(backend_app, "_app_transit", return_value=(fake_transit, None)), \
+             patch.object(backend_app, "_desk_chart", return_value={"pillars": {"day": "甲辰"}}), \
              patch.object(backend_app, "_run_consult_payload", side_effect=fake_run_consult), \
              patch.object(backend_app, "_app_run_question_round", side_effect=fake_question_round):
             started = self.client.post("/api/app/questions/start", json={
                 "profile_id": created["id"], "period": "month", "category": "finance",
+                "scope_confirmed": True,
                 "question": ("本月合成流水当前100万，目标300万，前10天低于预期，"
                              "剩余20天能否完成任务？"),
                 "background": "只有合成背景",
@@ -335,6 +386,8 @@ class AppApiTest(unittest.TestCase):
         prediction = result["result"]["prediction"]
         snapshot = prediction["snapshot"]
         self.assertEqual(snapshot["schema_version"], "prediction-snapshot-v1")
+        self.assertEqual(snapshot["decision_material"]["scene"], "personal")
+        self.assertEqual(snapshot["decision_scope"]["subject"]["id"], created["id"])
         self.assertIn("剩余20天能否完成任务", snapshot["question"])
         self.assertTrue(snapshot["key_time_windows"])
         self.assertFalse(captured["kwargs"]["include_dossier"])
