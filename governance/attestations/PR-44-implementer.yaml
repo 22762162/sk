@@ -1,0 +1,22 @@
+artifact_id: PR-44-implementer
+timestamp: "2026-08-30T22:22:27+07:00"
+provider: openai
+model_id: gpt-5
+model_release: Codex session 2026-08-30(exact build unavailable)
+agent_role: implementer
+session_id: codex-main-repo-session(four-model-bakeoff-runner)
+run_manifest_id: local ignored manifests(synthetic four-model benchmark only)
+source_repository: https://github.com/22762162/sk
+source_commit: ea2fd49(PR #43 head,stacked base)
+generated_files:
+  - evals/four_model_bakeoff/run_bakeoff.py
+  - backend/tests/test_four_model_bakeoff.py
+  - docs/reviews/PR-44-four-model-bakeoff-results.md
+  - docs/reviews/PR-44-four-model-runner-risk.md
+reviewed_files: []
+notes: >-
+  在 PR #43 冻结协议上实现四模型确定性题库、盲标重排、断点续跑、严格与可审计宽松 JSON
+  解析、完整度门槛和自动评分。未修改 prompts、冻结配置、生产路由或用户数据。首轮合成评测中
+  ChatGPT、Gemini、DeepSeek 180/180，Claude 179/180；DeepSeek 为取得最终完整答案额外补跑
+  7 次并提高 completion 预算，已在结果与风险报告披露。该结果只代表当前规则契约一致性，不能
+  宣称真实问事预测胜者。高风险叠加 PR 合入前仍需异厂商 reviewer attestation 与本人审阅签署。
