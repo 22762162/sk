@@ -9,6 +9,8 @@ run_manifest_id: not-applicable (synthetic tests only; no hosted model calls)
 source_repository: https://github.com/22762162/sk
 source_commit: b179f3a1a5eff4e7e2093d91bcf121614c620c0f
 generated_files:
+  - Makefile
+  - backend/README.md
   - consult-engine/brain_context.py
   - consult-engine/personal_app.py
   - consult-engine/decision_desk.py
