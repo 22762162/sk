@@ -17,8 +17,10 @@ test-ref:
 	else echo "跳过参考实现测试:$(REF_DIR) 未就位(git clone https://github.com/22762162/sk-paipan-reference.git)"; fi
 
 test-backend:
-	uv run --with fastapi --with uvicorn --with httpx \
+	uv run --with-requirements backend/tests/requirements.lock \
 	  python3 -m unittest discover -s backend/tests -p 'test_*.py' -v
+	uv run --with-requirements backend/tests/requirements.lock \
+	  python3 -m pytest integrations/huohuo_bridge/tests -q
 
 lint:
 	cargo fmt --manifest-path engine-paipan/Cargo.toml --all -- --check
@@ -90,7 +92,7 @@ barnum-smoke:
 keys-check:
 	@set -a; [ -f .env ] && . ./.env; set +a; \
 	uv run --with httpx python3 -c "import sys; sys.path.insert(0,'consult-engine'); import gateway; \
-	print('\n'.join(f'{p}: ' + ('已配置' if gateway.key_present(p) else '未配置') for p in ('anthropic','openai','deepseek')))"
+	print('\n'.join(f'{p}: ' + ('已配置' if gateway.key_present(p) else '未配置') for p in ('anthropic','gemini','deepseek')))"
 
 # 人类工程师本机执行一次，启用 git pre-commit 闸门
 install-hooks:

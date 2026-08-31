@@ -25,7 +25,7 @@
     <header class="app-header">
       <a class="brand" href="#home" aria-label="三鉴首页">
         <span class="brand-mark" aria-hidden="true">鉴</span>
-        <span><strong>三鉴</strong><small>个人推演实验室</small></span>
+        <span><strong>三鉴</strong><small>私人决策台</small></span>
       </a>
       <div class="header-actions">
         <button id="install-button" class="icon-button install-button" type="button" hidden>
@@ -43,8 +43,8 @@
         <div class="eyebrow" id="today-label">今日</div>
         <div class="hero-row">
           <div>
-            <h1 id="home-title">三方独立判断，再给出可验证结论。</h1>
-            <p>Claude、GPT、DeepSeek 分别判断、交叉质证，再由盲评汇总。任一方缺席，APP 不生成单方结论。</p>
+            <h1 id="home-title">看清这件事，再走下一步。</h1>
+            <p>先确认是谁的事，再核对现实条件。三方独立分析，分歧留痕，结果到期复盘。</p>
           </div>
           <button class="primary-action hero-action" type="button" data-route="question">发起三方会诊</button>
         </div>
@@ -56,7 +56,7 @@
           </div>
           <div class="role-strip">
             <div class="role-chip role-claude"><strong>Claude</strong><span>子平格局</span></div>
-            <div class="role-chip role-gpt"><strong>GPT</strong><span>旺衰扶抑</span></div>
+            <div class="role-chip role-gemini"><strong>Gemini</strong><span>旺衰扶抑</span></div>
             <div class="role-chip role-deepseek"><strong>DeepSeek</strong><span>调候平衡</span></div>
           </div>
           <p>独立分析 → 匿名质证 → 轮换盲评；分歧会保留，不用一方意见冒充共识。</p>
@@ -78,9 +78,9 @@
             <button type="button" class="feature-card" data-home-feature="daily"><span class="feature-icon" aria-hidden="true">日</span><strong>今日三方研判</strong><small>机会、风险与验证信号</small></button>
             <button type="button" class="feature-card" data-home-feature="month"><span class="feature-icon" aria-hidden="true">月</span><strong>本月流月研判</strong><small>关键节点与行动窗口</small></button>
             <button type="button" class="feature-card" data-home-feature="zeri"><span class="feature-icon" aria-hidden="true">时</span><strong>三方择时</strong><small>结合事项筛选时间窗口</small></button>
-            <button type="button" class="feature-card" data-home-feature="hehun"><span class="feature-icon" aria-hidden="true">合</span><strong>关系 / 合盘</strong><small>分别判断关系与互动</small></button>
+            <button type="button" class="feature-card" data-home-feature="hehun"><span class="feature-icon" aria-hidden="true">合</span><strong>个人关系问事</strong><small>只用所选主体，不混入他人盘</small></button>
             <button type="button" class="feature-card" data-home-feature="accuracy"><span class="feature-icon" aria-hidden="true">准</span><strong>命中率仪表盘</strong><small>只用锁定后的未来复盘</small></button>
-            <button type="button" class="feature-card" data-home-feature="backup"><span class="feature-icon" aria-hidden="true">备</span><strong>本机数据备份</strong><small>每日备份，保留最近 14 份</small></button>
+            <button type="button" class="feature-card" data-route="company"><span class="feature-icon" aria-hidden="true">企</span><strong>公司与项目</strong><small>明确公司、事项与相关人员</small></button>
           </div>
         </section>
 
@@ -119,6 +119,22 @@
         </div>
 
         <form id="question-form" class="form-card card" novalidate>
+          <div class="scope-editor">
+            <span class="eyebrow">01 · 确认分析范围</span>
+            <div class="field-grid">
+              <label class="field">这是谁的事？<select id="question-scene"><option value="personal">个人事情</option><option value="company">公司 / 项目事情</option></select></label>
+              <label class="field">分析主体 / 公司主参考人<select id="question-subject" required></select></label>
+            </div>
+            <div id="question-company-fields" hidden>
+              <div class="field-grid">
+                <label class="field">公司<select id="question-company"></select></label>
+                <label class="field">事项范围<select id="question-project"></select></label>
+              </div>
+              <fieldset><legend>本次相关人员（最多六位，必须包含主参考人）</legend><div id="question-members" class="member-options"></div></fieldset>
+              <button type="button" class="text-button" data-route="company">管理公司和授权关联</button>
+            </div>
+            <p id="question-scope-summary" class="field-hint" aria-live="polite"></p>
+          </div>
           <fieldset class="segmented-field">
             <legend>预测周期</legend>
             <div class="segmented">
@@ -151,15 +167,27 @@
               placeholder="只写影响判断的现实条件；不要填写姓名、电话、精确地址或账号。"></textarea>
           </label>
 
+          <section id="question-brain" class="brain-panel" hidden aria-labelledby="question-brain-title">
+            <span class="eyebrow">可选 · 现实依据</span><h3 id="question-brain-title">带上已确认的公司资料</h3>
+            <p class="field-hint">只读本次公司／项目的绑定范围。资料来自大脑，不等于已经核验的事实。</p>
+            <div class="settings-actions"><button id="brain-preview" type="button" class="secondary-action" disabled>预览本月资料</button><button id="brain-clear" type="button" class="text-button">本次不带资料</button><button type="button" class="text-button" data-route="company">解锁／管理绑定</button></div>
+            <p id="brain-preview-status" class="field-hint" aria-live="polite"></p>
+            <div id="brain-items"></div>
+            <div id="brain-confirm-area" hidden>
+              <label class="check-line"><input id="brain-external-confirm" type="checkbox"><span>我已核对所选摘要、去除身份信息与机密，同意摘要发给 Claude、Gemini、DeepSeek 做本次分析。原文不发送。</span></label>
+              <button id="brain-confirm" type="button" class="secondary-action">冻结所选摘要 · 仅用一次</button>
+            </div>
+          </section>
           <div id="question-research-status" class="research-status" aria-live="polite"></div>
-          <div class="privacy-line"><span aria-hidden="true">⌁</span> 原始生日留在本机；三方只接收命盘结构、去标识问题与本人确认的研究事实。</div>
+          <div class="privacy-line"><span aria-hidden="true">⌁</span> 三方模型在云端运行。仅发送必要命盘结构、去标识问题和所选背景；请勿输入联系方式、账号或商业机密。传统解读仅作研究参考，不替代经营与财务核验。</div>
+          <label class="check-line"><input id="question-scope-confirm" type="checkbox" required><span>我已核对主体、资料与人员范围，并同意本次最小化资料用于三方分析。</span></label>
           <div id="question-error" class="form-error" role="alert" hidden></div>
           <button id="question-submit" class="primary-action full" type="submit">启动三方会诊并锁定预测</button>
         </form>
 
         <div id="question-progress" class="progress-card card" aria-live="polite" hidden>
           <div class="orb" aria-hidden="true"></div>
-          <div><strong>Claude、GPT、DeepSeek 正在独立分析</strong><p id="question-progress-text">已记录提问时间，三方完成后才会进入质证与盲评…</p></div>
+          <div><strong>Claude、Gemini、DeepSeek 正在独立分析</strong><p id="question-progress-text">已记录提问时间，三方完成后才会进入质证与盲评…</p></div>
         </div>
         <div id="prediction-result" aria-live="polite"></div>
       </section>
@@ -170,6 +198,7 @@
           <h1 id="records-title">记录与复盘</h1>
           <p>原预测和依据始终保留原样；复盘是独立记录，不做事后改判。</p>
         </div>
+        <label class="field">查看主体<select id="records-subject"></select></label>
         <div class="filter-row" role="group" aria-label="记录筛选">
           <button type="button" class="filter is-active" data-filter="">全部</button>
           <button type="button" class="filter" data-filter="pending">待复盘</button>
@@ -180,18 +209,28 @@
 
       <section id="view-profile" class="app-view" data-view="profile" aria-labelledby="profile-title" hidden>
         <div class="page-heading">
-          <span class="eyebrow">我的</span>
-          <h1 id="profile-title">基本盘与个人校准</h1>
-          <p>可保存多份并随时切换。出生地只需城市级信息，不要填写精确地址。</p>
+          <span class="eyebrow">统一档案 · 看盘</span>
+          <h1 id="profile-title">选对人，再看盘。</h1>
+          <p>自己、家人或已获授权的分析对象共用一套档案。计算资料、事实与旧研究分开呈现。</p>
         </div>
 
         <section class="section-block" aria-labelledby="profiles-title">
           <div class="section-heading">
-            <div><h2 id="profiles-title">我的基本盘</h2></div>
+            <div><h2 id="profiles-title">已保存的基本盘</h2></div>
             <button id="new-profile-button" class="small-action" type="button">＋ 新建</button>
           </div>
           <div id="profile-list" class="profile-list"></div>
         </section>
+        <section id="chart-workspace" class="section-block" aria-live="polite"><div class="empty-state">选择“查看”读取这份档案的计算资料与大事记。</div></section>
+        <form id="event-form" class="form-card card" hidden>
+          <h2>记录已发生的事</h2>
+          <p class="field-hint">只追加到当前查看的主体；记录事实不会改写已有预测，也不代表模型自动学会了预测。</p>
+          <label class="field">发生日期<input id="event-date" type="date" required></label>
+          <label class="field">可核对的事实<textarea id="event-content" minlength="2" maxlength="300" rows="3" required></textarea></label>
+          <label class="check-line"><input id="event-confirm" type="checkbox" required><span>我确认已经发生。提交后不能改写；更正需新增说明。</span></label>
+          <div id="event-error" class="form-error" role="alert" hidden></div>
+          <button type="submit" class="primary-action">追加事实</button>
+        </form>
 
         <form id="profile-form" class="form-card card" novalidate hidden>
           <div class="form-title-row"><h2 id="profile-form-title">新建基本盘</h2><button type="button" id="profile-form-close" class="icon-button" aria-label="关闭">×</button></div>
@@ -226,13 +265,65 @@
             <input id="profile-research-source" type="hidden" value="manual">
             <div class="research-actions">
               <button id="profile-research-import" class="secondary-action" type="button">从高级研究载入</button>
-              <a id="profile-research-open" class="text-button" href="/legacy#history">打开高级研究历史记录</a>
+              <button id="profile-research-open" class="text-button" type="button">查看可绑定的历史研究</button>
             </div>
           </section>
           <div id="profile-error" class="form-error" role="alert" hidden></div>
           <button class="primary-action full" type="submit">保存基本盘</button>
         </form>
 
+      </section>
+
+      <section id="view-company" class="app-view" data-view="company" aria-labelledby="company-title" hidden>
+        <div class="page-heading"><span class="eyebrow">经营事实优先</span><h1 id="company-title">公司是一件共同的事。</h1><p>公司、项目与关键人分别建档。每次分析只带你勾选的人，不用命盘给人员排名或作任用判断。</p></div>
+        <div class="notice"><strong>公司事实与传统推演分开核对</strong><p>公司收入不等于个人收入；未提供开业时间时不生成公司盘。大脑资料需授权、绑定和逐次确认，不会自动进入问事。</p></div>
+        <section class="section-block">
+          <div class="section-heading"><h2>公司档案</h2><button id="company-new" type="button" class="small-action">＋ 新建</button></div>
+          <label class="field">当前公司<select id="company-select"></select></label>
+          <div id="company-detail"></div>
+        </section>
+        <section class="form-card card brain-panel" aria-labelledby="brain-title">
+          <span class="eyebrow">火火大脑 · 只读连接</span><h2 id="brain-title">先确认来源，再用于判断</h2>
+          <p id="brain-status" class="field-hint" aria-live="polite">未解锁 · 只读出口需先由管理员安全配置。</p>
+          <label class="field">大脑访问口令<input id="brain-access" type="password" autocomplete="off" maxlength="256" placeholder="不是模型 API Key；仅在此页面临时保留"></label>
+          <div class="settings-actions"><button id="brain-unlock" type="button" class="secondary-action">解锁连接</button><button id="brain-lock" type="button" class="text-button">锁定并清除预览</button></div>
+          <div id="brain-binding-area" hidden>
+            <label class="field">当前公司下的事项范围<select id="brain-project"></select></label>
+            <label class="field">出口明确授权的来源<select id="brain-scope"></select></label>
+            <p id="brain-binding-status" class="field-hint" aria-live="polite"></p>
+            <button id="brain-bind" type="button" class="secondary-action" disabled>确认绑定到当前公司／项目</button>
+          </div>
+          <p class="field-hint">不会搜索或读取你的密钥文件。敏感级别 L3/L4 仅在受保护页面查看，不进入云端分析。断网不拿旧数据替代。</p>
+        </section>
+        <form id="company-form" class="form-card card" hidden>
+          <h2>公司资料</h2><input id="company-id" type="hidden"><input id="company-version" type="hidden">
+          <label class="field">公司简称<input id="company-name" maxlength="60" required></label>
+          <label class="field">行业<input id="company-industry" maxlength="60"></label>
+          <label class="field">当前发展情况<textarea id="company-context" maxlength="800" rows="4" placeholder="例如：目前阶段、目标、已核对的进展。不要写客户身份、账号或机密。"></textarea></label>
+          <div class="settings-actions"><button class="primary-action" type="submit">保存公司</button><button type="button" class="secondary-action" data-close-form="company-form">取消</button></div>
+        </form>
+        <form id="project-form" class="form-card card" hidden>
+          <h2>项目资料</h2><input id="project-id" type="hidden"><input id="project-version" type="hidden"><input id="project-company" type="hidden">
+          <label class="field">项目简称<input id="project-name" maxlength="60" required></label>
+          <label class="field">进展与约束<textarea id="project-context" maxlength="800" rows="3"></textarea></label>
+          <div class="settings-actions"><button class="primary-action" type="submit">保存项目</button><button type="button" class="secondary-action" data-close-form="project-form">取消</button></div>
+        </form>
+        <form id="member-form" class="form-card card" hidden>
+          <h2>关联人员</h2><input id="member-version" type="hidden"><input id="member-company" type="hidden">
+          <label class="field">基本盘<select id="member-profile" required></select></label>
+          <label class="field">所属范围<select id="member-project"></select></label>
+          <label class="field">职责<input id="member-role" maxlength="60" placeholder="例如：合伙人、业务负责人" required></label>
+          <div class="field-grid"><label class="field">开始日期（选填）<input id="member-start" type="date"></label><label class="field">结束日期（选填）<input id="member-end" type="date"></label></div>
+          <label class="check-line"><input id="member-consent" type="checkbox"><span>已取得该人员对本次用途所需的资料使用授权（取消勾选可撤回后续分析使用）。</span></label>
+          <div class="settings-actions"><button class="primary-action" type="submit">保存关联</button><button type="button" class="secondary-action" data-close-form="member-form">取消</button></div>
+        </form>
+        <div id="company-error" class="form-error" role="alert" hidden></div>
+        <section class="section-block"><div class="section-heading"><h2>公司事项记录</h2><button id="company-refresh-records" type="button" class="text-button">刷新</button></div><div id="company-records" class="record-list"></div></section>
+      </section>
+
+      <section id="view-settings" class="app-view" data-view="settings" aria-labelledby="my-title" hidden>
+        <div class="page-heading"><span class="eyebrow">我的</span><h1 id="my-title">记录，让判断有迹可循。</h1><p>这里的统计只包含当前基本盘的个人事项，公司事项独立保留。</p></div>
+        <button type="button" class="primary-action" data-route="records">个人记录与复盘</button>
         <section class="section-block" aria-labelledby="stats-title">
           <div class="section-heading"><div><span class="eyebrow">只看未来校准</span><h2 id="stats-title">个人准确率</h2></div></div>
           <div id="stats-card" class="stats-card card"></div>
@@ -243,7 +334,7 @@
           <p>App 会在此浏览器缓存基本盘和历史快照，供离线查看。高级研究联动在基本盘编辑页确认，预测生成始终要求联网。</p>
           <div class="settings-actions">
             <button id="clear-offline" type="button" class="secondary-action">清除浏览器离线缓存</button>
-            <a class="secondary-action" href="/legacy">打开原高级研究页</a>
+            <a class="secondary-action" href="/legacy">旧版专家工具（不代表三方结论）</a>
             <button id="show-install-help" type="button" class="secondary-action">安装说明</button>
           </div>
         </section>
@@ -251,10 +342,11 @@
     </main>
 
     <nav class="bottom-nav" aria-label="主导航">
-      <button type="button" class="nav-item is-active" data-route="home"><span aria-hidden="true">⌂</span><small>首页</small></button>
+      <button type="button" class="nav-item is-active" data-route="home"><span aria-hidden="true">⌂</span><small>今日</small><b id="review-badge" hidden>0</b></button>
       <button type="button" class="nav-item" data-route="question"><span aria-hidden="true">✦</span><small>问事</small></button>
-      <button type="button" class="nav-item" data-route="records"><span aria-hidden="true">▤</span><small>记录</small><b id="review-badge" hidden>0</b></button>
-      <button type="button" class="nav-item" data-route="profile"><span aria-hidden="true">○</span><small>我的</small></button>
+      <button type="button" class="nav-item" data-route="profile"><span aria-hidden="true">▤</span><small>看盘</small></button>
+      <button type="button" class="nav-item" data-route="company"><span aria-hidden="true">▦</span><small>公司</small></button>
+      <button type="button" class="nav-item" data-route="settings"><span aria-hidden="true">○</span><small>我的</small></button>
     </nav>
   </div>
 
@@ -285,6 +377,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/static/brain.js" defer></script>
   <script src="/static/app.js" defer></script>
 </body>
 </html>

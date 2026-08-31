@@ -1,0 +1,27 @@
+artifact_id: decision-desk-p2-claude-implementer
+timestamp: "2026-08-31T15:42:32.670Z"
+original_reported_timestamp: "2026-08-31T23:50:00+07:00"
+timestamp_basis: "Codex归档时使用源文件mtime；原自报时间领先主机时钟，保留上字段供审计。未代替Claude签署内容。"
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+scope: 仅 integrations/huohuo_bridge/(出口服务/测试/README)与 docs/coordination/ 两份协作文档
+session_id: claude-code-session(火火大脑只读出口;双 AI 协同 P2)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: b179f3a(main,PR #46 合并点;工作树 agent/huohuo-readonly-bridge)
+generated_files:
+  - integrations/huohuo_bridge/config.py(严格配置校验:token ASCII 32-256/scope id fullmatch/群组类型与唯一性/注入同校验)
+  - integrations/huohuo_bridge/source.py(方言白名单 postgresql|sqlite;只读事务+语句超时;白名单两表白名单列;SQL 层过滤先于 LIMIT)
+  - integrations/huohuo_bridge/service.py(三 GET;Bearer bytes 比较;全响应 no-store;金额范围校验含 Overflow 拦截;覆盖不全整月拒绝)
+  - integrations/huohuo_bridge/serve.py(仅 127.0.0.1:8793;坏 DSN 关闭态)
+  - integrations/huohuo_bridge/tests/test_bridge.py(31 项合成用例,含 R1/R2 全部回归)
+  - integrations/huohuo_bridge/README.md
+reviewed_files: []
+notes: >-
+  两阶段如实区分:①旧 HTTP 连接器(feat/p16-brain-connector,当时经用户授权做过真实接口探查,
+  未合并未部署,已被本出口取代);②本出口阶段纯合成数据,未读取真实数据库/密钥/token。
+  Codex 交叉审查 R1(4 项)+R2(5 项)意见已全部落实,31/31 合成测试通过。
+  真库(PostgreSQL)链路未运行过:合成通过不等于已上线。
+  人工签署仍待定:发布与合并须经本人完整审阅与批准,本 attestation 仅为实现方自述,不构成任何人工签名。

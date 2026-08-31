@@ -1,6 +1,6 @@
-const CACHE = "sanjian-shell-v6";
+const CACHE = "sanjian-shell-v9";
 const SHELL = [
-  "/", "/manifest.webmanifest", "/static/app.css", "/static/app.js",
+  "/", "/manifest.webmanifest", "/static/app.css", "/static/brain.js", "/static/app.js",
   "/static/icons/icon.svg", "/static/icons/icon-192.png", "/static/icons/icon-512.png",
   "/static/icons/icon-maskable-512.png"
 ];
@@ -32,10 +32,11 @@ self.addEventListener("fetch", event => {
     return;
   }
 
+  // 联网时优先取最新壳文件，避免发布后手机仍长期命中旧 JS/CSS；断网才回退缓存。
   event.respondWith(
-    caches.match(request).then(cached => cached || fetch(request).then(response => {
+    fetch(request).then(response => {
       if (response.ok) caches.open(CACHE).then(cache => cache.put(request, response.clone()));
       return response;
-    }))
+    }).catch(() => caches.match(request))
   );
 });

@@ -1,0 +1,26 @@
+artifact_id: PR-42-implementer
+timestamp: "2026-08-30T21:11:19+07:00"
+provider: openai
+model_id: gpt-5
+model_release: Codex session 2026-08-30(exact build unavailable)
+agent_role: implementer
+session_id: codex-main-repo-session(gemini-provider-migration)
+run_manifest_id: local ignored manifests(synthetic Gemini and D3J smoke only)
+source_repository: https://github.com/22762162/sk
+source_commit: 25c92ac4990e9fda58553ee5a4ca7f79d2dbc980(PR #41 head,stacked base)
+generated_files:
+  - consult-engine/gateway.py(Gemini native provider and response mapping)
+  - consult-engine/consult.py(Gemini 3.6 Flash runtime slot)
+  - backend/app.py + backend/tests/test_app_api.py + backend/tests/test_gateway.py
+  - governance/model-routing.yaml + governance/codex-overlay.md + generated AGENTS.md
+  - security/vendor-register.yaml + security/data-classification.md
+  - web/app.html + web/app.css + documentation
+  - docs/DESIGN.md(V3.1) + docs/reviews/PR-42-gemini-provider-risk.md
+reviewed_files: []
+notes: >-
+  主仓运行态供应商迁移实现会话；未修改 engine-paipan、参考实现、contracts、prompts、
+  rulebase/approved 或评测指标代码。密钥仅由本机 .env 注入，未读取、回显、提交或写入
+  manifest。开发和真实 API 冒烟只用合成命盘。Gemini 3.7 Flash 实测持续 503，改锁定官方
+  稳定版 Gemini 3.6 Flash；单次调用与完整 D3J 均成功。eval-smoke 第一张盘四臂完成，第二张
+  完成 S1/P3 后因 D3 长尾在约 10 分钟主动中止，风险报告已如实记录。高风险路径合入前仍需
+  异厂商 reviewer attestation、Google 供应商数据政策登记和本人完整审阅签署。

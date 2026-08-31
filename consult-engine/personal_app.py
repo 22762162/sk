@@ -15,11 +15,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import decision_desk
+import brain_context
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = ROOT / "consult-engine" / "appdata" / "sanjian-app.sqlite3"
 DEFAULT_LEGACY_PREDICTIONS = ROOT / "consult-engine" / "predictions" / "predictions.jsonl"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 MIN_CALIBRATION_SAMPLES = 8
 VALID_OUTCOMES = {"hit", "partial", "miss", "unclear"}
 
@@ -161,6 +164,8 @@ class AppStore:
             ):
                 if name not in profile_columns:
                     con.execute(f"ALTER TABLE profiles ADD COLUMN {name} {definition}")
+            decision_desk.migrate(con)
+            brain_context.migrate(con)
             con.execute(
                 "INSERT INTO app_meta(key,value) VALUES('schema_version',?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -279,23 +284,37 @@ class AppStore:
 
     def create_inquiry(self, profile_id: str, period: str, category: str, question: str,
                        background: str, asked_at: str, period_start: str,
-                       period_end: str) -> dict:
+                       period_end: str, scope: dict | None = None, brain_snapshot_id: str = "",
+                       brain_period: str = "") -> dict:
         now, qid = utc_now(), f"inquiry-{uuid.uuid4().hex[:12]}"
+        scope = scope or {}
         with self._connect() as con:
+            con.execute("BEGIN IMMEDIATE")
             con.execute(
                 """INSERT INTO inquiries(
                     id,profile_id,period,category,question,background,asked_at,
-                    period_start,period_end,status,error,created_at,updated_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,'running','',?,?)""",
+                    period_start,period_end,status,error,created_at,updated_at,
+                    scene,company_id,project_id,scope_json
+                ) VALUES(?,?,?,?,?,?,?,?,?,'running','',?,?,?,?,?,?)""",
                 (qid, profile_id, period, category, question, background, asked_at,
-                 period_start, period_end, now, now),
+                 period_start, period_end, now, now, scope.get("scene", "personal"),
+                 (scope.get("company") or {}).get("id", ""),
+                 (scope.get("project") or {}).get("id", ""), decision_desk.scope_json(scope)),
             )
+            if brain_snapshot_id:
+                scope["brain_snapshot"] = brain_context.consume(con, brain_snapshot_id, qid, scope, brain_period)
+                scope["brain_connection"] = "confirmed_snapshot"
+                con.execute("UPDATE inquiries SET scope_json=? WHERE id=?", (decision_desk.scope_json(scope), qid))
+            con.commit()
         return self.get_inquiry(qid) or {}
 
     def get_inquiry(self, inquiry_id: str) -> dict | None:
         with self._connect() as con:
             row = con.execute("SELECT * FROM inquiries WHERE id=?", (inquiry_id,)).fetchone()
-        return self._row(row)
+        result = self._row(row)
+        if result:
+            result["scope"] = json.loads(result.pop("scope_json", "{}"))
+        return result
 
     def set_inquiry_state(self, inquiry_id: str, status: str, error: str = "") -> None:
         if status not in {"running", "locked", "error"}:
@@ -375,11 +394,17 @@ class AppStore:
         return {**raw, "snapshot": snapshot, "review": review}
 
     def list_predictions(self, profile_id: str | None = None, limit: int = 100,
-                         review_state: str = "") -> list[dict]:
+                         review_state: str = "", scene: str = "", company_id: str = "") -> list[dict]:
         where, args = [], []
         if profile_id:
             where.append("p.profile_id=?")
             args.append(profile_id)
+        if scene:
+            where.append("q.scene=?")
+            args.append(scene)
+        if company_id:
+            where.append("q.company_id=?")
+            args.append(company_id)
         if review_state == "pending":
             where.append("r.id IS NULL")
         elif review_state == "reviewed":
@@ -426,9 +451,9 @@ class AppStore:
         return {"hit": 1.0, "partial": 0.5, "miss": 0.0}.get(outcome)
 
     def _review_rows(self, profile_id: str | None = None) -> list[dict]:
-        where, args = "", []
+        where, args = " WHERE q.scene='personal'", []
         if profile_id:
-            where, args = " WHERE p.profile_id=?", [profile_id]
+            where, args = where + " AND p.profile_id=?", [profile_id]
         with self._connect() as con:
             rows = con.execute(
                 """SELECT q.category,q.period,p.algorithm_version,p.model_version,p.rule_version,
@@ -473,10 +498,11 @@ class AppStore:
                     for key in keys]
 
         with self._connect() as con:
-            query = "SELECT COUNT(*) AS n FROM prediction_snapshots"
+            query = ("SELECT COUNT(*) AS n FROM prediction_snapshots p "
+                     "JOIN inquiries q ON q.id=p.inquiry_id WHERE q.scene='personal'")
             args: list[Any] = []
             if profile_id:
-                query += " WHERE profile_id=?"
+                query += " AND p.profile_id=?"
                 args.append(profile_id)
             total = int(con.execute(query, args).fetchone()["n"])
         return {

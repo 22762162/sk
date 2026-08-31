@@ -9,7 +9,8 @@ vendors:
     region: 接入时登记
     account_project_id: 接入时登记
     terms_checked_at: null
-  - name: openai
+  - name: gemini
+    operator: Google
     data_sent_fields: [最小化命盘结构, 规则引用]
     retention_policy_snapshot: 接入时登记
     training_opt_out: 接入时确认
