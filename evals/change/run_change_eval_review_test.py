@@ -6,6 +6,7 @@ directory on PYTHONPATH. Expected failures are evidence, never xfailed or waived
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -36,9 +37,11 @@ class ChangeEvalReviewTest(unittest.TestCase):
         self.cases = self.root / "cases.jsonl"
         self.cases.write_text(json.dumps(self.case, ensure_ascii=False) + "\n", encoding="utf-8")
 
-    def invoke(self, *, mode="dry", chain=None):
+    def invoke(self, *, mode="dry", chain=None, verify_lock=None):
         argv = ["run_change_eval.py", "--cases", str(self.cases), "--prompts-dir", str(self.root),
                 "--mode", mode, "--arm", "sanshu", "--cap", "12"]
+        if verify_lock is not None:
+            argv += ["--verify-lock", str(verify_lock)]
         buf = io.StringIO()
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(runner, "ROOT", self.root))
@@ -100,6 +103,22 @@ class ChangeEvalReviewTest(unittest.TestCase):
             self.invoke(chain=self.success)
         reports = list((self.root / "evals/change/reports").glob("*-summary.md"))
         self.assertEqual(2, len(reports), "each invocation must retain a unique immutable report")
+
+    def test_empty_approval_file_does_not_authorize_real_calls(self):
+        cfg = self.root / "evals/change"
+        cfg.mkdir(parents=True)
+        (cfg / "thresholds-approved.yaml").write_text("", encoding="utf-8")
+        lock = self.root / "cases.lock"
+        lock.write_text(json.dumps({
+            "n": 1, "sha256": hashlib.sha256(self.cases.read_bytes()).hexdigest()}), encoding="utf-8")
+        result, _, factory_calls = self.invoke(mode="real", chain=self.success, verify_lock=lock)
+        self.assertEqual(0, factory_calls, "an empty approval file is not a signed frozen protocol")
+        self.assertNotEqual(0, result)
+
+    def test_missing_redline_policy_fails_closed(self):
+        with patch.object(runner, "ROOT", self.root):
+            with self.assertRaises((OSError, RuntimeError)):
+                runner.redline_words()
 
 
 if __name__ == "__main__":

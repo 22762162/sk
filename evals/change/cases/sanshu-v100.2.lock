@@ -1,8 +1,8 @@
 {
- "file": "sanshu-v100.jsonl",
- "sha256": "e0cc02e4190134f033fba9a6f446c684b5e1cb248db3f1b8010cbdfb4e6437dd",
+ "file": "sanshu-v100.2.jsonl",
+ "sha256": "bef82143f7c05a59b4f145c6bd6b8d69a93af151f8fe5cf5bd5b0b4c1db540ea",
  "seed": 20260901,
- "generator_version": 2,
+ "generator_version": 3,
  "n": 100,
  "unique_ids": true,
  "strata": "scene2×method2×domain5×variant5",

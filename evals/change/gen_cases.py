@@ -3,8 +3,8 @@
 整改(P19 审查第 5 条):
 - 八字材料改为**中性结构合成盘**(四柱从六十甲子采样+性别),不含"身强财旺"类预解释,
   并显式标注"结构合成,非真实历法盘"——本集仅支撑结构/合规试验,不支撑测算有效性结论。
-- 问句自带期限词(月内/两周内/季度内),deadline 按期限词锁齐,不再随机漂移。
-用法:python3 evals/change/gen_cases.py → cases/sanshu-v100.jsonl + sanshu-v100.lock
+- 问句自带期限词(月内/两周内/未来三个月内),deadline 按期限词锁齐,不再随机漂移。
+用法:python3 evals/change/gen_cases.py → cases/sanshu-v100.2.jsonl + sanshu-v100.2.lock
 """
 
 from __future__ import annotations
@@ -15,28 +15,28 @@ import random
 from pathlib import Path
 
 SEED = 20260901
-GENERATOR_VERSION = 2
+GENERATOR_VERSION = 3
 OUT = Path(__file__).parent / "cases"
 STEMS, BRANCHES = "甲乙丙丁戊己庚辛壬癸", "子丑寅卯辰巳午未申酉戌亥"
 JIAZI = [STEMS[i % 10] + BRANCHES[i % 12] for i in range(60)]
 
 # (期限词, deadline) 锁齐;问句模板内嵌期限词
-HORIZONS = {"月内": "2026-09-30", "两周内": "2026-09-14", "季度内": "2026-11-30"}
+HORIZONS = {"月内": "2026-09-30", "两周内": "2026-09-14", "未来三个月内": "2026-11-30"}
 QUESTIONS = {
     "事业": [("月内", "核心业务目标月内能否推进到位"), ("月内", "关键岗位调整月内能否落定"),
-             ("两周内", "两周内团队排班调整能否理顺"), ("季度内", "新业务线季度内能否立项通过"),
+             ("两周内", "两周内团队排班调整能否理顺"), ("未来三个月内", "新业务线未来三个月内能否立项通过"),
              ("月内", "月内考核目标达成有无变数")],
     "财务": [("月内", "月内回款能否达到既定水平"), ("两周内", "两周内成本超支能否刹住"),
-             ("月内", "预算审批月内能否走完"), ("季度内", "季度内分成结算是否顺利"),
+             ("月内", "预算审批月内能否走完"), ("未来三个月内", "未来三个月内分成结算是否顺利"),
              ("月内", "月内资金周转是否宽裕")],
     "合作": [("月内", "与候选伙伴的洽谈月内有无结果"), ("两周内", "两周内续约分歧能否谈拢"),
-             ("月内", "新渠道合作月内能否签署"), ("季度内", "季度内新供应方能否落地"),
+             ("月内", "新渠道合作月内能否签署"), ("未来三个月内", "未来三个月内新供应方能否落地"),
              ("月内", "合作纠纷月内能否化解")],
     "时机": [("两周内", "两周内启动新企划是否合适"), ("月内", "月内对外发布消息是否得时"),
              ("月内", "月内变更既定安排是否顺利"), ("两周内", "两周内出行安排是否顺遂"),
-             ("季度内", "季度内择机扩张是否有利")],
+             ("未来三个月内", "未来三个月内择机扩张是否有利")],
     "进度": [("月内", "在建项目月内能否如期交付"), ("两周内", "两周内验收环节能否一次通过"),
-             ("月内", "拖延事项月内能否收尾"), ("季度内", "季度内里程碑能否按计划达成"),
+             ("月内", "拖延事项月内能否收尾"), ("未来三个月内", "未来三个月内里程碑能否按计划达成"),
              ("月内", "整改事项月内能否完成")],
 }
 
@@ -79,10 +79,12 @@ def main() -> None:
     ids = [r["id"] for r in rows]
     assert len(set(ids)) == 100
     body = "\n".join(json.dumps(r, ensure_ascii=False, sort_keys=True) for r in rows) + "\n"
-    (OUT / "sanshu-v100.jsonl").write_text(body, encoding="utf-8")
+    target = OUT / "sanshu-v100.2.jsonl"
+    with target.open("x", encoding="utf-8") as fh:  # 拒绝覆写既有版本
+        fh.write(body)
     digest = hashlib.sha256(body.encode()).hexdigest()
-    (OUT / "sanshu-v100.lock").write_text(json.dumps({
-        "file": "sanshu-v100.jsonl", "sha256": digest, "seed": SEED,
+    (OUT / "sanshu-v100.2.lock").write_text(json.dumps({
+        "file": "sanshu-v100.2.jsonl", "sha256": digest, "seed": SEED,
         "generator_version": GENERATOR_VERSION, "n": 100, "unique_ids": True,
         "strata": "scene2×method2×domain5×variant5",
         "material_policy": "中性结构合成盘,无预解释;仅支撑结构/合规试验,不支撑测算有效性结论",

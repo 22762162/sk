@@ -1,0 +1,8 @@
+{
+ "file": "sanshu-v100.jsonl",
+ "sha256": "0070609b91eb027018f3fc75fa1aa1e56466280b5714042a6d8f8335f80bbe95",
+ "seed": 20260901,
+ "n": 100,
+ "strata": "scene2×method2×domain5×variant5",
+ "note": "冻结用例集:哈希不匹配即拒跑;变更须新版本+本人确认"
+}
