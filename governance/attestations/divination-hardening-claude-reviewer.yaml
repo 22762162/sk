@@ -1,0 +1,22 @@
+artifact_id: divination-hardening-claude-reviewer
+timestamp: "2026-08-31T22:54:30+07:00"
+timestamp_source: host_clock(date 命令实读;非自报)
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: reviewer
+scope: 仅只读核验 Codex 在本工作树新增的三份文件;未修改其中任何内容
+session_id: claude-code-session(PR-45 加固收尾交叉核验;双 AI 协同)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 5002b6b(feat/p15-liuyao-meihua 顶点;工作树 agent/divination-hardening 未提交状态)
+generated_files: []
+reviewed_files:
+  - .github/workflows/ci.yml(新增 divination job:仅跑两份工程自检脚本,命名如实标注"非独立对拍",无密钥/网络依赖,与既有 job 无冲突)
+  - docs/reviews/divination-hardening-check.py(改前/改后等价回归:基线钉死于不可变 commit 经 git show 取旧源,不读参考仓;含输入未被改动之校验;新增两元数据字段单独核对且码-名一致映射)
+  - docs/reviews/divination-hardening-codex-review.md(风险分诊与保留闸门表述准确,未夸大 golden-smoke 证明范围)
+notes: >-
+  核验方式:通读三文件+本人独立复跑审查脚本——六爻 245,760 组、梅花 27,648 组改前/改后一致,
+  输出与其报告相符;CI job 语义与脚本行为一致。结论:无问题,接受其全部措辞修正意见
+  (含对我方"不触 L1"表述的更正)。该等价回归为同一主实现两版本对比,不是独立参考对拍,
+  不构成规则正确性或预测准确性证明。人工签署仍待定:本 attestation 仅为评审方自述,不构成任何人工签名。

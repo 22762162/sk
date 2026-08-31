@@ -1,0 +1,28 @@
+artifact_id: divination-hardening-claude-implementer
+timestamp: "2026-08-31T22:52:00+07:00"
+timestamp_source: host_clock(date 命令实读;非自报)
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: implementer
+scope: 仅 agent/divination-hardening 工作树内 consult-engine/{liuyao,meihua,divination_casting,divination_selftest,divination_hardening_test}.py 与 docs/(specs 两行+coordination 状态)
+session_id: claude-code-session(PR-45 候选工程加固;双 AI 协同)
+run_manifest_id: null
+source_repository: https://github.com/22762162/sk
+source_commit: 5002b6b(feat/p15-liuyao-meihua 顶点;未提交任何新 commit)
+generated_files:
+  - consult-engine/divination_casting.py(随机起卦适配层,method 来源标记)
+  - consult-engine/liuyao.py(移除 secrets/system_cast;新增 JIAZI/地支显式校验,拒 bool/浮点)
+  - consult-engine/meihua.py(严格正整数校验;relation_code/relation_kind 事实-解释分层标注,判词未改)
+  - consult-engine/divination_hardening_test.py(4096 穷举/六十日/非法矩阵/重放/适配层边界)
+  - consult-engine/divination_selftest.py(适配层断言更新)
+  - docs/specs/liuyao-meihua-v1.md(适配层边界两行)
+  - docs/coordination/divination-hardening-status.md
+reviewed_files: []
+notes: >-
+  按 Codex 预检 1/2/4 条实施工程加固;术数表/判词/传统规则零改动;未新增运行态 prompts;
+  未读独立参考源码/私有评测/真实数据/密钥。验证:自检+加固套件+pytest 12 项通过;
+  make golden-smoke 102 例全一致——该结果只覆盖既有 Rust 排盘;本次候选(六爻/梅花)为新计算入口,
+  按高风险处理,其独立正确性不由 golden-102 证明(独立对拍与本人签署为保留闸门)。relation_code/relation_kind
+  为超出清单的最小分层标注,已在状态文档声明可剔除。按约定未提交/推送/合并/部署。
+  人工签署仍待定:本 attestation 仅为实现方自述,不构成任何人工签名。

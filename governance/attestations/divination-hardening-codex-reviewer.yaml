@@ -1,0 +1,29 @@
+artifact_id: divination-hardening-codex-reviewer
+timestamp: "2026-08-31T15:52:28Z"
+provider: openai
+model_id: Codex (exact runtime model id unavailable)
+model_release: Codex session 2026-08-31
+agent_role: reviewer
+session_id: codex-main-repo-session(divination-hardening-review)
+run_manifest_id: not-applicable (no hosted model calls)
+source_repository: https://github.com/22762162/sk
+source_commit: 5002b6b6466fa332446bb2dc6b27a3167b5ff0b1
+generated_files:
+  - docs/reviews/divination-hardening-codex-review.md
+  - docs/reviews/divination-hardening-check.py
+  - docs/coordination/codex-hardening-note.md
+  - .github/workflows/ci.yml
+reviewed_files:
+  - consult-engine/liuyao.py
+  - consult-engine/meihua.py
+  - consult-engine/divination_casting.py
+  - consult-engine/divination_selftest.py
+  - consult-engine/divination_hardening_test.py
+  - docs/specs/liuyao-meihua-v1.md
+notes: >-
+  对Claude候选加固做工程交叉审查。复跑两个自检脚本和既有排盘golden-smoke均通过；后者102例
+  包含92例双实现对拍与10例期望值比对，不证明新增六爻/梅花正确。审查脚本将主实现候选的改前/改后
+  在245760组六爻、27648组梅花输入上比较，原字段一致；梅花仅两个明确新增元数据字段。
+  这不是盲写参考对拍。新增CI仅执行工程自检，无生产数据或模型调用。未读取luck.py源码、
+  独立参考源码、私有评测或密钥。高风险候选仍待本人完整审阅；未接入App或修改运行态提示词，
+  未合并发布。此审查不构成人工签名或预测有效性证明。
