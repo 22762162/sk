@@ -178,18 +178,27 @@ def _call_validated(caller, role: str, system: str, user: str, validate,
 
 def run_provider_chain(caller, provider: str, prompts: dict, question: str, deadline: str,
                        bazi_material: str, cast_snapshot: dict | None, method: str | None,
-                       facts_summary: str = "", facts_meta: dict | None = None) -> dict:
+                       facts_summary: str = "", facts_meta: dict | None = None,
+                       as_of: str | None = None) -> dict:
+    """as_of:调用方显式冻结的锚点日期(YYYY-MM-DD,Asia/Shanghai 口径);
+    评测/分片场景必须由上层传入同一冻结值,None 时才按当前时刻推导(单发问事路径)。"""
     frozen_at = _now()
-    # as_of=冻结时刻的 Asia/Shanghai 日期(窗口时区口径;经 _now 取值,测试可冻结时钟)
     _frozen_dt = datetime.fromisoformat(frozen_at.replace("Z", "+00:00"))
-    as_of = _frozen_dt.astimezone(timezone.utc).astimezone(
-        timezone(__import__("datetime").timedelta(hours=8))).date().isoformat()
+    as_of_source = "caller_frozen"
+    if as_of is None:  # 单发路径:按当前时刻推导(Asia/Shanghai);评测场景应显式传入
+        as_of = _frozen_dt.astimezone(timezone.utc).astimezone(
+            timezone(__import__("datetime").timedelta(hours=8))).date().isoformat()
+        as_of_source = "derived_now"
+    import re as _re
+    if not isinstance(as_of, str) or not _re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", as_of):
+        raise OrchestrationError("as_of 锚点格式非法", {"provider": provider})
     manifest: dict = {
         "orchestrator_version": ORCH_VERSION,
         "validator": {"schema": sv.SCHEMA_VERSION, "banlists": sv.BANLISTS_VERSION},
         "provider": provider, "frozen_at": frozen_at, "first_call_at": None,
         "question_hash": seal({"q": question, "d": deadline}),
         "method": method, "cast_hash": None, "calls": {}, "precheck_errors": [],
+        "as_of": as_of, "as_of_source": as_of_source,
     }
 
     # ── 前置验证(修复组2/3):任何模型调用之前全部完成 ──
