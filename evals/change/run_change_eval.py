@@ -85,11 +85,28 @@ def real_caller_factory(provider: str, model: str, budget: dict):
     return caller
 
 
+def run_facts_baseline(caller, provider: str, case: dict) -> dict:
+    """消融基线臂:仅事实无术数,一次调用,产出走 combined 契约与同一校验器。"""
+    import sanshu_validator as _sv
+    base = (Path(__file__).parent / "baseline_prompts" / "facts-only-v1.md").read_text(encoding="utf-8")
+    system = base.split("## system", 1)[1].strip()
+    user = f"问题:{case['question']}\n期限:{case['deadline']}(事件窗口不得超出此期限)"
+    if case.get("facts_summary"):
+        user += f"\n【共同事实背景(合成)】{case['facts_summary']}"
+    manifest = {"arm": "facts_baseline", "provider": provider, "calls": {}}
+    obj = so._call_validated(caller, "combined", system, user,
+                             lambda o: _sv.validate_combined(o, "high", "high"), manifest)
+    return {"provider": provider, "bazi": None, "gua": None, "combined": obj,
+            "combined_status": obj.get("status"), "manifest": manifest}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", required=True)
     ap.add_argument("--prompts-dir", required=True)
     ap.add_argument("--mode", choices=("dry", "real"), default="dry")
+    ap.add_argument("--arm", choices=("sanshu", "facts_baseline"), default="sanshu")
+    ap.add_argument("--verify-lock", default="", help="用例冻结 lock 文件;哈希不符拒跑")
     ap.add_argument("--cap", type=int, default=90)
     args = ap.parse_args()
     try:
@@ -99,10 +116,18 @@ def main() -> int:
             raise
         prompts = dict.fromkeys(("bazi", "gua", "combined"), "DRY_PIPELINE_PLACEHOLDER_SYSTEM")
         print("[dry] 候选提示词未就位,使用占位 system(仅验管道)")
-    cases = [json.loads(l) for l in Path(args.cases).read_text(encoding="utf-8").splitlines() if l.strip()]
+    case_body = Path(args.cases).read_text(encoding="utf-8")
+    if args.verify_lock:
+        import hashlib
+        lock = json.loads(Path(args.verify_lock).read_text(encoding="utf-8"))
+        got = hashlib.sha256(case_body.encode()).hexdigest()
+        if got != lock["sha256"]:
+            print(f"用例集与冻结哈希不符,拒跑(expected {lock['sha256'][:12]}… got {got[:12]}…)")
+            return 2
+    cases = [json.loads(l) for l in case_body.splitlines() if l.strip()]
     budget = {"left": args.cap}
     stats: dict = {}
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"-{args.arm}"
     raw_dir = ROOT / "evals" / "change" / "reports" / "raw" / run_id
     raw_dir.mkdir(parents=True, exist_ok=True)
     for provider, model in PROVIDERS:
@@ -115,7 +140,10 @@ def main() -> int:
                       else real_caller_factory(provider, model, budget))
             st["n"] += 1
             try:
-                r = so.run_provider_chain(
+                if args.arm == "facts_baseline":
+                    r = run_facts_baseline(caller, provider, case)
+                else:
+                    r = so.run_provider_chain(
                     caller, provider, prompts, case["question"], case["deadline"],
                     case["bazi_material"], cast, case["method"],
                     facts_summary=case.get("facts_summary", ""),
@@ -146,7 +174,7 @@ def main() -> int:
     ts = run_id
     rates = {p: (s["valid_first"] / s["n"] if s["n"] else 0) for p, s in stats.items()}
     spread = (max(rates.values()) - min(rates.values())) if len(rates) > 1 else 0.0
-    lines = [f"# Change Eval 聚合 · sanshu-v1 · mode={args.mode} · {ts}", "",
+    lines = [f"# Change Eval 聚合 · arm={args.arm} · mode={args.mode} · {ts}", "",
              "| provider | n | valid_first | retried | failed | abstain | leak_blocked | leak_retained | redline |",
              "|---|---|---|---|---|---|---|---|---|"]
     for p, s in stats.items():
