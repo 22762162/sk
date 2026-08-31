@@ -1,6 +1,6 @@
 # 「三鉴」工程设计 · 活文档
 
-> **当前版本：V3.0 ｜ 2026-07-14 ｜ 唯一有效版本，历史版本全部作废**
+> **当前版本：V3.1 ｜ 2026-08-30 ｜ 唯一有效版本，历史版本全部作废**
 > 本文件放置于主仓库 `docs/DESIGN.md`，随开发迭代维护。
 
 ## 如何迭代本文档
@@ -13,6 +13,7 @@
 
 | 版本 | 日期 | 变更 |
 | --- | --- | --- |
+| V3.1 | 2026-08-30 | 运行态 debater_b 从 OpenAI GPT 迁移至 Google Gemini 3.6 Flash；保持三供应商互证、流派绑定、轮换盲评与拉丁方设计不变；同步供应商登记、密钥边界与模型路由。3.7 Flash 实测持续 503 后选择稳定版 3.6。 |
 | V3.0 | 2026-07-14 | 定稿为活文档；确立开发态双模型 / 运行态三模型两平面；四仓结构；judge 定位为轮换盲评者；拉丁方研究模式；双层 manifest；分级承诺与不确定性传播；四实验臂；巴纳姆预注册；私用合规底线 |
 
 ---
@@ -26,7 +27,7 @@
 **两平面模型选型**：
 
 - **开发态（写代码）= 双模型**：Fable 5（经 Claude Code，承担高难与高风险工作）+ Codex（GPT 系，承担性价比工作、参考实现与异构验证）。"Fable 5 能力覆盖 Opus 4.8"为项目内部待验证假设，以冻结评测集结果为准。
-- **运行态（会诊引擎）= 三模型**：DeepSeek × GPT × Claude 三辩手互证。各模型为当前默认候选，最终以冻结评测集的质量、延迟、成本结果为准。
+- **运行态（会诊引擎）= 三模型**：DeepSeek × Gemini × Claude 三辩手互证。各模型为当前默认候选，最终以冻结评测集的质量、延迟、成本结果为准。
 
 **架构**：五层——L1 确定性排盘（Rust）→ L2 流派规则库 → L3 多模型推理网关 → L4 会诊仲裁（LangGraph）→ L5 呈现（React + FastAPI，本地或带认证私有 VPS，不开放注册）。
 
@@ -89,7 +90,7 @@ rulebase/approved/**    evals/**（评测器与指标代码）    governance/**
 | 槽位 | 当前默认模型 | 绑定流派 |
 | --- | --- | --- |
 | debater_a | Claude（Sonnet 级） | 子平格局派 |
-| debater_b | GPT（5.x） | 旺衰扶抑派 |
+| debater_b | Gemini 3.6 Flash | 旺衰扶抑派 |
 | debater_c | DeepSeek（V 系） | 调候派 |
 | judge | 三家轮换 | 无流派 |
 
@@ -123,7 +124,7 @@ judge_family_bias_score   # 某家 judge 偏向同厂辩手的程度
 
 固定绑定下的差异无法归因于模型或流派。**所有形成研究结论的评测均采用平衡轮换设计，不以固定绑定结果推断某一模型或流派的优劣**：
 
-| 批次 | Claude | GPT | DeepSeek |
+| 批次 | Claude | Gemini | DeepSeek |
 | --- | --- | --- | --- |
 | A | 子平 | 旺衰 | 调候 |
 | B | 旺衰 | 调候 | 子平 |
@@ -133,7 +134,7 @@ judge_family_bias_score   # 某家 judge 偏向同厂辩手的程度
 
 ### 2.4 两平面交叉污染防线
 
-为辩手写提示词的 Fable 5 与辩手 Claude 同门，Codex 与辩手 GPT 同门。四条防线：Codex 对全部辩手/judge 提示词做对称性盲审计（信息量、约束严格度、示例质量对等）；Change Eval 固定含提示词骨架互换模型测试；2.2 偏差指标常态监控；**开发/运行单向阀**——运行态模型永不写代码，开发会话中的临时 prompt 片段禁止直接上线，一切提示词经 Change Eval 闸门。
+为辩手写提示词的 Fable 5 与辩手 Claude 同门，仍存在同供应商偏差风险；Codex 与三个运行态辩手均非同一模型供应商。四条防线：Codex 对全部辩手/judge 提示词做对称性盲审计（信息量、约束严格度、示例质量对等）；Change Eval 固定含提示词骨架互换模型测试；2.2 偏差指标常态监控；**开发/运行单向阀**——运行态模型永不写代码，开发会话中的临时 prompt 片段禁止直接上线，一切提示词经 Change Eval 闸门。
 
 ---
 
@@ -194,12 +195,12 @@ evaluation:
 **模型配置可执行化**：架构文档可写槽位泛称，实验配置必须落到 resolved_model_id；thinking / non-thinking 等推理模式视为不同实验条件。`governance/model-routing.yaml`：
 
 ```yaml
-role_slot: gpt_debater
-configured_alias: gpt-5.x            # 具体 ID 以接入时官方文档为准
-resolved_model_id: <接入时锁定>
-reasoning_effort: high
+role_slot: debater_b
+configured_alias: gemini-3.6-flash
+resolved_model_id: gemini-3.6-flash
+reasoning_effort: medium-default
 fallback_policy: fail_closed         # 研究模式禁止静默 fallback：
-routing_policy_version: 1.0.0        # 模型不可用 → 该场标记不可比较
+routing_policy_version: 1.1.0        # 模型不可用 → 该场标记不可比较
 ```
 
 回归比对不做字符串相等，测：JSON Schema 合法性、核心 claim 稳定性、规则引用一致性、多次调用统计波动带。

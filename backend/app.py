@@ -1601,7 +1601,7 @@ def _app_run_question_round(consultation_payload: dict, inquiry: dict, metrics: 
 
 def _app_three_role_analysis(consultation: dict) -> tuple[list[dict], dict]:
     """提取三家独立观点；任一角色、供应商或观点缺失时标记为不完整。"""
-    provider_labels = {"anthropic": "Claude", "openai": "GPT", "deepseek": "DeepSeek"}
+    provider_labels = {"anthropic": "Claude", "gemini": "Gemini", "deepseek": "DeepSeek"}
     roles = []
     seen_roles, seen_providers = set(), set()
     question_round = consultation.get("question_round") or {}
@@ -1652,14 +1652,14 @@ def _app_three_role_analysis(consultation: dict) -> tuple[list[dict], dict]:
     complete = (
         len(roles) == 3
         and seen_roles == {"debater_a", "debater_b", "debater_c"}
-        and seen_providers == {"anthropic", "openai", "deepseek"}
+        and seen_providers == {"anthropic", "gemini", "deepseek"}
         and seen_schools == {"ziping", "wangshuai", "tiaohou"}
         and all(role["findings"] for role in roles)
         and (not direct_mode or all(role["relevant_and_valid"] for role in roles))
     )
     return roles, {
         "required_roles": 3,
-        "required_providers": ["anthropic", "openai", "deepseek"],
+        "required_providers": ["anthropic", "gemini", "deepseek"],
         "actual_roles": len(roles),
         "distinct_providers": len(seen_providers),
         "distinct_schools": len(seen_schools),

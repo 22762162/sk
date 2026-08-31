@@ -1,7 +1,7 @@
-# 角色槽位 → 模型路由(DESIGN V3.0 §1.1/§2.1/§3.3)。
+# 角色槽位 → 模型路由(DESIGN V3.1 §1.1/§2.1/§3.3)。
 # 架构文档可写槽位泛称;实验配置必须落到 resolved_model_id;
 # thinking / non-thinking 等推理模式视为不同实验条件。换模型 = 改本文件 + 走 PR。
-routing_policy_version: "1.0.0"
+routing_policy_version: "1.1.0"
 
 development:
   main_implementer:            # 高难高风险:L1 Rust、规格、会诊状态机、提示词起草、差分证据
@@ -38,10 +38,10 @@ runtime:                       # 观察模式默认绑定;研究评测一律用 
     reasoning_effort: 接入时锁定
     school_default: 子平格局派
   debater_b:
-    provider: openai
-    configured_alias: gpt-5.x        # 具体 ID 以接入时官方文档为准
-    resolved_model_id: 接入时锁定
-    reasoning_effort: 接入时锁定
+    provider: gemini
+    configured_alias: gemini-3.6-flash
+    resolved_model_id: gemini-3.6-flash
+    reasoning_effort: medium-default
     school_default: 旺衰扶抑派
   debater_c:
     provider: deepseek

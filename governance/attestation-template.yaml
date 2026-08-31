@@ -3,7 +3,7 @@
 # (author + 异厂商 reviewer + 本人签署三者齐备;见 role-separation.yaml)。
 artifact_id:            # 唯一标识,建议 PR-<n>-<role>
 timestamp:              # ISO8601
-provider:               # anthropic | openai | …
+provider:               # anthropic | gemini | deepseek | …
 model_id:               # resolved model id
 model_release:          # 能取到什么记什么
 agent_role:             # implementer | reviewer | reference_implementer
