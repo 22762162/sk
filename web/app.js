@@ -567,7 +567,12 @@
         throw new Error(final?.result?.error || "生成超时；服务端若仍在运行，可稍后到记录页刷新查看");
       }
       const prediction = final.result.prediction;
-      if (body.scene === "company") state.companyPredictions = [prediction, ...state.companyPredictions.filter(p => p.id !== prediction.id)];
+      if (body.scene === "company") {
+        if (body.company_id === state.companyId) {
+          state.companyPredictions = [prediction, ...state.companyPredictions.filter(p => p.id !== prediction.id)];
+          renderCompanyRecords();
+        }
+      }
       else state.predictions = [prediction, ...state.predictions.filter(p => p.id !== prediction.id)];
       persistCache();
       $("#prediction-result").innerHTML = snapshotCard(prediction);

@@ -46,6 +46,7 @@ class AppApiTest(unittest.TestCase):
             captured["context"] = kwargs["decision_context"]
             return {"ok": False, "error": "合成停止（未调用模型）"}
         with patch.object(backend_app, "_run_consult_payload", side_effect=stop_after_capture), \
+             patch.object(backend_app, "_app_transit", return_value=({"output": {}}, None)), \
              patch.object(backend_app, "_desk_chart", return_value={"pillars": {"day": "甲子"}}):
             started = self.client.post("/api/app/questions/start", json={
                 "profile_id": profile["id"], "period": "month", "category": "career",
@@ -363,6 +364,7 @@ class AppApiTest(unittest.TestCase):
             }
 
         with patch.object(backend_app, "_app_transit", return_value=(fake_transit, None)), \
+             patch.object(backend_app, "_desk_chart", return_value={"pillars": {"day": "甲辰"}}), \
              patch.object(backend_app, "_run_consult_payload", side_effect=fake_run_consult), \
              patch.object(backend_app, "_app_run_question_round", side_effect=fake_question_round):
             started = self.client.post("/api/app/questions/start", json={

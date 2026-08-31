@@ -46,9 +46,10 @@
 - 接口测试核对公司模型数据包不含姓名、内部 ID、原始生日、手机号及个人资料哨兵；失败不锁定预测。
 - 隔离浏览器 390×844：五入口、公司和项目创建、人员授权、公司范围选择、非默认主体查看/问事、
   事实追加、历史研究预览绑定成功；后台被测试桩拒绝时前端展示明确错误，不伪造结论。
-- 看盘页 `scrollWidth = clientWidth = 390`；浏览器错误日志为空。
+- 看盘页 `scrollWidth = clientWidth = 390`，桌面首页为 1024；浏览器错误日志为空。
 - 未运行 VoiceOver、真实 iPhone 包安装、线上数据迁移、付费模型公司分析或公网鉴权渗透测试。
 
+新工作树先执行 `cargo build --release --manifest-path engine-paipan/Cargo.toml` 构建排盘 CLI。
 可重复 UI 预览：`uv run --with fastapi --with uvicorn --with httpx python3 backend/tests/preview_decision_desk.py`，
 只监听 127.0.0.1:8792，终止后临时合成库清理。不要把该预览服务部署到正式环境。
 
