@@ -7,6 +7,17 @@ on:
   pull_request:
 
 jobs:
+  divination:
+    name: 六爻梅花候选工程自检（非独立对拍）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python3 consult-engine/divination_selftest.py
+      - run: python3 consult-engine/divination_hardening_test.py
+
   rust:
     name: Rust（fmt + clippy pedantic + test）
     runs-on: ubuntu-latest
