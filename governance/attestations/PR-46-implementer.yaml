@@ -1,0 +1,32 @@
+artifact_id: PR-46-implementer
+timestamp: "2026-08-31T13:02:30Z"
+provider: openai
+model_id: Codex (exact runtime model id unavailable)
+model_release: Codex session 2026-08-31
+agent_role: implementer
+session_id: codex-main-repo-session(decision-desk-p1)
+run_manifest_id: not-applicable (synthetic tests only; no hosted model calls)
+source_repository: https://github.com/22762162/sk
+source_commit: 93a983a7ac6cb87660d5d5de24e6e98278451f26
+generated_files:
+  - consult-engine/decision_desk.py
+  - consult-engine/personal_app.py
+  - backend/decision_routes.py
+  - backend/app.py
+  - backend/tests/test_decision_desk.py
+  - backend/tests/test_app_api.py
+  - backend/tests/test_personal_app.py
+  - backend/tests/preview_decision_desk.py
+  - web/app.html
+  - web/app.js
+  - web/app.css
+  - web/sw.js
+  - docs/specs/rfc-0002-decision-desk.md
+  - docs/reviews/PR-46-decision-desk-risk.md
+reviewed_files: []
+notes: >-
+  按已确认方案交付 P0/P1：统一档案、公司/项目/授权关联、冻结问事范围、个人与公司资料隔离、
+  五入口 UI、App 内历史研究预览绑定和追加式事实记录。未改运行态 prompts、lock contracts、
+  approved 规则库或 L1 算法；未读取独立参考实现源码；未打开生产 App 数据库、重启正式服务、
+  调用付费模型或安装手机包。仅使用合成数据验证。P2 大脑连接、P3 起卦接线、P4 方法评估未完成；
+  不宣称预测能力提升。该作者声明不是独立审查，高风险合入须异厂商 reviewer attestation 与本人签署。

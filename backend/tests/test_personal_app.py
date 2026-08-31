@@ -134,7 +134,7 @@ class AppStoreTest(unittest.TestCase):
             version = con.execute(
                 "SELECT value FROM app_meta WHERE key='schema_version'"
             ).fetchone()[0]
-        self.assertEqual(version, "2")
+        self.assertEqual(version, str(personal_app.SCHEMA_VERSION))
 
     def test_prediction_and_review_are_append_only(self) -> None:
         profile = self.store.create_profile(profile_values("基本盘"))
