@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanshu-sealed-v1",
+  "description": "三段封存输出契约(可执行)。用法:以 {'$ref':'#/$defs/<段名>_{raw|sealed}'} 校验单段。raw=模型原始输出(不得含 event_id);sealed=编排器注入 event_id 后的封存正文。与 sanshu_validator 的一致性由 sanshu_schema_agreement_test.py 对照保证;真实历法日期/跨段词表/置信度上限等上下文规则由校验器补充执行(schema 之外,契约文本明示)。候选期本地钉版;接线获批后按 INV-05 走 sk-contracts 发版。",
+  "type": "object",
+  "$defs": {
+    "date": {"type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"},
+    "window": {
+      "type": "object", "additionalProperties": false, "required": ["start", "end"],
+      "properties": {"start": {"$ref": "#/$defs/date"}, "end": {"$ref": "#/$defs/date"}}
+    },
+    "yingqi": {
+      "oneOf": [
+        {"$ref": "#/$defs/window"},
+        {"type": "object", "additionalProperties": false, "required": ["abstain_reason"],
+         "properties": {"abstain_reason": {"type": "string", "minLength": 4, "maxLength": 300}}}
+      ]
+    },
+    "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
+    "metric": {
+      "type": "object", "additionalProperties": false, "required": ["indicator", "comparator"],
+      "properties": {
+        "indicator": {"type": "string", "minLength": 2, "maxLength": 120},
+        "comparator": {"type": "string", "enum": [">=", "<=", "==", "发生", "未发生"]},
+        "threshold": {"type": ["number", "null"]},
+        "unit": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {"if": {"properties": {"comparator": {"enum": [">=", "<=", "=="]}}},
+         "then": {"properties": {"threshold": {"type": "number"}}, "required": ["threshold"]}},
+        {"if": {"properties": {"comparator": {"enum": ["发生", "未发生"]}}},
+         "then": {"properties": {"threshold": {"type": "null"}}}}
+      ]
+    },
+    "event_raw": {
+      "type": "object", "additionalProperties": false,
+      "required": ["statement", "window", "metric", "adjudication"],
+      "properties": {
+        "statement": {"type": "string", "minLength": 8, "maxLength": 300},
+        "window": {"$ref": "#/$defs/window"},
+        "metric": {"$ref": "#/$defs/metric"},
+        "adjudication": {"type": "string", "minLength": 8, "maxLength": 300}
+      }
+    },
+    "event_sealed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["statement", "window", "metric", "adjudication", "event_id"],
+      "properties": {
+        "statement": {"type": "string", "minLength": 8, "maxLength": 300},
+        "window": {"$ref": "#/$defs/window"},
+        "metric": {"$ref": "#/$defs/metric"},
+        "adjudication": {"type": "string", "minLength": 8, "maxLength": 300},
+        "event_id": {"type": "string", "pattern": "^ev-[0-9a-f]{12}$"}
+      }
+    },
+    "bazi_abstain": {
+      "type": "object", "additionalProperties": false, "required": ["status", "reason"],
+      "properties": {"status": {"const": "abstain"},
+                     "reason": {"type": "string", "minLength": 4, "maxLength": 300}}
+    },
+    "gua_abstain": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "reason", "method", "cast_hash"],
+      "properties": {"status": {"const": "abstain"},
+                     "reason": {"type": "string", "minLength": 4, "maxLength": 300},
+                     "method": {"type": "string", "enum": ["liuyao", "meihua"]},
+                     "cast_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+    },
+    "bazi_ok_raw": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "reading", "confidence", "yingqi", "verifiable_events", "method_basis"],
+      "properties": {
+        "status": {"const": "ok"},
+        "reading": {"type": "string", "minLength": 20, "maxLength": 1200},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "yingqi": {"$ref": "#/$defs/yingqi"},
+        "verifiable_events": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/event_raw"}},
+        "method_basis": {"type": "string", "minLength": 4, "maxLength": 400}
+      }
+    },
+    "bazi_ok_sealed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "reading", "confidence", "yingqi", "verifiable_events", "method_basis"],
+      "properties": {
+        "status": {"const": "ok"},
+        "reading": {"type": "string", "minLength": 20, "maxLength": 1200},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "yingqi": {"$ref": "#/$defs/yingqi"},
+        "verifiable_events": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/event_sealed"}},
+        "method_basis": {"type": "string", "minLength": 4, "maxLength": 400}
+      }
+    },
+    "gua_ok_raw": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "reading", "confidence", "yingqi", "verifiable_events",
+                   "method_basis", "method", "cast_hash"],
+      "properties": {
+        "status": {"const": "ok"},
+        "reading": {"type": "string", "minLength": 20, "maxLength": 1200},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "yingqi": {"$ref": "#/$defs/yingqi"},
+        "verifiable_events": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/event_raw"}},
+        "method_basis": {"type": "string", "minLength": 4, "maxLength": 400},
+        "method": {"type": "string", "enum": ["liuyao", "meihua"]},
+        "cast_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "gua_ok_sealed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "reading", "confidence", "yingqi", "verifiable_events",
+                   "method_basis", "method", "cast_hash"],
+      "properties": {
+        "status": {"const": "ok"},
+        "reading": {"type": "string", "minLength": 20, "maxLength": 1200},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "yingqi": {"$ref": "#/$defs/yingqi"},
+        "verifiable_events": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/event_sealed"}},
+        "method_basis": {"type": "string", "minLength": 4, "maxLength": 400},
+        "method": {"type": "string", "enum": ["liuyao", "meihua"]},
+        "cast_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "combined_ok_raw": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "answer", "reasoning", "confidence", "yingqi",
+                   "verifiable_events", "method_basis"],
+      "properties": {
+        "status": {"const": "ok"},
+        "answer": {"type": "string", "minLength": 10, "maxLength": 600},
+        "reasoning": {"type": "string", "minLength": 20, "maxLength": 1200},
+        "dissent_note": {"type": "string", "maxLength": 600},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "yingqi": {"$ref": "#/$defs/yingqi"},
+        "verifiable_events": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/event_raw"}},
+        "method_basis": {"type": "string", "minLength": 4, "maxLength": 400}
+      }
+    },
+    "combined_ok_sealed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "answer", "reasoning", "confidence", "yingqi",
+                   "verifiable_events", "method_basis"],
+      "properties": {
+        "status": {"const": "ok"},
+        "answer": {"type": "string", "minLength": 10, "maxLength": 600},
+        "reasoning": {"type": "string", "minLength": 20, "maxLength": 1200},
+        "dissent_note": {"type": "string", "maxLength": 600},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "yingqi": {"$ref": "#/$defs/yingqi"},
+        "verifiable_events": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/event_sealed"}},
+        "method_basis": {"type": "string", "minLength": 4, "maxLength": 400}
+      }
+    },
+    "bazi_section_raw": {"oneOf": [{"$ref": "#/$defs/bazi_ok_raw"}, {"$ref": "#/$defs/bazi_abstain"}]},
+    "bazi_section_sealed": {"oneOf": [{"$ref": "#/$defs/bazi_ok_sealed"}, {"$ref": "#/$defs/bazi_abstain"}]},
+    "gua_section_raw": {"oneOf": [{"$ref": "#/$defs/gua_ok_raw"}, {"$ref": "#/$defs/gua_abstain"}]},
+    "gua_section_sealed": {"oneOf": [{"$ref": "#/$defs/gua_ok_sealed"}, {"$ref": "#/$defs/gua_abstain"}]},
+    "combined_section_raw": {"oneOf": [{"$ref": "#/$defs/combined_ok_raw"}, {"$ref": "#/$defs/bazi_abstain"}]},
+    "combined_section_sealed": {"oneOf": [{"$ref": "#/$defs/combined_ok_sealed"}, {"$ref": "#/$defs/bazi_abstain"}]}
+  }
+}
