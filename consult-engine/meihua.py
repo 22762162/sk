@@ -20,11 +20,16 @@ def _trigram_by_num(n: int) -> str:
 
 
 def cast_numbers(n1: int, n2: int, hour_branch: str) -> dict:
-    """报数起卦:n1→上卦,n2→下卦,(n1+n2+时辰序)%6 定动爻(0 作 6)。"""
-    if n1 <= 0 or n2 <= 0:
-        raise ValueError("两数须为正整数")
-    if hour_branch not in HOUR_INDEX:
-        raise ValueError("时辰须为地支")
+    """报数起卦:n1→上卦,n2→下卦,(n1+n2+时辰序)%6 定动爻(0 作 6)。
+
+    纯确定性:同输入必得相同输出。报数范围上限由 App 适配层限制;
+    此处只保证类型与合法域(拒绝布尔/浮点等同值异类)。
+    """
+    for v in (n1, n2):
+        if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
+            raise ValueError("两数须为正整数,不接受布尔/浮点/字符串")
+    if not isinstance(hour_branch, str) or hour_branch not in HOUR_INDEX:
+        raise ValueError("时辰须为十二地支之一")
     up, low = _trigram_by_num(n1), _trigram_by_num(n2)
     total = n1 + n2 + HOUR_INDEX[hour_branch]
     moving = total % 6 or 6
@@ -35,21 +40,25 @@ def cast_numbers(n1: int, n2: int, hour_branch: str) -> dict:
     yong_pos = "low" if moving <= 3 else "up"
     ti, yong = (up, low) if yong_pos == "low" else (low, up)
     te, ye = TRIGRAM_ELEM[ti], TRIGRAM_ELEM[yong]
+    # 事实层与解释层分离(预检第3条):relation_code 为确定性生克事实,
+    # relation 为传统流派解释文案,标注 relation_kind,不作事实 Oracle
     if te == ye:
-        rel = "体用比和(顺)"
+        code, rel = "bihe", "体用比和(顺)"
     elif _SHENG[ye] == te:
-        rel = "用生体(吉)"
+        code, rel = "yong_sheng_ti", "用生体(吉)"
     elif _SHENG[te] == ye:
-        rel = "体生用(耗)"
+        code, rel = "ti_sheng_yong", "体生用(耗)"
     elif _KE[ye] == te:
-        rel = "用克体(凶)"
+        code, rel = "yong_ke_ti", "用克体(凶)"
     else:
-        rel = "体克用(可成但费力)"
+        code, rel = "ti_ke_yong", "体克用(可成但费力)"
     return {
         "rules_version": RULES_VERSION, "method": "numbers",
         "inputs": {"n1": n1, "n2": n2, "hour_branch": hour_branch},
         "ben": _hex_name(bits), "hu": _hex_name(hu), "bian": _hex_name(changed),
         "moving": moving,
         "ti": {"trigram": ti, "elem": te}, "yong": {"trigram": yong, "elem": ye},
+        "relation_code": code,
         "relation": rel,
+        "relation_kind": "traditional_school_reading",
     }

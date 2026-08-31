@@ -65,9 +65,12 @@ def test_meihua() -> None:
 
 
 def test_system_cast_shape() -> None:
+    import divination_casting  # 随机性住在适配层(INV-01),引擎侧无 secrets
     for _ in range(50):
-        ls = liuyao.system_cast()
-        assert len(ls) == 6 and all(v in (6, 7, 8, 9) for v in ls)
+        rec = divination_casting.system_cast_liuyao()
+        assert rec["method"] == "system_random"
+        assert len(rec["lines"]) == 6 and all(v in (6, 7, 8, 9) for v in rec["lines"])
+    assert not hasattr(liuyao, "system_cast") and not hasattr(liuyao, "secrets")
 
 
 if __name__ == "__main__":

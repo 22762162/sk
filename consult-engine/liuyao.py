@@ -6,9 +6,7 @@
 
 from __future__ import annotations
 
-import secrets
-
-from luck import BRANCH_ELEM, kongwang
+from luck import BRANCH_ELEM, BRANCHES as _LUCK_BRANCHES, STEMS as _LUCK_STEMS, kongwang
 
 RULES_VERSION = "liuyao-rules-v1"
 
@@ -105,15 +103,30 @@ def _branches_of(bits: tuple) -> list[str]:
     return NAJIA[low]["inner"][1] + NAJIA[up]["outer"][1]
 
 
-def system_cast() -> list[int]:
-    """电子摇卦:三枚硬币×六次(背3字2),密码学随机,逐爻记录。"""
-    return [sum(3 if secrets.randbelow(2) else 2 for _ in range(3)) for _ in range(6)]
+# 合法输入域(工程加固):六十甲子全集与地支白名单——显式校验,拒绝布尔/浮点等同值异类
+JIAZI = frozenset(_LUCK_STEMS[i % 10] + _LUCK_BRANCHES[i % 12] for i in range(60))
+_BRANCH_SET = frozenset(_LUCK_BRANCHES)
+
+
+def _validate_cast_input(lines, day_ganzhi, month_branch) -> None:
+    if not isinstance(lines, (list, tuple)) or len(lines) != 6:
+        raise ValueError("lines 须为 6 个爻值(初爻在前)")
+    for v in lines:
+        # bool 是 int 子类、6.0 == 6:必须显式拒绝,防同值异类混入存档
+        if isinstance(v, bool) or not isinstance(v, int) or v not in (6, 7, 8, 9):
+            raise ValueError("爻值须为整数 6/7/8/9,不接受布尔/浮点/字符串")
+    if not isinstance(day_ganzhi, str) or day_ganzhi not in JIAZI:
+        raise ValueError("day_ganzhi 须为六十甲子之一(如 甲子/辛亥)")
+    if not isinstance(month_branch, str) or month_branch not in _BRANCH_SET:
+        raise ValueError("month_branch 须为十二地支之一")
 
 
 def cast(lines: list[int], day_ganzhi: str, month_branch: str) -> dict:
-    """装卦。lines 为初爻→上爻的 6/7/8/9;day_ganzhi 装六神与旬空;month_branch 为月建。"""
-    if len(lines) != 6 or any(v not in (6, 7, 8, 9) for v in lines):
-        raise ValueError("lines 须为 6 个 6/7/8/9(初爻在前)")
+    """装卦。lines 为初爻→上爻的 6/7/8/9;day_ganzhi 装六神与旬空;month_branch 为月建。
+
+    本函数为纯确定性:同输入必得逐字段相同输出;随机起卦见 divination_casting 适配层。
+    """
+    _validate_cast_input(lines, day_ganzhi, month_branch)
     bits = tuple(1 if v in (7, 9) else 0 for v in lines)
     moving = [i + 1 for i, v in enumerate(lines) if v in (6, 9)]
     changed = tuple(b ^ (1 if (i + 1) in moving else 0) for i, b in enumerate(bits))
