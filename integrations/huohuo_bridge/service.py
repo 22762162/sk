@@ -29,6 +29,11 @@ MAX_REV_ROWS = 1000       # 流水查询体积上限;超限整月拒绝,绝不�
 _AMT_MAX = Decimal("1E18")   # R2-3:金额绝对值上限
 _AMT_RAW_MAX = 64            # 原始金额串长度上限,防 Decimal 解析超大输入
 
+# 币种映射(2026-08-31 本人于对话中批准;大脑表不改):
+# 仅把源库原始币种标签映射为 ASCII 白名单码,金额一律不换算;换算率只作注记供理解。
+CURRENCY_MAP = {"音浪": "YINLANG"}
+CURRENCY_NOTES = {"YINLANG": "平台币音浪(本人确认约10音浪≈1人民币,注记仅供理解,金额未换算,非审计口径)"}
+
 
 def _rfc3339(dt: datetime | None) -> str:
     if dt is None:
@@ -134,30 +139,40 @@ def _revenue_items(rows: list[RevenueRow], scope_id: str, period: str,
         if amt is None:
             bad += 1
             continue
-        cur = pick.currency if isinstance(pick.currency, str) else ""
+        raw_cur = pick.currency if isinstance(pick.currency, str) else ""
+        cur = CURRENCY_MAP.get(raw_cur, raw_cur)  # 显式映射表;表外原样进白名单校验
         if not _CURRENCY_RE.fullmatch(cur):
-            bad += 1  # 币种非白名单格式,按缺失,不猜、不输出名称型币种
+            bad += 1  # 币种非白名单且不在映射表,按缺失,不猜、不输出名称型币种
             continue
         chosen[gid] = pick
     if bad:
         return [], False, bad
     by_cur: dict[str, dict] = {}
     for r in chosen.values():
-        slot = by_cur.setdefault(r.currency, {"sum": Decimal(0), "earliest": _utc(r.synced_at)})
+        raw_cur = r.currency
+        cur = CURRENCY_MAP.get(raw_cur, raw_cur)
+        slot = by_cur.setdefault(cur, {"sum": Decimal(0), "earliest": _utc(r.synced_at),
+                                       "raw": raw_cur})
         slot["sum"] += _parse_amount(r.revenue_amount)  # 已过校验;≤100组×1E18,默认精度充足
         slot["earliest"] = min(slot["earliest"], _utc(r.synced_at))
     items = []
     for cur in sorted(by_cur):
         slot = by_cur[cur]
         amount = format(slot["sum"], "f")
+        note = CURRENCY_NOTES.get(cur, "")
+        text = f"{period}已同步公司流水：{amount} {cur}（非个人收入、非审计报表）"
+        if note:
+            text += f"（{note}）"
+        metrics = {"amount": amount, "currency": cur, "period": period}
+        if slot["raw"] != cur:
+            metrics["original_currency"] = slot["raw"]  # 源库原始标签留档,可审计
         items.append({
             "id": f"revenue:{period}:{cur}", "scope_id": scope_id, "kind": "revenue",
-            "level": "L4",
-            "text": f"{period}已同步公司流水：{amount} {cur}（非个人收入、非审计报表）",
+            "level": "L4", "text": text,
             "known_at": _rfc3339(slot["earliest"]),
             "source_system": "brain.revenue_snapshots",
             "verification": "provider_reported_not_audited",
-            "metrics": {"amount": amount, "currency": cur, "period": period},
+            "metrics": metrics,
         })
     return items, True, 0
 

@@ -138,9 +138,22 @@ def test_revenue_happy_multicurrency(tmp_path):
     assert rs["CNY"]["level"] == "L4" and "非个人收入" in rs["CNY"]["text"]
 
 
+def test_revenue_currency_mapping_yinlang(tmp_path):
+    """币种映射(2026-08-31 本人批准):音浪→YINLANG,金额不换算,原始标签留档,注记入 text。"""
+    c = client(tmp_path, rev=[R(1, "g-1", "1000", "音浪"), R(2, "g-2", "500", "音浪")])
+    j = c.get("/v1/context?scope_id=synthetic-scope&period=2026-08", headers=AUTH).json()
+    assert j["coverage"]["revenue_complete"] is True
+    r = [i for i in j["items"] if i["kind"] == "revenue"][0]
+    assert r["metrics"]["currency"] == "YINLANG"
+    assert r["metrics"]["amount"] == "1500"                    # 只映射标签,金额一律不换算
+    assert r["metrics"]["original_currency"] == "音浪"
+    assert "10音浪≈1人民币" in r["text"] and "金额未换算" in r["text"]
+    assert len(r["text"]) <= 1200
+
+
 def test_revenue_currency_whitelist(tmp_path):
-    # R1-2:币种仅明确 ASCII 标识;名称型/小写/中文一律该组缺失,不猜不映射
-    for badcur in ("音浪", "cny", "人民币", "AB", "X" * 17):
+    # R1-2:映射表外的币种仅明确 ASCII 标识;名称型/小写/中文一律该组缺失,不猜
+    for badcur in ("cny", "人民币", "快币", "AB", "X" * 17):
         c = client(tmp_path, rev=[R(1, "g-1", "9", badcur), R(2, "g-2", "1", "CNY")])
         j = c.get("/v1/context?scope_id=synthetic-scope&period=2026-08", headers=AUTH).json()
         assert j["coverage"]["revenue_complete"] is False, badcur
