@@ -1,8 +1,11 @@
 {
  "file": "sanshu-v100.jsonl",
- "sha256": "0070609b91eb027018f3fc75fa1aa1e56466280b5714042a6d8f8335f80bbe95",
+ "sha256": "e0cc02e4190134f033fba9a6f446c684b5e1cb248db3f1b8010cbdfb4e6437dd",
  "seed": 20260901,
+ "generator_version": 2,
  "n": 100,
+ "unique_ids": true,
  "strata": "scene2×method2×domain5×variant5",
+ "material_policy": "中性结构合成盘,无预解释;仅支撑结构/合规试验,不支撑测算有效性结论",
  "note": "冻结用例集:哈希不匹配即拒跑;变更须新版本+本人确认"
 }

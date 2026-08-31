@@ -1,0 +1,50 @@
+{
+ "run_id": "20260831T201750Z-sanshu",
+ "arm": "sanshu",
+ "mode": "dry",
+ "gates": {
+  "valid_rate>=0.80": true,
+  "redline==0": true,
+  "leak_after_validator==0": true,
+  "provider_spread<=0.20": true,
+  "coverage_full_3x_all_cases": false
+ },
+ "hashes": {
+  "cases_sha256": "e0cc02e4190134f033fba9a6f446c684b5e1cb248db3f1b8010cbdfb4e6437dd",
+  "lock_sha256": "88f10c59a9ebdbac4fe265f642aa5a6da71428cf67a499a35c03fc1025824697",
+  "prompts": {
+   "bazi": "600e92d4525fd8f8506cd4bcd0db931a2c5007aa19ca3ae5be28112d804ecf68",
+   "gua": "600e92d4525fd8f8506cd4bcd0db931a2c5007aa19ca3ae5be28112d804ecf68",
+   "combined": "600e92d4525fd8f8506cd4bcd0db931a2c5007aa19ca3ae5be28112d804ecf68"
+  },
+  "runner_code": "db3f6d426577f1da099d098ecfb289cef5719eee878ccf0d57b2544701ee14d5",
+  "schema": "51188112bc3d5f2a1c37071a9f60fe8ad10bab66c7620ecce994cfe71d6a6ef1",
+  "providers": [
+   [
+    "anthropic",
+    "claude-sonnet-5"
+   ],
+   [
+    "gemini",
+    "gemini-3.6-flash"
+   ],
+   [
+    "deepseek",
+    "deepseek-chat"
+   ]
+  ],
+  "redline_words_loaded": 9
+ },
+ "stats": {
+  "anthropic": {
+   "n": 100,
+   "valid_first": 100,
+   "retried": 0,
+   "failed": 0,
+   "abstain": 0,
+   "leak_blocked": 0,
+   "leak_retained": 0,
+   "redline": 0
+  }
+ }
+}
