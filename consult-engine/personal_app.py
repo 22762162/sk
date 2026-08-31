@@ -16,12 +16,13 @@ from pathlib import Path
 from typing import Any
 
 import decision_desk
+import brain_context
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = ROOT / "consult-engine" / "appdata" / "sanjian-app.sqlite3"
 DEFAULT_LEGACY_PREDICTIONS = ROOT / "consult-engine" / "predictions" / "predictions.jsonl"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 MIN_CALIBRATION_SAMPLES = 8
 VALID_OUTCOMES = {"hit", "partial", "miss", "unclear"}
 
@@ -164,6 +165,7 @@ class AppStore:
                 if name not in profile_columns:
                     con.execute(f"ALTER TABLE profiles ADD COLUMN {name} {definition}")
             decision_desk.migrate(con)
+            brain_context.migrate(con)
             con.execute(
                 "INSERT INTO app_meta(key,value) VALUES('schema_version',?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -282,10 +284,12 @@ class AppStore:
 
     def create_inquiry(self, profile_id: str, period: str, category: str, question: str,
                        background: str, asked_at: str, period_start: str,
-                       period_end: str, scope: dict | None = None) -> dict:
+                       period_end: str, scope: dict | None = None, brain_snapshot_id: str = "",
+                       brain_period: str = "") -> dict:
         now, qid = utc_now(), f"inquiry-{uuid.uuid4().hex[:12]}"
         scope = scope or {}
         with self._connect() as con:
+            con.execute("BEGIN IMMEDIATE")
             con.execute(
                 """INSERT INTO inquiries(
                     id,profile_id,period,category,question,background,asked_at,
@@ -297,6 +301,11 @@ class AppStore:
                  (scope.get("company") or {}).get("id", ""),
                  (scope.get("project") or {}).get("id", ""), decision_desk.scope_json(scope)),
             )
+            if brain_snapshot_id:
+                scope["brain_snapshot"] = brain_context.consume(con, brain_snapshot_id, qid, scope, brain_period)
+                scope["brain_connection"] = "confirmed_snapshot"
+                con.execute("UPDATE inquiries SET scope_json=? WHERE id=?", (decision_desk.scope_json(scope), qid))
+            con.commit()
         return self.get_inquiry(qid) or {}
 
     def get_inquiry(self, inquiry_id: str) -> dict | None:

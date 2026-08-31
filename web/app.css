@@ -455,3 +455,11 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+/* Protected source review: keep source text distinct from user-approved summaries. */
+.brain-panel { display: grid; gap: 14px; min-width: 0; }
+.brain-panel[hidden], .brain-panel [hidden] { display: none; }
+.brain-source { padding: 16px 0; border-top: 1px solid var(--line, #dcdedb); min-width: 0; }
+.brain-source-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; font-size: 12px; }
+.brain-source-text { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: rgba(100, 125, 110, .07); border-radius: 10px; }
+.brain-source small, .brain-panel .field-hint { overflow-wrap: anywhere; }
+.brain-source .field { margin-top: 12px; }

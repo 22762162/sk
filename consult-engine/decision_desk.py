@@ -193,7 +193,7 @@ class DeskStore:
             scope = {"version": "decision-scope-v1", "scene": scene,
                      "subject": {"id": subject["id"], "name": subject["name"], "version": subject["version"]},
                      "company": None, "project": None, "participants": [], "events": events,
-                     "confirmed_at": now(), "brain_connection": "not_connected"}
+                     "confirmed_at": now(), "brain_connection": "not_requested"}
             if scene == "company":
                 company = con.execute("SELECT * FROM companies WHERE id=?", (company_id,)).fetchone()
                 if not company:

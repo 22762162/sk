@@ -12,6 +12,7 @@ os.environ["SANJIAN_APP_DB"] = str(Path(_tmp.name) / "synthetic.sqlite3")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from backend import app as backend_app
+from backend.tests.test_brain_context import SyntheticClient, TEST_TOKEN
 from fastapi.responses import JSONResponse
 import uvicorn
 
@@ -29,6 +30,8 @@ sample = {"id": "consult-preview-synthetic", "birth": "1990-06-15T08:30",
               "overview": "合成研究参考：仅用于测试绑定，非已发生事实。"}}}}
 backend_app.records.listing = lambda *_, **__: [sample]
 backend_app.records.get = lambda rid: sample if rid == sample["id"] else None
+os.environ["SANJIAN_BRAIN_ACCESS_TOKEN"] = TEST_TOKEN
+backend_app.BRAIN.client = SyntheticClient()
 
 
 @backend_app.app.middleware("http")
@@ -43,6 +46,12 @@ for name, birth, gender in (("合成主体甲", "1990-06-15T08:30", "male"),
                             ("合成主体乙", "1993-04-05T10:20", "female")):
     backend_app.APP_STORE.create_profile({"name": name, "birth": birth, "gender": gender,
                                          "timezone": "Asia/Shanghai", "zi_hour_mode": "split"})
+
+desk = backend_app.decision_desk.DeskStore(backend_app.APP_STORE)
+company = desk.save_company({"name": "合成公司甲", "industry": "测试", "context": "合成项目进入验收阶段"})
+desk.save_membership(company["id"], {"profile_id": backend_app.APP_STORE.active_profile()["id"],
+                                   "project_id": "", "role": "合成负责人", "consent_confirmed": True,
+                                   "starts_on": "", "ends_on": ""})
 
 if __name__ == "__main__":
     try:

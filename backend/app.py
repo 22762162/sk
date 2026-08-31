@@ -24,7 +24,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -46,6 +46,8 @@ import dossier  # noqa: E402  (个人档案:过去验证打分,越用越准)
 import personal_app  # noqa: E402  (手机 App:基本盘/快照/复盘/个人校准)
 import decision_desk  # noqa: E402
 from backend import decision_routes  # noqa: E402
+from backend import brain_routes  # noqa: E402
+import brain_context  # noqa: E402
 TZ = ZoneInfo("Asia/Shanghai")
 JIE_NAMES = ["立春", "惊蛰", "清明", "立夏", "芒种", "小暑",
              "立秋", "白露", "寒露", "立冬", "大雪", "小寒"]
@@ -59,6 +61,17 @@ APP_STORE = personal_app.AppStore(
     legacy_predictions=None if "SANJIAN_APP_DB" in os.environ else personal_app.DEFAULT_LEGACY_PREDICTIONS,
 )
 app.include_router(decision_routes.router(APP_STORE))
+BRAIN = brain_context.BrainStore(APP_STORE)
+app.include_router(brain_routes.router(BRAIN))
+
+
+@app.middleware("http")
+async def private_app_responses(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/app/") or request.url.path == "/api/consult/result":
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 _jie_unix: list[int] = []
 _jie_seq: list[int] = []
@@ -1247,7 +1260,7 @@ APP_CATEGORIES = {
     "general": "其他事项",
 }
 APP_PERIODS = {"day", "month"}
-_APP_ALGORITHM_VERSION = "app-decision-desk-v2.0.0"
+_APP_ALGORITHM_VERSION = "app-decision-desk-v2.1.0"
 _APP_RESEARCH_SOURCES = {"manual", "advanced_dossier_reviewed", "advanced_record_reviewed"}
 
 
@@ -1286,6 +1299,7 @@ class AppQuestionReq(BaseModel):
     expected_company_version: int | None = None
     expected_project_version: int | None = None
     expected_memberships: dict[str, dict[str, int]] | None = Field(default=None, max_length=6)
+    brain_snapshot_id: str = Field(default="", max_length=100)
 
 
 class AppReviewReq(BaseModel):
@@ -1857,7 +1871,7 @@ def _desk_chart(profile: dict) -> dict:
 
 def _desk_material(scope: dict, profiles: list[dict]) -> dict:
     material = {"scene": scope["scene"], "subject_alias": "主体", "people": [],
-                "brain_data_status": "not_connected", "confirmed_personal_events": []}
+                "brain_data_status": "not_included", "confirmed_personal_events": []}
     roles = {item["profile_id"]: item["role"] for item in scope["participants"]}
     for index, profile in enumerate(profiles):
         material["people"].append({
@@ -1869,6 +1883,17 @@ def _desk_material(scope: dict, profiles: list[dict]) -> dict:
         material["company_background"] = _desk_clean(scope["company"]["context"], scope, profiles, 800)
         material["project_background"] = _desk_clean((scope.get("project") or {}).get("context", ""), scope, profiles, 800)
         material["source_status"] = "owner_supplied_background_not_audited_financial_data"
+        if scope.get("brain_snapshot"):
+            snapshot = scope["brain_snapshot"]
+            material["brain_data_status"] = "owner_confirmed_minimized_summaries"
+            material["brain_evidence"] = {
+                "period": snapshot["period"], "fetched_at": snapshot["fetched_at"],
+                "coverage": snapshot["coverage"], "content_hash": snapshot["content_hash"],
+                "items": [{"level": item["level"], "known_at": item["known_at"],
+                           "verification": item["verification"], "source_hash": item["source_hash"],
+                           "summary": _desk_clean(item["summary"], scope, profiles, 400)}
+                          for item in snapshot["items"]],
+            }
     else:
         material["confirmed_personal_events"] = [{
             "occurred_on": event["occurred_on"],
@@ -2233,7 +2258,10 @@ def app_today(profile_id: str = "") -> JSONResponse:
 
 
 @app.post("/api/app/questions/start")
-def app_question_start(req: AppQuestionReq) -> JSONResponse:
+def app_question_start(req: AppQuestionReq, x_sanjian_brain_access: str = Header(default="")) -> JSONResponse:
+    if req.brain_snapshot_id and not brain_context.access_allowed(x_sanjian_brain_access):
+        return JSONResponse({"ok": False, "error": "使用大脑摘要需要本次访问授权"}, status_code=401,
+                            headers={"Cache-Control": "no-store"})
     profile = APP_STORE.get_profile(req.profile_id)
     if not profile:
         return JSONResponse({"ok": False, "error": "基本盘不存在"}, status_code=404)
@@ -2260,10 +2288,15 @@ def app_question_start(req: AppQuestionReq) -> JSONResponse:
         profile.update(situation="", research_context="", research_source="",
                        industry=scope["company"]["industry"], occupation="业务参考主体")
     start, end = _app_period_bounds(local_now, req.period)
-    inquiry = APP_STORE.create_inquiry(
-        profile["id"], req.period, req.category, question, background,
-        local_now.astimezone(timezone.utc).isoformat(timespec="seconds"), start, end, scope=scope,
-    )
+    try:
+        inquiry = APP_STORE.create_inquiry(
+            profile["id"], req.period, req.category, question, background,
+            local_now.astimezone(timezone.utc).isoformat(timespec="seconds"), start, end, scope=scope,
+            brain_snapshot_id=req.brain_snapshot_id, brain_period=local_now.strftime("%Y-%m"),
+        )
+    except brain_context.BrainError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409,
+                            headers={"Cache-Control": "no-store"})
     job_id = uuid.uuid4().hex[:12]
     with _JOBS_LOCK:
         _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
