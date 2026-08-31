@@ -295,6 +295,14 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 .lock-badge, .status-badge { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; background: var(--surface); color: var(--jade-dark); font-weight: 800; }
 .prediction-question { margin: 12px 0 8px; color: var(--muted); font-size: 12px; }
 .prediction-conclusion { margin: 0; font-family: "Songti SC", serif; font-size: clamp(20px, 4.5vw, 28px); line-height: 1.55; }
+.business-metrics { margin: 2px 0; padding: 16px; border: 1px solid rgba(166, 111, 58, .26); border-radius: 16px; background: rgba(166, 111, 58, .07); }
+.business-metrics-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.business-metrics-heading h3 { margin: 0; font-size: 15px; }
+.business-metrics-heading span { color: var(--muted); font-size: 11px; }
+.business-metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.business-metrics-grid div { padding: 10px; border-radius: 12px; background: var(--card); }
+.business-metrics-grid small { display: block; color: var(--muted); font-size: 10px; }
+.business-metrics-grid strong { display: block; margin-top: 4px; font-size: 14px; line-height: 1.35; }
 .prediction-body { display: grid; gap: 18px; padding: 18px; }
 .confidence-row { display: flex; align-items: center; gap: 12px; }
 .confidence-track { height: 7px; flex: 1; overflow: hidden; border-radius: 99px; background: var(--line); }
@@ -414,6 +422,7 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
   .role-strip, .role-analysis-grid { grid-template-columns: 1fr; }
   .quick-card { min-height: 94px; }
   .field-grid, .snapshot-grid { grid-template-columns: 1fr; }
+  .business-metrics-grid { grid-template-columns: 1fr 1fr; }
   .profile-chip { max-width: 118px; }
   .prediction-meta { align-items: start; flex-direction: column; }
 }

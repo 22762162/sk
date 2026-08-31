@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import time
@@ -145,6 +146,97 @@ class AppApiTest(unittest.TestCase):
         self.assertFalse(protocol["complete"])
         self.assertTrue(protocol["fail_closed"])
 
+        direct_roles, direct_protocol = backend_app._app_three_role_analysis({
+            "question_round": {"responses": [{
+                "role": "debater_a", "provider": "anthropic", "model": "synthetic",
+                "school": "ziping", "school_name": "子平格局派",
+                "answer": "只讨论未来几年财运，没有回答合成任务。",
+                "suggestion": "", "relevant_and_valid": False,
+            }]},
+        })
+        self.assertEqual(len(direct_roles), 1)
+        self.assertTrue(direct_protocol["direct_question"])
+        self.assertFalse(direct_protocol["complete"])
+
+    def test_business_metrics_relevance_and_ten_god_guards(self) -> None:
+        question = ("这个月合成流水下滑，现在才120万人民币，目标达到5%要500万人民币。"
+                    "现在这十天低于预期，后面20天能否完成任务？")
+        metrics = backend_app._app_business_metrics(question, "2026-08-31")
+        self.assertEqual(metrics["current"], 120.0)
+        self.assertEqual(metrics["target"], 500.0)
+        self.assertEqual(metrics["gap"], 380.0)
+        self.assertEqual(metrics["required_daily"], 19.0)
+        self.assertEqual(metrics["current_daily"], 12.0)
+        self.assertEqual(metrics["required_lift_pct"], 58.33)
+        self.assertEqual(metrics["completion_pct"], 24.0)
+        self.assertIn("日均 19 万元", backend_app._app_metric_summary(metrics))
+
+        self.assertFalse(backend_app._app_answer_relevant(
+            "未来几年财气较旺，但合同细节需要留意。", question, metrics
+        ))
+        self.assertTrue(backend_app._app_answer_relevant(
+            "按剩余缺口和日均要求看，完成任务难度较高，除非后续流水连续达标。",
+            question, metrics,
+        ))
+        self.assertTrue(backend_app._app_answer_relevant(
+            "这段关系本月更倾向先沟通再观察，对方态度仍需用实际互动核对。",
+            "这段关系本月有什么变化，对方是什么想法？", {},
+        ))
+        self.assertTrue(backend_app._app_ten_god_text_valid(
+            "火为财星，土为官杀，金为印星，木为食伤。", "壬"
+        ))
+        self.assertFalse(backend_app._app_ten_god_text_valid("财星土弱。", "壬"))
+        self.assertFalse(backend_app._app_ten_god_text_valid("癸水克甲木。", "壬"))
+
+    def test_question_round_directly_answers_and_drops_invalid_prior_claims(self) -> None:
+        question = ("本月合成流水当前100万，目标300万，前10天低于预期，"
+                    "剩余20天能否完成任务？")
+        metrics = backend_app._app_business_metrics(question, "2026-08-31")
+        payload = {
+            "chart": {"line": "合成四柱", "output": {"day": {"stem": "壬", "ganzhi": "壬申"}}},
+            "consultation": {
+                "judge": {"by": "anthropic(轮换盲评)"},
+                "debaters": [
+                    {"role": "debater_a", "provider": "anthropic", "model": "claude-synthetic",
+                     "school": "ziping", "school_name": "子平格局派",
+                     "claims": [{"claim": "火为财星，任务需看现实节奏", "basis": "合成有效依据"}]},
+                    {"role": "debater_b", "provider": "openai", "model": "gpt-synthetic",
+                     "school": "wangshuai", "school_name": "旺衰扶抑派",
+                     "claims": [{"claim": "财星土弱", "basis": "合成错误依据"}]},
+                    {"role": "debater_c", "provider": "deepseek", "model": "deepseek-synthetic",
+                     "school": "tiaohou", "school_name": "调候派",
+                     "claims": [{"claim": "后续节奏需要连续观察", "basis": "合成有效依据"}]},
+                ],
+            },
+        }
+        packets = {}
+
+        def fake_direct(provider, model, system, user, **kwargs):
+            packets[provider] = json.loads(user.split("\n", 1)[0])
+            answers = {
+                "anthropic": "按剩余目标和日均要求看，本月完成流水任务有条件，但需连续达标。",
+                "openai": "当前流水缺口明确，本月完成任务较难，除非剩余日均持续达到要求。",
+                "deepseek": "本月流水仍有望完成，条件是后续进度不再低于剩余日均目标。",
+            }
+            return ({"answer": answers[provider], "revised": "", "suggestion": "每5天核对一次进度"},
+                    f"run-{provider}", {})
+
+        fake_judged = {"verdict": {"summary": "三方认为本月流水任务有条件完成。",
+                                    "issues": [{"topic": "达标条件", "verdict": "consensus",
+                                                "rationale": "均要求日均达到目标"}]},
+                       "run_id": "run-judge"}
+        inquiry = {"question": question, "period": "month", "category": "finance", "background": ""}
+        with patch.object(backend_app.consult, "_call_json", side_effect=fake_direct), \
+             patch.object(backend_app.consult, "_judge", return_value=fake_judged):
+            result = backend_app._app_run_question_round(payload, inquiry, metrics)
+
+        self.assertEqual(len(result["responses"]), 3)
+        self.assertTrue(all(item["relevant_and_valid"] for item in result["responses"]))
+        self.assertEqual(
+            packets["openai"]["independent_role"]["valid_prior_observations"], []
+        )
+        self.assertEqual(result["judge"]["summary"], "三方认为本月流水任务有条件完成。")
+
     def test_question_job_locks_structured_snapshot_and_review_is_separate(self) -> None:
         created = self.client.post("/api/app/profiles", json={
             "name": "问事合成盘", "birth": "1991-02-03T09:15", "gender": "female",
@@ -191,11 +283,45 @@ class AppApiTest(unittest.TestCase):
             captured["kwargs"] = kwargs
             return fake_consultation
 
+        def fake_question_round(payload, inquiry, metrics):
+            self.assertEqual(payload, fake_consultation)
+            self.assertEqual(metrics["current"], 100.0)
+            self.assertEqual(metrics["target"], 300.0)
+            self.assertEqual(metrics["required_daily"], 10.0)
+            return {
+                "schema_version": "app-question-round-v1",
+                "question": inquiry["question"],
+                "computed_business_metrics": metrics,
+                "responses": [
+                    {"role": "debater_a", "provider": "anthropic", "model": "claude-synthetic",
+                     "school": "ziping", "school_name": "子平格局派",
+                     "answer": "本月合成流水目标有条件完成，但需要保持剩余日均要求。",
+                     "revised": "", "suggestion": "月末按是否完成目标复盘。",
+                     "relevant_and_valid": True, "run_id": "run-a"},
+                    {"role": "debater_b", "provider": "openai", "model": "gpt-synthetic",
+                     "school": "wangshuai", "school_name": "旺衰扶抑派",
+                     "answer": "本月完成该流水任务有难度，应把剩余目标拆成可核对节点。",
+                     "revised": "", "suggestion": "每周核对一次日均进度。",
+                     "relevant_and_valid": True, "run_id": "run-b"},
+                    {"role": "debater_c", "provider": "deepseek", "model": "deepseek-synthetic",
+                     "school": "tiaohou", "school_name": "调候派",
+                     "answer": "本月流水仍有望达标，前提是后续日均进度持续到位。",
+                     "revised": "", "suggestion": "记录每日流水是否达到要求。",
+                     "relevant_and_valid": True, "run_id": "run-c"},
+                ],
+                "judge": {"by": "anthropic(原问题轮换盲评)",
+                          "summary": "三方均直接回答本月流水任务，结论是有条件达标。",
+                          "issues": [{"verdict": "unresolved"}], "run_id": "run-j"},
+            }
+
         with patch.object(backend_app, "_app_transit", return_value=(fake_transit, None)), \
-             patch.object(backend_app, "_run_consult_payload", side_effect=fake_run_consult):
+             patch.object(backend_app, "_run_consult_payload", side_effect=fake_run_consult), \
+             patch.object(backend_app, "_app_run_question_round", side_effect=fake_question_round):
             started = self.client.post("/api/app/questions/start", json={
-                "profile_id": created["id"], "period": "month", "category": "career",
-                "question": "本月合成岗位事项是否适合继续推进？", "background": "只有合成背景",
+                "profile_id": created["id"], "period": "month", "category": "finance",
+                "question": ("本月合成流水当前100万，目标300万，前10天低于预期，"
+                             "剩余20天能否完成任务？"),
+                "background": "只有合成背景",
             })
             self.assertEqual(started.status_code, 202)
             job_id = started.json()["job_id"]
@@ -209,11 +335,12 @@ class AppApiTest(unittest.TestCase):
         prediction = result["result"]["prediction"]
         snapshot = prediction["snapshot"]
         self.assertEqual(snapshot["schema_version"], "prediction-snapshot-v1")
-        self.assertEqual(snapshot["question"], "本月合成岗位事项是否适合继续推进？")
+        self.assertIn("剩余20天能否完成任务", snapshot["question"])
         self.assertTrue(snapshot["key_time_windows"])
         self.assertFalse(captured["kwargs"]["include_dossier"])
         self.assertEqual(captured["request"].arm, "D3J")
         self.assertIn("本人已确认事实资料", captured["request"].situation)
+        self.assertIn("确定性经营指标", captured["request"].situation)
         self.assertNotIn("13800138000", captured["request"].situation)
         self.assertIn("[手机号已省略]", captured["request"].situation)
         self.assertTrue(snapshot["research_context"]["included"])
@@ -225,6 +352,11 @@ class AppApiTest(unittest.TestCase):
         self.assertEqual(snapshot["three_role_protocol"]["distinct_providers"], 3)
         self.assertEqual([r["provider_label"] for r in snapshot["three_role_analysis"]],
                          ["Claude", "GPT", "DeepSeek"])
+        self.assertTrue(snapshot["three_role_protocol"]["direct_question"])
+        self.assertIn("三方盲评", snapshot["conclusion"])
+        self.assertIn("有条件完成", snapshot["three_role_analysis"][0]["findings"][0]["claim"])
+        self.assertEqual(snapshot["computed_metrics"]["completion_pct"], 33.33)
+        self.assertEqual(snapshot["computed_metrics"]["gap"], 200.0)
         self.assertEqual(snapshot["arbitration"]["unresolved"], 1)
         self.assertTrue(prediction["content_hash"])
 
