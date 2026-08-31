@@ -107,6 +107,44 @@ def test_schema_validator_agreement(case_id, kind, obj, expect):
     assert s_ok == v_ok == expect, f"{case_id}: schema={s_ok} validator={v_ok} 期望={expect}"
 
 
+REQUIRED_BY_KIND = {
+    "bazi": ["status", "reading", "confidence", "yingqi", "verifiable_events", "method_basis"],
+    "gua": ["status", "reading", "confidence", "yingqi", "verifiable_events",
+            "method_basis", "method", "cast_hash"],
+    "combined": ["status", "answer", "reasoning", "confidence", "yingqi",
+                 "verifiable_events", "method_basis"],
+}
+_FIXTURES = {"bazi": ok_bazi, "gua": ok_gua, "combined": ok_combined}
+
+
+@pytest.mark.parametrize("kind", list(REQUIRED_BY_KIND))
+def test_agreement_delete_each_required_field(kind):
+    """B2 终版:逐字段删除遍历——双侧必须同时拒绝(含此前分歧的 verifiable_events 缺失)。"""
+    for field in REQUIRED_BY_KIND[kind]:
+        obj = {k: v for k, v in _FIXTURES[kind]().items() if k != field}
+        s_ok = _schema_valid(f"{kind}_section_raw", obj)
+        v_ok = _validator_valid(kind, obj)
+        assert s_ok is False and v_ok is False, f"{kind} 缺 {field}: schema={s_ok} validator={v_ok}"
+
+
+@pytest.mark.parametrize("kind", list(REQUIRED_BY_KIND))
+def test_agreement_ok_smuggles_reason_and_extras(kind):
+    """B2 终版:ok 夹带 reason/未知字段——双侧同时拒绝。"""
+    for extra in ({"reason": "夹带的弃答理由字段"}, {"unknown_field": 1}):
+        obj = {**_FIXTURES[kind](), **extra}
+        assert not _schema_valid(f"{kind}_section_raw", obj)
+        assert not _validator_valid(kind, obj), f"{kind} 夹带 {list(extra)}"
+
+
+def test_agreement_dissent_note_length_bound():
+    long_note = {**ok_combined(), "dissent_note": "长" * 601}
+    assert not _schema_valid("combined_section_raw", long_note)
+    assert not _validator_valid("combined", long_note)
+    edge = {**ok_combined(), "dissent_note": "边" * 600}
+    assert _schema_valid("combined_section_raw", edge)
+    assert _validator_valid("combined", edge)
+
+
 def test_sealed_variants_struct_bounds():
     sealed_ev = {**ok_event(), "event_id": "ev-" + "0" * 12}
     sealed_bazi = {**ok_bazi(), "verifiable_events": [sealed_ev]}

@@ -137,15 +137,17 @@ def _check_common(sec, errors: list[str], where: str, extra_allowed: set[str],
     """meta_fields:编排器回显的元数据层(如 gua 的 method/cast_hash)——
     abstain 时仍须携带(交接保留项:元数据分层,弃答白名单不拒元数据)。
     require_reading=False 用于 combined(其正文字段为 answer/reasoning)。"""
-    allowed = {"status", "reason", "confidence", "yingqi",
-               "verifiable_events", "method_basis"} | extra_allowed | meta_fields
+    allowed_ok = {"status", "confidence", "yingqi",
+                  "verifiable_events", "method_basis"} | extra_allowed | meta_fields
     if require_reading:
-        allowed.add("reading")
+        allowed_ok.add("reading")
     if not isinstance(sec, dict):
         errors.append(f"{where} 须为对象")
         return
-    _err(errors, bool(set(sec) - allowed), f"{where} 含未定义字段:{sorted(set(sec) - allowed)}")
     st = sec.get("status")
+    # B2 终版:ok 变体不得携带 reason(弃答专属),与 schema additionalProperties=false 对齐
+    check_set = allowed_ok if st == "ok" else (allowed_ok | {"reason"})
+    _err(errors, bool(set(sec) - check_set), f"{where} 含未定义字段:{sorted(set(sec) - check_set)}")
     if st == "abstain":
         _err(errors, not isinstance(sec.get("reason"), str) or not 4 <= len(sec["reason"]) <= 300,
              f"{where}.reason(abstain)须为 4-300 字")
@@ -163,7 +165,10 @@ def _check_common(sec, errors: list[str], where: str, extra_allowed: set[str],
     _err(errors, not isinstance(conf, str) or conf not in _CONF,  # 探针修复:[] 等不可哈希值不抛异常
          f"{where}.confidence 须为 low|medium|high")
     _check_yingqi(sec.get("yingqi"), errors, where)
-    _check_events(sec.get("verifiable_events", []), errors, where)
+    if "verifiable_events" not in sec:  # B2 终版:必填,不得缺省为无事件
+        errors.append(f"{where}.verifiable_events 为必填数组(可为空)")
+    else:
+        _check_events(sec.get("verifiable_events"), errors, where)
     _err(errors, not isinstance(sec.get("method_basis"), str) or not 4 <= len(sec["method_basis"]) <= 400,
          f"{where}.method_basis 须为 4-400 字")
 
@@ -198,8 +203,9 @@ def validate_combined(sec, bazi_conf: str, gua_conf: str) -> list[str]:
              "combined.answer 须为 10-600 字")
         _err(errors, not isinstance(sec.get("reasoning"), str) or not 20 <= len(sec["reasoning"]) <= 1200,
              "combined.reasoning 须为 20-1200 字")
-        _err(errors, "dissent_note" in sec and not isinstance(sec["dissent_note"], str),
-             "combined.dissent_note 须为字符串")
+        _err(errors, "dissent_note" in sec and (not isinstance(sec["dissent_note"], str)
+             or len(sec["dissent_note"]) > 600),
+             "combined.dissent_note 须为 ≤600 字字符串")
         cap = max(_CONF_RANK.get(bazi_conf, 0), _CONF_RANK.get(gua_conf, 0))
         conf = sec.get("confidence")
         rank = _CONF_RANK[conf] if isinstance(conf, str) and conf in _CONF_RANK else 99
