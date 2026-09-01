@@ -1498,12 +1498,17 @@ def _app_ten_god_text_valid(text: str, day_stem: str) -> bool:
     if not expected:
         return True
     element_token = r"(?:甲木|乙木|丙火|丁火|戊土|己土|庚金|辛金|壬水|癸水|木|火|土|金|水)"
+    relation_link = r"(?:为|就?是|属(?:于)?|代表|即|乃|对应(?:的五行)?|五行(?:为|属(?:于)?)?|：|:)"
     for relation, terms in _APP_TEN_GOD_TERMS.items():
         wanted = expected[relation]
         for term in terms:
+            # 只校验明确的归属断言。旧规则会跨 10 个任意字符抓取下一个五行，导致
+            # 「火为财星而土为官杀」「财星需结合土金位置」这类正确/非归属句被误杀。
             patterns = (
-                rf"{re.escape(term)}[^，。；\n]{{0,10}}?({element_token})",
-                rf"({element_token})[^，。；\n]{{0,10}}?{re.escape(term)}",
+                rf"{re.escape(term)}\s*{relation_link}\s*({element_token})",
+                rf"{re.escape(term)}\s*[（(]?\s*({element_token})\s*[）)]?"
+                rf"(?=[旺弱强衰透藏多寡受得，。；、\s]|$)",
+                rf"({element_token})\s*{relation_link}\s*{re.escape(term)}",
             )
             for pattern in patterns:
                 for match in re.finditer(pattern, text):
@@ -1512,12 +1517,36 @@ def _app_ten_god_text_valid(text: str, day_stem: str) -> bool:
 
     generates = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
     controls = {"木": "土", "土": "水", "水": "火", "火": "金", "金": "木"}
-    for match in re.finditer(
-        rf"({element_token})[^，。；\n]{{0,8}}?(生|克)[^，。；\n]{{0,8}}?({element_token})", text
-    ):
-        left, verb, right = _app_text_element(match.group(1)), match.group(2), _app_text_element(match.group(3))
-        if left and right and (generates if verb == "生" else controls).get(left) != right:
-            return False
+    verb_token = r"(?:生扶|生助|相生|克制|相克|生|克)"
+
+    def pair_valid(subject_token: str, verb: str, object_token: str) -> bool:
+        subject, target = _app_text_element(subject_token), _app_text_element(object_token)
+        relation_map = generates if "生" in verb else controls
+        return not subject or not target or relation_map.get(subject) == target
+
+    # 主动式:金克木、木能生火、金对木有克制。
+    active_patterns = (
+        rf"({element_token})\s*(?:直接|能够|能|会|可)?\s*({verb_token})\s*({element_token})",
+        rf"({element_token})\s*(?:对|于)\s*({element_token})\s*"
+        rf"(?:有|形成|产生|构成)?\s*({verb_token})",
+    )
+    for index, pattern in enumerate(active_patterns):
+        for match in re.finditer(pattern, text):
+            subject, target, verb = ((match.group(1), match.group(3), match.group(2)) if index == 0
+                                     else (match.group(1), match.group(2), match.group(3)))
+            if not pair_valid(subject, verb, target):
+                return False
+
+    # 被动式:木受金克、火得木生、木为金所克。限定连接词，避免跨越邻近分句误配主客体。
+    passive_patterns = (
+        rf"({element_token})\s*(?:受|被|得)\s*({element_token})\s*({verb_token})",
+        rf"({element_token})\s*为\s*({element_token})\s*所\s*({verb_token})",
+    )
+    for pattern in passive_patterns:
+        for match in re.finditer(pattern, text):
+            target, subject, verb = match.group(1), match.group(2), match.group(3)
+            if not pair_valid(subject, verb, target):
+                return False
     return True
 
 
