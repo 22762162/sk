@@ -1,0 +1,30 @@
+artifact_id: relation-validator-codex-implementer
+timestamp: "2026-09-01T17:08:48Z"
+timestamp_source: host_clock
+provider: openai
+model_id: Codex (exact runtime model id unavailable)
+model_release: Codex session 2026-09-02
+agent_role: implementer
+session_id: codex-main-session-relation-validator
+run_manifest_id: not-applicable (offline synthetic tests only)
+source_repository: https://github.com/22762162/sk
+source_commit: ff2ab3c7a1692cba15890c0772fc040d1889eedd
+generated_files:
+  - backend/app.py
+  - backend/tests/test_app_api.py
+  - governance/attestations/relation-validator-codex-implementer.yaml
+reviewed_files:
+  - backend/app.py
+  - backend/tests/test_app_api.py
+notes: >-
+  Replaces proximity-based ten-god and five-element relation matching with explicit
+  assertion patterns. The validator now checks direct ten-god ownership statements and
+  active/passive generation or control statements without treating nearby contextual
+  elements as a second assertion. Explicitly incorrect statements such as 土为财星、癸水克木
+  and 木受水克 remain blocked. Synthetic regression cases cover adjacent valid assertions,
+  contextual element mentions, passive relation phrasing, and explicit invalid mappings.
+  Verification: 61 backend tests and 32 Brain bridge tests passed; redline,
+  governance-check, prompt-symmetry, Python syntax, and diff checks passed. No prompt,
+  .env, secret, real database, consultation record, manifest, or live model API was
+  accessed. Changes to backend/app.py require cross-vendor review and human signoff before
+  merge/deploy.

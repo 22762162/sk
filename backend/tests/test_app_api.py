@@ -255,8 +255,19 @@ class AppApiTest(unittest.TestCase):
         self.assertTrue(backend_app._app_ten_god_text_valid(
             "火为财星，土为官杀，金为印星，木为食伤。", "壬"
         ))
+        self.assertTrue(backend_app._app_ten_god_text_valid(
+            "火为财星而土为官杀，金为印星，木为食伤。", "壬"
+        ))
+        self.assertTrue(backend_app._app_ten_god_text_valid(
+            "火为财星但受土泄，财星是否有力还要结合土金位置。", "壬"
+        ))
+        self.assertTrue(backend_app._app_ten_god_text_valid(
+            "木受金克而火得木生，属于两条不同的明确关系。", "壬"
+        ))
         self.assertFalse(backend_app._app_ten_god_text_valid("财星土弱。", "壬"))
+        self.assertFalse(backend_app._app_ten_god_text_valid("土为财星。", "壬"))
         self.assertFalse(backend_app._app_ten_god_text_valid("癸水克甲木。", "壬"))
+        self.assertFalse(backend_app._app_ten_god_text_valid("甲木受癸水克。", "壬"))
 
     def test_question_round_directly_answers_and_drops_invalid_prior_claims(self) -> None:
         question = ("本月合成流水当前100万，目标300万，前10天低于预期，"
