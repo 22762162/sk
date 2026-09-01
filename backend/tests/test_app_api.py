@@ -307,6 +307,62 @@ class AppApiTest(unittest.TestCase):
         )
         self.assertEqual(result["judge"]["summary"], "三方认为本月流水任务有条件完成。")
 
+    def test_question_round_retries_invalid_anthropic_answer_and_emits_public_events(self) -> None:
+        question = "本月合成流水当前100万，目标300万，剩余20天能否完成任务？"
+        metrics = backend_app._app_business_metrics(question, "2026-08-31")
+        payload = {
+            "chart": {"line": "合成四柱", "output": {"day": {"stem": "壬", "ganzhi": "壬申"}}},
+            "consultation": {
+                "judge": {"by": "anthropic(轮换盲评)"},
+                "debaters": [
+                    {"role": "debater_a", "provider": "anthropic", "model": "claude-synthetic",
+                     "school": "ziping", "school_name": "子平格局派", "claims": []},
+                    {"role": "debater_b", "provider": "gemini", "model": "gemini-synthetic",
+                     "school": "wangshuai", "school_name": "旺衰扶抑派", "claims": []},
+                    {"role": "debater_c", "provider": "deepseek", "model": "deepseek-synthetic",
+                     "school": "tiaohou", "school_name": "调候派", "claims": []},
+                ],
+            },
+        }
+        calls, packets, events = {}, {}, []
+
+        def fake_direct(provider, model, system, user, **kwargs):
+            calls[provider] = calls.get(provider, 0) + 1
+            packets[(provider, calls[provider])] = json.loads(user.split("\n", 1)[0])
+            if provider == "anthropic" and calls[provider] == 1:
+                return ({"answer": "未来几年整体机会较多。", "revised": "", "suggestion": "继续观察"},
+                        "run-hidden-first", {})
+            answers = {
+                "anthropic": "按剩余缺口和日均目标看，本月完成流水任务有条件，需要后续连续达标。",
+                "gemini": "本月流水任务仍有望完成，但剩余日均进度必须达到目标。",
+                "deepseek": "本月完成流水目标难度较高，应逐日核对剩余缺口和进度。",
+            }
+            return ({"answer": answers[provider], "revised": "", "suggestion": "每5天核对一次进度"},
+                    f"run-hidden-{provider}", {})
+
+        judged = {"verdict": {"summary": "三方认为本月任务有条件完成，需核对日均进度。",
+                               "issues": []}, "run_id": "run-hidden-judge"}
+        inquiry = {"question": question, "period": "month", "category": "finance", "background": ""}
+        with patch.object(backend_app.consult, "_call_json", side_effect=fake_direct), \
+             patch.object(backend_app.consult, "_judge", return_value=judged):
+            result = backend_app._app_run_question_round(
+                payload, inquiry, metrics, event_callback=events.append
+            )
+
+        self.assertEqual(calls["anthropic"], 2)
+        self.assertEqual(calls["gemini"], 1)
+        self.assertEqual(calls["deepseek"], 1)
+        self.assertIn("validation_feedback", packets[("anthropic", 2)])
+        self.assertTrue(all(item["relevant_and_valid"] for item in result["responses"]))
+        self.assertTrue(any(item["type"] == "role_retrying" and item["provider"] == "anthropic"
+                            for item in events))
+        self.assertTrue(any(item["type"] == "role_answered" and item["provider"] == "anthropic"
+                            for item in events))
+        self.assertEqual(events[-1]["type"], "judge_completed")
+        public_blob = json.dumps(events, ensure_ascii=False)
+        for hidden in ("validation_feedback", "run-hidden", "system", "提示词"):
+            self.assertNotIn(hidden, public_blob)
+
     def test_question_job_locks_structured_snapshot_and_review_is_separate(self) -> None:
         created = self.client.post("/api/app/profiles", json={
             "name": "问事合成盘", "birth": "1991-02-03T09:15", "gender": "female",
@@ -353,11 +409,15 @@ class AppApiTest(unittest.TestCase):
             captured["kwargs"] = kwargs
             return fake_consultation
 
-        def fake_question_round(payload, inquiry, metrics):
+        def fake_question_round(payload, inquiry, metrics, event_callback=None):
             self.assertEqual(payload, fake_consultation)
             self.assertEqual(metrics["current"], 100.0)
             self.assertEqual(metrics["target"], 300.0)
             self.assertEqual(metrics["required_daily"], 10.0)
+            if event_callback:
+                event_callback({"type": "role_answered", "provider": "anthropic",
+                                "provider_label": "Claude", "title": "Claude 已给出公开结论",
+                                "message": "本月任务有条件完成。", "status": "done"})
             return {
                 "schema_version": "app-question-round-v1",
                 "question": inquiry["question"],
@@ -404,6 +464,11 @@ class AppApiTest(unittest.TestCase):
                     break
                 time.sleep(0.02)
         self.assertEqual(result["status"], "done")
+        event_types = [item["type"] for item in result["events"]]
+        self.assertIn("question_locked", event_types)
+        self.assertEqual(event_types.count("base_view"), 3)
+        self.assertIn("role_answered", event_types)
+        self.assertIn("prediction_saved", event_types)
         prediction = result["result"]["prediction"]
         snapshot = prediction["snapshot"]
         self.assertEqual(snapshot["schema_version"], "prediction-snapshot-v1")
@@ -441,6 +506,15 @@ class AppApiTest(unittest.TestCase):
         self.assertEqual(reviewed.json()["prediction"]["snapshot"]["conclusion"],
                          snapshot["conclusion"])
         self.assertEqual(reviewed.json()["prediction"]["review"]["outcome"], "unclear")
+
+    def test_question_page_contains_live_public_discussion_log(self) -> None:
+        html = (backend_app.ROOT / "web" / "app.html").read_text(encoding="utf-8")
+        script = (backend_app.ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="question-discussion"', html)
+        self.assertIn('role="log"', html)
+        self.assertIn("renderQuestionDiscussion(job.events)", script)
+        self.assertIn("setTimeout(resolve, 1000)", script)
+        self.assertIn("隐藏思维链", html)
 
 
 if __name__ == "__main__":

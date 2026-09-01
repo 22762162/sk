@@ -18,7 +18,7 @@ import subprocess
 import sys
 import threading
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
@@ -1242,13 +1242,16 @@ def records_get(rid: str) -> JSONResponse:
 def consult_result(job_id: str) -> JSONResponse:
     """查询会诊任务:running / done / error。此响应立即返回,不长挂,故不会被隧道超时。"""
     with _JOBS_LOCK:
-        job = _CONSULT_JOBS.get(job_id)
+        source = _CONSULT_JOBS.get(job_id)
+        job = ({**source, "events": [dict(item) for item in source.get("events", [])]}
+               if source else None)
     if not job:
         return JSONResponse({"ok": False, "status": "unknown", "error": "任务不存在或已过期"},
                             status_code=404)
     if job["status"] == "running":
-        return JSONResponse({"ok": True, "status": "running"})
-    return JSONResponse({"ok": True, "status": job["status"], "result": job["payload"]})
+        return JSONResponse({"ok": True, "status": "running", "events": job.get("events", [])})
+    return JSONResponse({"ok": True, "status": job["status"], "result": job["payload"],
+                         "events": job.get("events", [])})
 
 
 APP_CATEGORIES = {
@@ -1537,7 +1540,8 @@ def _app_answer_relevant(answer: str, question: str, metrics: dict) -> bool:
     return True
 
 
-def _app_run_question_round(consultation_payload: dict, inquiry: dict, metrics: dict) -> dict:
+def _app_run_question_round(consultation_payload: dict, inquiry: dict, metrics: dict,
+                            event_callback=None) -> dict:
     """复用已批准的 chat system prompt，让三家分别直接回答原问题，再做匿名盲评。"""
     consultation = consultation_payload.get("consultation") or {}
     chart = consultation_payload.get("chart") or {}
@@ -1549,7 +1553,25 @@ def _app_run_question_round(consultation_payload: dict, inquiry: dict, metrics: 
         raise RuntimeError("三方基础分析未完整，无法进入原问题直答")
     system = consult._prompt_system(ROOT / "prompts" / "base" / "presenter" / "chat.md")
 
+    provider_labels = {"anthropic": "Claude", "gemini": "Gemini", "deepseek": "DeepSeek"}
+
+    def emit(event_type: str, *, provider: str = "", title: str = "", message: str = "",
+             status: str = "active") -> None:
+        if event_callback is None:
+            return
+        event_callback({
+            "type": event_type,
+            "provider": provider,
+            "provider_label": provider_labels.get(provider, provider or "三方"),
+            "title": _app_text(title, 80),
+            "message": _redline_filter(_model_minimize(message, 900))[0],
+            "status": status,
+        })
+
     def direct_answer(debater: dict) -> dict:
+        provider = str(debater.get("provider", ""))
+        provider_label = provider_labels.get(provider, provider or "模型")
+        emit("role_started", provider=provider, title=f"{provider_label} 正在直接回答原问题")
         valid_observations = []
         for claim in debater.get("claims", []):
             claim_text = _model_minimize(claim.get("claim", ""), 240)
@@ -1571,30 +1593,80 @@ def _app_run_question_round(consultation_payload: dict, inquiry: dict, metrics: 
                 "valid_prior_observations": valid_observations,
             },
         }
-        try:
-            obj, run_id, _ = consult._call_json(
-                str(debater.get("provider", "")), str(debater.get("model", "")), system,
-                json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
-                + "\n请按 system 要求只输出 JSON 对象。",
-                want_array=False, max_tokens=3500, schema="chat-followup-v1",
-            )
-        except (consult.ConsultError, gateway.GatewayError) as exc:
-            raise RuntimeError(f"{debater.get('provider', '模型')}未能直接回答原问题") from exc
-        answer = _redline_filter(_model_minimize(obj.get("answer", ""), 900))[0]
-        revised = _redline_filter(_model_minimize(obj.get("revised", ""), 300))[0]
-        suggestion = _redline_filter(_model_minimize(obj.get("suggestion", ""), 400))[0]
-        valid = (_app_answer_relevant(answer, inquiry["question"], metrics)
-                 and _app_ten_god_text_valid(" ".join((answer, revised, suggestion)), day_stem))
-        return {
-            "role": debater.get("role", ""), "provider": debater.get("provider", ""),
-            "model": debater.get("model", ""), "school": debater.get("school", ""),
-            "school_name": debater.get("school_name", ""), "answer": answer,
-            "revised": revised, "suggestion": suggestion, "relevant_and_valid": valid,
-            "run_id": run_id,
-        }
+        last_error = ""
+        for attempt in (1, 2):
+            if attempt == 2:
+                packet["validation_feedback"] = {
+                    "must_answer_user_question_directly": True,
+                    "failed_checks": [last_error],
+                    "required_topic_terms": [
+                        term for term in ("任务", "目标", "流水", "业绩", "进度", "项目", "工作", "事业",
+                                          "财务", "关系", "感情", "家庭", "健康", "学习", "考试", "出行")
+                        if term in inquiry["question"]
+                    ],
+                    "computed_metrics_must_be_addressed": bool(metrics),
+                }
+            try:
+                obj, run_id, _ = consult._call_json(
+                    provider, str(debater.get("model", "")), system,
+                    json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
+                    + "\n请按 system 要求只输出 JSON 对象。",
+                    want_array=False, max_tokens=3500, schema="chat-followup-v1",
+                )
+            except (consult.ConsultError, gateway.GatewayError) as exc:
+                last_error = "返回格式或服务响应未通过校验"
+                if attempt == 1:
+                    emit("role_retrying", provider=provider,
+                         title=f"{provider_label} 首次响应未通过校验，正在重试",
+                         message="系统保留原问题与确定性数据，要求该角色重新给出可解析的直接回答。",
+                         status="retry")
+                    continue
+                raise RuntimeError(f"{provider_label}连续两次未能返回可解析的直接回答") from exc
+            if not isinstance(obj, dict):
+                last_error = "返回内容不是约定的对象格式"
+                if attempt == 1:
+                    emit("role_retrying", provider=provider,
+                         title=f"{provider_label} 首次响应格式不正确，正在重试",
+                         message="首次内容不会进入最终预测；系统正在要求该角色重新返回结构化直接回答。",
+                         status="retry")
+                    continue
+                raise RuntimeError(f"{provider_label}连续两次未能返回约定格式的直接回答")
+            answer = _redline_filter(_model_minimize(obj.get("answer", ""), 900))[0]
+            revised = _redline_filter(_model_minimize(obj.get("revised", ""), 300))[0]
+            suggestion = _redline_filter(_model_minimize(obj.get("suggestion", ""), 400))[0]
+            relevant = _app_answer_relevant(answer, inquiry["question"], metrics)
+            relation_valid = _app_ten_god_text_valid(" ".join((answer, revised, suggestion)), day_stem)
+            if relevant and relation_valid:
+                emit("role_answered", provider=provider, title=f"{provider_label} 已给出公开结论",
+                     message="；".join(part for part in (answer, f"验证建议：{suggestion}" if suggestion else "")
+                                      if part), status="done")
+                return {
+                    "role": debater.get("role", ""), "provider": provider,
+                    "model": debater.get("model", ""), "school": debater.get("school", ""),
+                    "school_name": debater.get("school_name", ""), "answer": answer,
+                    "revised": revised, "suggestion": suggestion, "relevant_and_valid": True,
+                    "run_id": run_id,
+                }
+            failed_checks = []
+            if not relevant:
+                failed_checks.append("未直接对应原问题")
+            if not relation_valid:
+                failed_checks.append("基础十神或生克关系冲突")
+            last_error = "、".join(failed_checks)
+            if attempt == 1:
+                emit("role_retrying", provider=provider,
+                     title=f"{provider_label} 的首次回答未通过内容校验，正在重答",
+                     message=f"未通过项：{last_error}。首次回答不会进入最终预测。", status="retry")
+                continue
+            raise RuntimeError(f"{provider_label}连续两次{last_error}，已停止保存")
+        raise RuntimeError(f"{provider_label}未能直接回答原问题")
 
     with ThreadPoolExecutor(max_workers=3) as executor:
-        responses = list(executor.map(direct_answer, debaters))
+        futures = {executor.submit(direct_answer, debater): index
+                   for index, debater in enumerate(debaters)}
+        responses = [None] * len(debaters)
+        for future in as_completed(futures):
+            responses[futures[future]] = future.result()
     if not all(response["relevant_and_valid"] for response in responses):
         raise RuntimeError("三方回答未直接对应原问题或包含基础十神/生克矛盾，已停止保存")
 
@@ -1604,6 +1676,8 @@ def _app_run_question_round(consultation_payload: dict, inquiry: dict, metrics: 
                 "确定性经营数据:" + json.dumps(metrics, ensure_ascii=False, separators=(",", ":"))]
     for label, response in zip("甲乙丙", responses):
         material.append(f"[匿名{label}] {response['answer']}；验证建议:{response['suggestion']}")
+    emit("judge_started", title="三方公开结论已齐，正在匿名盲评",
+         message="裁判只看到匿名后的三份回答，正在核对共识、分歧和现实验证条件。")
     try:
         judged = consult._judge(
             str(judge_source.get("provider", "")), str(judge_source.get("model", "")), "\n".join(material)
@@ -1623,6 +1697,7 @@ def _app_run_question_round(consultation_payload: dict, inquiry: dict, metrics: 
         })
     if not summary:
         raise RuntimeError("原问题盲评没有形成摘要，已停止保存")
+    emit("judge_completed", title="匿名盲评完成", message=summary, status="done")
     return {
         "schema_version": "app-question-round-v1",
         "question": inquiry["question"],
@@ -2302,7 +2377,31 @@ def app_question_start(req: AppQuestionReq, request: Request,
                             headers={"Cache-Control": "no-store"})
     job_id = uuid.uuid4().hex[:12]
     with _JOBS_LOCK:
-        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None}
+        _CONSULT_JOBS[job_id] = {"status": "running", "payload": None, "events": []}
+
+    def publish(event: dict) -> None:
+        """只发布已过滤的公开结论摘要；不发布提示词、隐藏推理、运行标识或原始资料。"""
+        safe = {
+            "type": _app_text(event.get("type", "progress"), 40),
+            "provider": _app_text(event.get("provider", ""), 30),
+            "provider_label": _app_text(event.get("provider_label", "三方"), 30),
+            "title": _redline_filter(_app_text(event.get("title", "分析进行中"), 80))[0],
+            "message": _redline_filter(_app_text(event.get("message", ""), 900))[0],
+            "status": (_app_text(event.get("status", "active"), 16)
+                       if event.get("status") in {"active", "done", "retry", "error"} else "active"),
+        }
+        with _JOBS_LOCK:
+            job = _CONSULT_JOBS.get(job_id)
+            if not job or job.get("status") != "running":
+                return
+            events = job.setdefault("events", [])
+            safe["seq"] = len(events) + 1
+            events.append(safe)
+            if len(events) > 40:
+                del events[:-40]
+
+    publish({"type": "question_locked", "title": "原问题与资料范围已锁定",
+             "message": "正在计算命盘、流运和本次可用的确定性资料。", "status": "done"})
 
     def worker() -> None:
         try:
@@ -2339,6 +2438,8 @@ def app_question_start(req: AppQuestionReq, request: Request,
                 occupation=_desk_clean(profile.get("occupation", ""), scope, frozen_profiles, 40),
                 situation=situation,
             )
+            publish({"type": "base_started", "title": "三方开始独立看盘",
+                     "message": "Claude、Gemini、DeepSeek 正在按各自角色分析同一份最小化资料。"})
             result = _run_consult_payload(consultation_req, include_dossier=False, decision_context=decision_context)
             if not result.get("ok"):
                 raise RuntimeError(result.get("error", "推演失败"))
@@ -2346,9 +2447,28 @@ def app_question_start(req: AppQuestionReq, request: Request,
             _, protocol = _app_three_role_analysis(result.get("consultation") or {})
             if not protocol["complete"]:
                 raise RuntimeError("三方会诊未完整返回，已停止生成单方结果，请稍后重试")
+            provider_labels = {"anthropic": "Claude", "gemini": "Gemini", "deepseek": "DeepSeek"}
+            for debater in (result.get("consultation") or {}).get("debaters", []):
+                provider = _app_text(debater.get("provider", ""), 30)
+                label = provider_labels.get(provider, provider or "独立角色")
+                claims = [
+                    _model_minimize(claim.get("claim", ""), 240)
+                    for claim in debater.get("claims", [])[:2] if isinstance(claim, dict)
+                ]
+                publish({"type": "base_view", "provider": provider, "provider_label": label,
+                         "title": f"{label} 完成首轮独立判断",
+                         "message": "；".join(item for item in claims if item), "status": "done"})
+            base_summary = _model_minimize(
+                ((result.get("consultation") or {}).get("judge") or {}).get("summary", ""), 500
+            )
+            publish({"type": "base_reviewed", "title": "首轮质证与盲评完成",
+                     "message": base_summary or "三方首轮观点已完成匿名核对，开始逐一直接回答原问题。",
+                     "status": "done"})
             model_inquiry = {**inquiry, "question": model_question, "background": model_background,
                              "decision_context": decision_context}
-            question_round = _app_run_question_round(result, model_inquiry, business_metrics)
+            question_round = _app_run_question_round(
+                result, model_inquiry, business_metrics, event_callback=publish
+            )
             result["consultation"]["question_round"] = question_round
             _, direct_protocol = _app_three_role_analysis(result.get("consultation") or {})
             if not direct_protocol["complete"] or not direct_protocol["direct_question"]:
@@ -2360,6 +2480,9 @@ def app_question_start(req: AppQuestionReq, request: Request,
                 inquiry["id"], profile["id"], snapshot, _APP_ALGORITHM_VERSION,
                 model_version, rule_version, calibration_version, confidence,
             )
+            publish({"type": "prediction_saved", "title": "三方结论已锁定",
+                     "message": "预测快照已保存，后续复盘只新增记录，不会改写本次原结论。",
+                     "status": "done"})
             payload, status = {"ok": True, "prediction": prediction}, "done"
         except (RuntimeError, ValueError, personal_app.StoreConflict) as exc:
             message = _app_text(str(exc), 300) or "问事生成失败"
@@ -2369,8 +2492,12 @@ def app_question_start(req: AppQuestionReq, request: Request,
             message = "问事生成异常,请稍后重试"
             APP_STORE.set_inquiry_state(inquiry["id"], "error", message)
             payload, status = {"ok": False, "error": message, "inquiry_id": inquiry["id"]}, "error"
+        if status == "error":
+            publish({"type": "failed", "title": "本次会诊已停止", "message": message, "status": "error"})
         with _JOBS_LOCK:
-            _CONSULT_JOBS[job_id] = {"status": status, "payload": payload}
+            current = _CONSULT_JOBS.get(job_id, {})
+            current.update({"status": status, "payload": payload})
+            _CONSULT_JOBS[job_id] = current
 
     threading.Thread(target=worker, daemon=True).start()
     return JSONResponse({"ok": True, "job_id": job_id, "inquiry": inquiry}, status_code=202)

@@ -284,10 +284,25 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.015em; }
 .notice { display: grid; gap: 7px; margin-bottom: 14px; padding: 15px; border-radius: 16px; font-size: 13px; }
 .notice.warning { border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent); background: var(--amber-soft); }
 
-.progress-card { margin-top: 18px; padding: 18px; display: flex; align-items: center; gap: 15px; }
+.progress-card { margin-top: 18px; padding: 18px; }
+.progress-head { display: flex; align-items: center; gap: 15px; }
 .progress-card p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .orb { width: 42px; height: 42px; flex: 0 0 auto; border: 4px solid var(--jade-soft); border-top-color: var(--jade); border-radius: 50%; animation: spin .9s linear infinite; }
+.progress-card.is-complete .orb { animation: none; border-color: var(--jade); background: radial-gradient(circle, var(--jade-soft) 0 45%, transparent 48%); }
+.progress-card.is-failed .orb { animation: none; border-color: var(--red); }
 @keyframes spin { to { transform: rotate(1turn); } }
+.discussion-stream { display: grid; gap: 9px; max-height: min(52vh, 440px); margin-top: 16px; overflow-y: auto; overscroll-behavior: contain; }
+.discussion-event { position: relative; padding: 12px 13px 12px 38px; border: 1px solid var(--line); border-radius: 15px; background: color-mix(in srgb, var(--paper) 68%, transparent); }
+.discussion-event::before { content: ""; position: absolute; top: 16px; left: 16px; width: 9px; height: 9px; border-radius: 50%; background: var(--jade); box-shadow: 0 0 0 5px var(--jade-soft); }
+.discussion-event[data-status="retry"] { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); background: var(--amber-soft); }
+.discussion-event[data-status="retry"]::before { background: var(--amber); box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber) 18%, transparent); }
+.discussion-event[data-status="error"] { border-color: color-mix(in srgb, var(--red) 38%, var(--line)); }
+.discussion-event[data-status="error"]::before { background: var(--red); box-shadow: 0 0 0 5px color-mix(in srgb, var(--red) 14%, transparent); }
+.discussion-event-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.discussion-event-head strong { color: var(--ink); font-size: 12px; line-height: 1.4; }
+.discussion-event-head span { flex: 0 0 auto; color: var(--muted); font-size: 10px; font-weight: 750; }
+.discussion-event p { margin-top: 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.progress-card .discussion-note { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 10px; }
 
 .prediction-card { margin-top: 18px; overflow: hidden; }
 .prediction-head { padding: 18px; background: linear-gradient(135deg, var(--jade-soft), transparent); }
