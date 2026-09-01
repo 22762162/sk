@@ -1,5 +1,5 @@
 # 三鉴 / 火火大脑只读出口协议 v1（P2）
-状态：实现与交叉审核中；不是发布批准。只用合成数据开发，不读取真实数据库或密钥。
+状态：设备无感连接增量实现与交叉审核中；不是发布批准。只用合成数据开发，不读取真实数据库或密钥。
 
 ## 两侧职责
 - Claude Code 拥有 integrations/huohuo_bridge/（出口服务、测试、说明）；不得改主 App、prompts、contracts、正式数据和现有运行服务。
@@ -68,8 +68,12 @@ revenue_snapshots(id,period_type,period_key,entity_type,entity_id,revenue_amount
 ### App 实现补充（v4）
 - `SANJIAN_BRAIN_URL` 仅允许 http + 127.0.0.1/::1 + 显式端口；默认 8793。
 - App 访问凭据为独立的 `SANJIAN_BRAIN_ACCESS_TOKEN`（至少32字符），由运行进程注入。
-  浏览器只在当前页面内存保留该访问口令；出口 `HUOHUO_EXPORT_TOKEN` 绝不返给浏览器。
-- `/api/app/brain/*` 全部要求 `X-Sanjian-Brain-Access`，使用快照提交问事也必须携带该凭据。
+  兼容的受控运维请求仍可显式携带该口令；正式 App 浏览器不再接收、保存或显示它。
+- 生产入口强制 `SANJIAN_REQUIRE_DEVICE_AUTH=1`，从 `SANJIAN_DEVICE_TOKEN_FILE` 读取已配对设备令牌。
+  原生容器只在导航请求发送 `X-Sanjian-Device-Token`；后端换取30天 HttpOnly、Secure、
+  SameSite=Strict会话。页面后续请求只携浏览器管理的Cookie，不可由JavaScript读取令牌或会话值。
+- `/api/app/brain/*` 与携带大脑快照的问事接受已认证设备会话；未启用设备门时仍要求
+  `X-Sanjian-Brain-Access`，以保持合成测试和本机受控运维兼容。生产设备配置缺失/过短则启动失败。
 - 原始预览仅服务端有界内存暂存，最多20份，10分钟有效；客户端切后台/离线/锁定清除预览与口令。
 - 使用者逐条勾选L1/L2，并手动编辑2–400字必要去标识摘要，确认无姓名/联系方式/精确地址/账号/机密。
   原文不写入App数据库；保留来源散列、时间、等级、确认摘要及整体散列。自动校验不能识别所有身份信息，人工核对不可省略。
@@ -79,7 +83,7 @@ revenue_snapshots(id,period_type,period_key,entity_type,entity_id,revenue_amount
 - 真正启用仍需用户确认范围、专用只读账号/运行态凭据、PostgreSQL预发验证和人工发布签署。
 - 本期 App 后端必须使用单 worker：预览保存在进程内存；多 worker/多实例会造成确认失效，不支持共享预览。
   过期预览不可再读取或确认，下一次预览会清理过期内存项；客户端有到期清除计时器。
-- App 与出口进程分别注入相同的 `HUOHUO_EXPORT_TOKEN`，轮换需同步；页面解锁使用另一把
-  `SANJIAN_BRAIN_ACCESS_TOKEN`，不能与模型 API Key 混用。部署方应提供现有全站访问控制与 HTTPS。
+- App 与出口进程分别注入相同的 `HUOHUO_EXPORT_TOKEN`，轮换需同步；内部大脑访问口令、设备令牌
+  与模型 API Key 是三类不同凭据，不能混用。生产设备会话同时承担全站入口保护并要求HTTPS。
 - 远端授权映射撤销后，应同时轮换 App 访问口令、重启 App 并重新绑定受影响公司/项目，
   使旧预览与旧版本确认失效；本期不提供跨进程实时撤权广播。

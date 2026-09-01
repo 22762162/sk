@@ -24,7 +24,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Header
+from fastapi import FastAPI, Header, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -47,6 +47,7 @@ import personal_app  # noqa: E402  (手机 App:基本盘/快照/复盘/个人校
 import decision_desk  # noqa: E402
 from backend import decision_routes  # noqa: E402
 from backend import brain_routes  # noqa: E402
+from backend import device_auth  # noqa: E402
 import brain_context  # noqa: E402
 TZ = ZoneInfo("Asia/Shanghai")
 JIE_NAMES = ["立春", "惊蛰", "清明", "立夏", "芒种", "小暑",
@@ -54,6 +55,7 @@ JIE_NAMES = ["立春", "惊蛰", "清明", "立夏", "芒种", "小暑",
 
 app = FastAPI(title="三鉴 · 私人研究 App", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=ROOT / "web"), name="static")
+DEVICE_AUTH = device_auth.DeviceAuth.from_environment()
 
 APP_STORE = personal_app.AppStore(
     Path(os.environ.get("SANJIAN_APP_DB", personal_app.DEFAULT_DB)),
@@ -67,7 +69,7 @@ app.include_router(brain_routes.router(BRAIN))
 
 @app.middleware("http")
 async def private_app_responses(request, call_next):
-    response = await call_next(request)
+    response = await DEVICE_AUTH.middleware(request, call_next)
     if request.url.path.startswith("/api/app/") or request.url.path == "/api/consult/result":
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
@@ -2258,8 +2260,9 @@ def app_today(profile_id: str = "") -> JSONResponse:
 
 
 @app.post("/api/app/questions/start")
-def app_question_start(req: AppQuestionReq, x_sanjian_brain_access: str = Header(default="")) -> JSONResponse:
-    if req.brain_snapshot_id and not brain_context.access_allowed(x_sanjian_brain_access):
+def app_question_start(req: AppQuestionReq, request: Request,
+                       x_sanjian_brain_access: str = Header(default="")) -> JSONResponse:
+    if req.brain_snapshot_id and not brain_routes.request_authorized(request, x_sanjian_brain_access):
         return JSONResponse({"ok": False, "error": "使用大脑摘要需要本次访问授权"}, status_code=401,
                             headers={"Cache-Control": "no-store"})
     profile = APP_STORE.get_profile(req.profile_id)
