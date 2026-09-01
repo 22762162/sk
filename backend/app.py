@@ -25,7 +25,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -2474,6 +2474,12 @@ def predict_review(req: PredictReviewReq) -> JSONResponse:
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(ROOT / "web" / "app.html")
+
+
+@app.get("/__native_auth", include_in_schema=False)
+def native_auth_handshake() -> RedirectResponse:
+    """Compatibility handshake for native clients that probe this explicit path."""
+    return RedirectResponse(url="/", status_code=302)
 
 
 @app.get("/legacy")

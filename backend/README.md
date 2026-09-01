@@ -40,5 +40,11 @@ App必须单worker运行；缺配置时功能关闭，
 不可自动导入真实资料。真实PostgreSQL权限、数据口径和发布仍须本人签署，见
 [只读接入RFC](../docs/specs/rfc-0003-brain-readonly.md)与[验证清单](../docs/reviews/decision-desk-p2-verification.md)。
 
+本地 Wi-Fi/USB 备用入口必须运行主仓版本化的 `backend.native_proxy:create_app --factory`，
+并与 8788 后端读取同一个 owner-only `SANJIAN_DEVICE_TOKEN_FILE`。代理先验证自己的
+`sanjian_proxy_session`，再在仅限 loopback 的第二跳注入设备令牌；浏览器 Cookie 不转发，
+8788 返回的 `Set-Cookie` 也不回传，避免两层会话互相覆盖。旧的独立代理会剥掉全部凭据，
+与启用设备门的后端不兼容，禁止继续用于生产。
+
 仅合成回归运行 `make test-backend`：使用带哈希的固定依赖，同时执行App及出口测试，不读取.env、
 不访问正式数据库或云模型。不要为测试运行真实服务启动命令。

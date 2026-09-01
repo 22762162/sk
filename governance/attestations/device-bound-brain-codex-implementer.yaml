@@ -11,7 +11,9 @@ source_repository: https://github.com/22762162/sk
 source_commit: 220a30ba8146128bb8b8e5a2554619211fd82b9d
 generated_files:
   - backend/device_auth.py
+  - backend/native_proxy.py
   - backend/tests/test_device_auth.py
+  - backend/tests/test_native_proxy.py
   - governance/attestations/device-bound-brain-codex-implementer.yaml
   - docs/specs/rfc-0003-brain-readonly.md
   - backend/README.md
@@ -21,10 +23,15 @@ generated_files:
 reviewed_files:
   - backend/app.py
   - backend/brain_routes.py
+  - backend/tests/test_app_api.py
 notes: >-
   Implements the user's confirmed device-bound, no-visible-Brain-password flow. A native
   navigation token is exchanged for an HttpOnly, Secure, SameSite=Strict cookie; page
   JavaScript receives no device/Brain credential. Production is opt-in and fails closed
-  on missing/invalid device configuration. Seven synthetic security tests; no .env,
+  on missing/invalid device configuration. After independent review found the existing
+  8790 proxy stripped both credentials before the protected 8788 hop, this change also
+  versions a two-layer native proxy that injects the device token only on loopback and
+  strips cross-layer cookies, plus a /__native_auth compatibility redirect. Nine focused
+  synthetic security tests; no .env,
   runtime token, real record, database or model API was accessed. Backend/auth changes
   require cross-vendor review and human signoff before merge/deployment.

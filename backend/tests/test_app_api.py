@@ -17,6 +17,11 @@ from backend import app as backend_app  # noqa: E402
 
 
 class AppApiTest(unittest.TestCase):
+    def test_native_auth_compatibility_path_redirects_to_authenticated_shell(self):
+        response = self.client.get("/__native_auth", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["location"], "/")
+
     def test_scope_confirmation_and_personal_injection_fail_before_any_model_call(self):
         profile = self.client.post("/api/app/profiles", json={
             "name": "合成隔离主体", "birth": "1990-06-15T08:30", "gender": "male",

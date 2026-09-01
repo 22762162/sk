@@ -72,6 +72,10 @@ revenue_snapshots(id,period_type,period_key,entity_type,entity_id,revenue_amount
 - 生产入口强制 `SANJIAN_REQUIRE_DEVICE_AUTH=1`，从 `SANJIAN_DEVICE_TOKEN_FILE` 读取已配对设备令牌。
   原生容器只在导航请求发送 `X-Sanjian-Device-Token`；后端换取30天 HttpOnly、Secure、
   SameSite=Strict会话。页面后续请求只携浏览器管理的Cookie，不可由JavaScript读取令牌或会话值。
+- 固定域名可直连受保护的8788；`/__native_auth` 兼容路径在验证设备头后返回根页面。Wi-Fi/USB
+  备用入口使用主仓 `backend.native_proxy:create_app --factory`：8790代理以独立Cookie验证浏览器，
+  剥离浏览器Cookie和设备头后，只在loopback第二跳注入服务端持有的设备令牌，并剥离8788的
+  `Set-Cookie` 响应。两进程必须读取同一个owner-only令牌文件；旧代理不可与全站设备门混用。
 - `/api/app/brain/*` 与携带大脑快照的问事接受已认证设备会话；未启用设备门时仍要求
   `X-Sanjian-Brain-Access`，以保持合成测试和本机受控运维兼容。生产设备配置缺失/过短则启动失败。
 - 原始预览仅服务端有界内存暂存，最多20份，10分钟有效；客户端切后台/离线/锁定清除预览与口令。
