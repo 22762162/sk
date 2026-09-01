@@ -46,7 +46,8 @@ def test_session_tamper_and_expiry():
     valid = a._session_for(now)
     assert a._valid_session(valid) is True
     ts, sig = valid.split(".", 1)
-    assert a._valid_session(f"{ts}.{sig[:-1]}0") is False     # 篡改签名
+    replacement = "0" if sig[-1] != "0" else "1"
+    assert a._valid_session(f"{ts}.{sig[:-1]}{replacement}") is False  # 确保实际篡改签名
     assert a._valid_session(f"{int(now)+1}.{sig}") is False   # 篡改时间戳
     assert a._valid_session(a._session_for(now - da.COOKIE_SECONDS - 10)) is False  # 过期
     assert a._valid_session(a._session_for(now + 3600)) is False  # 未来签发

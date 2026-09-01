@@ -1,6 +1,6 @@
 """两层拓扑兼容性探针(Claude 增量复核;PR#54;纯合成,零真实数据/密钥/网络/重启)。
 复现 iOS 本地 fallback:App→8790 auth_proxy(自有会话)→剥离 cookie/device-token→转发 8788。
-证明 8788 启用 SANJIAN_REQUIRE_DEVICE_AUTH=1 后第二跳必然 401;并核对域名直连仍正常。
+证明 8788 启用 SANJIAN_REQUIRE_DEVICE_AUTH=1 后旧代理第二跳返回 401;并核对域名直连仍正常。
 auth_proxy 剥离集合依据源码 /Users/sk/Projects/sk-ios/RemoteAccess/auth_proxy.py:121-125(只读复现,不 import)。"""
 from __future__ import annotations
 import sys, time
@@ -78,7 +78,7 @@ async def test_local_fallback_through_proxy_is_broken():
     assert da.TOKEN_HEADER not in forwarded and "cookie" not in {k.lower() for k in forwarded}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://127.0.0.1:8788") as c:
         r = await c.get("/api/app/ping", headers=forwarded)
-    assert r.status_code == 401, "第二跳凭据被剥离后,8788 全站门禁必然 401"
+    assert r.status_code == 401, "第二跳凭据被剥离后,8788 全站门禁返回 401"
 
 
 @pytest.mark.asyncio
