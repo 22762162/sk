@@ -1,0 +1,27 @@
+artifact_id: p19-codex-cross-review-379dd66
+timestamp: "2026-08-31T20:10:54Z"
+timestamp_source: host_clock
+provider: openai
+model_id: Codex (exact runtime model id unavailable)
+model_release: Codex session 2026-09-01
+agent_role: reviewer
+session_id: codex-main-session-p19-cross-review
+run_manifest_id: not-applicable (offline synthetic stubs only)
+source_repository: https://github.com/22762162/sk
+source_commit: 379dd66
+generated_files:
+  - docs/reviews/pr51-codex-cross-review.md
+  - evals/change/run_change_eval_review_test.py
+reviewed_files:
+  - evals/change/run_change_eval.py
+  - evals/change/gen_cases.py
+  - evals/change/README.md
+  - evals/change/cases/README.md
+verdict: blocked
+notes: >-
+  Five independent synthetic probes reproduce unequal baseline window validation,
+  discarded failure receipts, undercounted failed retries/leak blocking, unlocked
+  real-mode acceptance and same-second audit report overwrite. No real gateway
+  invocation, private evaluation, personal data or reference source access.
+  No runtime prompt authored. Human-approved thresholds, immutable evaluation
+  artifacts, comparable arms and complete coverage remain prerequisites.

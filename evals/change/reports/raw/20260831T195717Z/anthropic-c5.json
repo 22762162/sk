@@ -1,0 +1,151 @@
+{
+ "provider": "anthropic",
+ "method": "meihua",
+ "bazi": {
+  "status": "ok",
+  "confidence": "medium",
+  "yingqi": {
+   "start": "2026-09-01",
+   "end": "2026-09-30"
+  },
+  "verifiable_events": [
+   {
+    "statement": "本窗口内目标事项出现明确进展",
+    "window": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "metric": {
+     "indicator": "事项进展",
+     "comparator": "发生",
+     "threshold": null,
+     "unit": null
+    },
+    "adjudication": "以本人当期记录为准判定发生与否",
+    "event_id": "ev-6aa03334681b"
+   }
+  ],
+  "method_basis": "干跑合成依据,仅验管道",
+  "reading": "干跑合成八字段落,长度补齐验验验验验验验验验验"
+ },
+ "bazi_seal": "7cb24afbe7c02fa80ddbcfc54479b8042e56653b86ea8441500f9e11d1326e69",
+ "gua": {
+  "status": "ok",
+  "confidence": "medium",
+  "yingqi": {
+   "start": "2026-09-01",
+   "end": "2026-09-30"
+  },
+  "verifiable_events": [
+   {
+    "statement": "本窗口内目标事项出现明确进展",
+    "window": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "metric": {
+     "indicator": "事项进展",
+     "comparator": "发生",
+     "threshold": null,
+     "unit": null
+    },
+    "adjudication": "以本人当期记录为准判定发生与否",
+    "event_id": "ev-3fd69c62a803"
+   }
+  ],
+  "method_basis": "干跑合成依据,仅验管道",
+  "reading": "干跑合成卦段落,长度补齐验验验验验验验验验验",
+  "method": "meihua",
+  "cast_hash": "284836c5339a90f36b7e5d85a051bded9b89685c9dbe0e7b5b476c747bef48fe"
+ },
+ "gua_seal": "dcd4851b3e6c7cd097c302e0c195154a250a18e94912601d772735ee68877c71",
+ "combined": {
+  "status": "ok",
+  "confidence": "medium",
+  "yingqi": {
+   "start": "2026-09-01",
+   "end": "2026-09-30"
+  },
+  "verifiable_events": [
+   {
+    "statement": "本窗口内目标事项出现明确进展",
+    "window": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "metric": {
+     "indicator": "事项进展",
+     "comparator": "发生",
+     "threshold": null,
+     "unit": null
+    },
+    "adjudication": "以本人当期记录为准判定发生与否",
+    "event_id": "ev-64f8536e1081"
+   }
+  ],
+  "method_basis": "干跑合成依据,仅验管道",
+  "answer": "干跑合成综合回答,先给结论示例",
+  "reasoning": "干跑合成推理,两段合参示意验验验验验验验验",
+  "dissent_note": ""
+ },
+ "combined_seal": "53b0fc78b177ce50d99069fd75a163ecbda35809ec995c3e2e70206c489c4c21",
+ "combined_status": "ok",
+ "manifest": {
+  "orchestrator_version": "sanshu-orchestrator-v2",
+  "validator": {
+   "schema": "sanshu-sealed-v1",
+   "banlists": "sanshu-banlists-v1"
+  },
+  "provider": "anthropic",
+  "frozen_at": "2026-08-31T19:57:17+00:00",
+  "first_call_at": "2026-08-31T19:57:17+00:00",
+  "question_hash": "b7bddaea253c977ff7435dd75a0572fa66d77df4bb10a0f7d4e34f313ff2803f",
+  "method": "meihua",
+  "cast_hash": "284836c5339a90f36b7e5d85a051bded9b89685c9dbe0e7b5b476c747bef48fe",
+  "calls": {
+   "bazi": [
+    {
+     "attempt": 1,
+     "at": "2026-08-31T19:57:17+00:00",
+     "run_id": "dry-b",
+     "kind": "validation",
+     "ok": true,
+     "errors": []
+    }
+   ],
+   "gua": [
+    {
+     "attempt": 1,
+     "at": "2026-08-31T19:57:17+00:00",
+     "run_id": "dry-g",
+     "kind": "validation",
+     "ok": true,
+     "errors": []
+    }
+   ],
+   "combined": [
+    {
+     "attempt": 1,
+     "at": "2026-08-31T19:57:17+00:00",
+     "run_id": "dry-c",
+     "kind": "validation",
+     "ok": true,
+     "errors": []
+    }
+   ]
+  },
+  "precheck_errors": [],
+  "facts_meta": {
+   "known_at": "2026-08-30",
+   "confirmed_at": "2026-08-31",
+   "frozen_at": "2026-08-31T19:57:17+00:00",
+   "facts_hash": "4f37d219e25cc8e16a4ef07777ca59150fd3bd8e3dc649d156dc5e6070b208b1"
+  },
+  "facts_exposure": {
+   "bazi": "shared_summary",
+   "gua": "shared_summary",
+   "combined": "shared_summary"
+  },
+  "with_shared_facts_background": true
+ }
+}

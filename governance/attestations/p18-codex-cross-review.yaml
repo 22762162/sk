@@ -1,0 +1,27 @@
+artifact_id: p18-codex-cross-review
+timestamp: "2026-08-31T19:52:28Z"
+timestamp_source: host_clock
+provider: openai
+model_id: Codex (exact runtime model id unavailable)
+model_release: Codex session 2026-09-01
+agent_role: reviewer
+session_id: codex-main-session-p18-cross-review
+run_manifest_id: not-applicable (synthetic offline callers only)
+source_repository: https://github.com/22762162/sk
+source_commit: 2109a75311fdc572d2103c7cd24eaa6aa50a3092
+generated_files:
+  - docs/reviews/pr50-codex-cross-review.md
+  - consult-engine/sanshu_cross_review_test.py
+reviewed_files:
+  - consult-engine/sanshu_orchestrator.py
+  - consult-engine/sanshu_validator.py
+  - consult-engine/sanshu_sealed_test.py
+  - docs/specs/rfc-0004-sealed-sanshu.md
+  - governance/attestations/p18-sealed-orch-claude-implementer.yaml
+verdict: blocked
+notes: >-
+  Author 16-test synthetic suite passes, independent 12-test suite has 10 failures and one error.
+  Six groups of blockers are documented, covering seal integrity, preflight validation, time/fact
+  boundaries, frozen inputs, failure audit receipts and abstention status. No runtime prompts
+  written; no keys, real data, private evaluations or independent reference source read.
+  Does not approve merging, wiring or deployment; fixes require independent re-review.

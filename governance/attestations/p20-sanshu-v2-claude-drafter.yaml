@@ -1,0 +1,15 @@
+artifact_id: p20-sanshu-v2-claude-drafter
+timestamp: "2026-09-01T03:11:19+0700"
+timestamp_source: host_clock(date 实读)
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: prompt_drafter
+scope: prompts/candidates/sanshu-{bazi,gua,combined}-v2.md + RFC-0005 契约草案 + 真评预算计划 + candidates README;零运行态写入;与 P19 指标代码不同 PR(INV-12)
+session_id: claude-code-session(三术 v2 候选起草)
+source_commit: bafdffe(main)
+notes: >-
+  按 RFC-0004 v1.3 与可执行 schema 起草;三段结构/约束严格度对称供偏袒审计;红线全文入 system 正文;
+  弃答一等公民(gua 弃答携元数据);质证/裁判走 RFC-0005 新契约不复用旧 judge;起草会话未接触
+  Sealed Holdout/私有评测。真实评测预算计划仅为申请件,未批不跑、不动日熔断。
+  人工签署仍待定:本 attestation 仅为起草方自述。

@@ -1,0 +1,28 @@
+artifact_id: p20-codex-prompt-audit-fe1cdb9
+timestamp: "2026-08-31T20:14:03Z"
+timestamp_source: host_clock
+provider: openai
+model_id: Codex (exact runtime model id unavailable)
+model_release: Codex session 2026-09-01
+agent_role: reviewer
+session_id: codex-main-session-p20-prompt-audit
+run_manifest_id: not-applicable (static audit only)
+source_repository: https://github.com/22762162/sk
+source_commit: fe1cdb988132d80acf0db985759a13fc54986df2
+generated_files:
+  - docs/reviews/pr52-codex-prompt-audit.md
+reviewed_files:
+  - prompts/candidates/sanshu-bazi-v2.md
+  - prompts/candidates/sanshu-gua-v2.md
+  - prompts/candidates/sanshu-combined-v2.md
+  - prompts/candidates/README.md
+  - docs/specs/rfc-0005-sanshu-crossexam-judge.md
+  - docs/specs/sanshu-real-eval-budget-plan.md
+verdict: blocked
+notes: >-
+  Vendor-neutral static templates and output field alignment are improved, but judge
+  self-exclusion is contradictory, trusted time anchors are absent, untrusted model
+  text boundaries are incomplete, baseline/evaluator assets need separation and cost
+  estimates are not hard caps. Some banlist and single-method example asymmetries remain.
+  No prompt authored or edited by Codex. No cloud model calls, secrets, personal data,
+  private evaluations or independent reference source accessed. Not release approval.
