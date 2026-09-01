@@ -28,13 +28,23 @@ App 问事另有“原问题直答”闸门：基础会诊完成后，三家分�
 
 ## 可选的火火大脑资料
 
-公司页解锁并绑定明确公司/项目范围后，问事页可预览资料；仅手动编辑、逐条确认的L1/L2摘要进入
+正式 App 通过设备安全会话自动连接并绑定明确公司/项目范围，问事页可预览资料；仅手动编辑、逐条确认的L1/L2摘要进入
 三方材料。L3/L4流水只供受保护查看，原文不存入App数据库、不外发模型。确认十分钟内有效且仅用一次。
 
-App与独立出口进程分别注入同一 `HUOHUO_EXPORT_TOKEN`；App另需 `SANJIAN_BRAIN_ACCESS_TOKEN`
-供页面解锁。后者不是模型API Key，也不是出口token。App必须单worker运行；缺配置时功能关闭，
+App与独立出口进程分别注入同一 `HUOHUO_EXPORT_TOKEN`；后端仍保留独立的
+`SANJIAN_BRAIN_ACCESS_TOKEN` 供受控运维兼容，但不再发送给浏览器。生产运行必须设置
+`SANJIAN_REQUIRE_DEVICE_AUTH=1` 和仅由服务进程可读的 `SANJIAN_DEVICE_TOKEN_FILE`：原生 App
+在导航请求中完成一次设备令牌交换，后端只下发 HttpOnly、Secure、SameSite=Strict 会话 Cookie，
+以后同设备无感调用。设备令牌、会话值和大脑访问口令均不进入页面 JavaScript、本机离线缓存或响应正文。
+App必须单worker运行；缺配置时功能关闭，
 不可自动导入真实资料。真实PostgreSQL权限、数据口径和发布仍须本人签署，见
 [只读接入RFC](../docs/specs/rfc-0003-brain-readonly.md)与[验证清单](../docs/reviews/decision-desk-p2-verification.md)。
+
+本地 Wi-Fi/USB 备用入口必须运行主仓版本化的 `backend.native_proxy:create_app --factory`，
+并与 8788 后端读取同一个 owner-only `SANJIAN_DEVICE_TOKEN_FILE`。代理先验证自己的
+`sanjian_proxy_session`，再在仅限 loopback 的第二跳注入设备令牌；浏览器 Cookie 不转发，
+8788 返回的 `Set-Cookie` 也不回传，避免两层会话互相覆盖。旧的独立代理会剥掉全部凭据，
+与启用设备门的后端不兼容，禁止继续用于生产。
 
 仅合成回归运行 `make test-backend`：使用带哈希的固定依赖，同时执行App及出口测试，不读取.env、
 不访问正式数据库或云模型。不要为测试运行真实服务启动命令。

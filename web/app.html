@@ -284,16 +284,15 @@
         </section>
         <section class="form-card card brain-panel" aria-labelledby="brain-title">
           <span class="eyebrow">火火大脑 · 只读连接</span><h2 id="brain-title">先确认来源，再用于判断</h2>
-          <p id="brain-status" class="field-hint" aria-live="polite">未解锁 · 只读出口需先由管理员安全配置。</p>
-          <label class="field">大脑访问口令<input id="brain-access" type="password" autocomplete="off" maxlength="256" placeholder="不是模型 API Key；仅在此页面临时保留"></label>
-          <div class="settings-actions"><button id="brain-unlock" type="button" class="secondary-action">解锁连接</button><button id="brain-lock" type="button" class="text-button">锁定并清除预览</button></div>
+          <p id="brain-status" class="field-hint" aria-live="polite">正在验证此设备…</p>
+          <div class="settings-actions"><button id="brain-reconnect" type="button" class="secondary-action">重新连接</button></div>
           <div id="brain-binding-area" hidden>
             <label class="field">当前公司下的事项范围<select id="brain-project"></select></label>
             <label class="field">出口明确授权的来源<select id="brain-scope"></select></label>
             <p id="brain-binding-status" class="field-hint" aria-live="polite"></p>
             <button id="brain-bind" type="button" class="secondary-action" disabled>确认绑定到当前公司／项目</button>
           </div>
-          <p class="field-hint">不会搜索或读取你的密钥文件。敏感级别 L3/L4 仅在受保护页面查看，不进入云端分析。断网不拿旧数据替代。</p>
+          <p class="field-hint">正式 App 会使用设备安全会话自动连接，不在页面保存或显示口令。敏感级别 L3/L4 仅在受保护页面查看，不进入云端分析。断网不拿旧数据替代。</p>
         </section>
         <form id="company-form" class="form-card card" hidden>
           <h2>公司资料</h2><input id="company-id" type="hidden"><input id="company-version" type="hidden">

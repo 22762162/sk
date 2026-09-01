@@ -1,9 +1,10 @@
 """Access-controlled Brain preview APIs. Never return server credentials."""
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 import brain_context
+from backend.device_auth import request_is_device_authenticated
 
 
 class PrivateJSON(JSONResponse):
@@ -12,9 +13,13 @@ class PrivateJSON(JSONResponse):
         super().__init__(content, headers=headers, **kwargs)
 
 
-def require_access(x_sanjian_brain_access: str = Header(default="")):
-    if not brain_context.access_allowed(x_sanjian_brain_access):
-        raise HTTPException(401, "大脑访问未授权，请在公司页解锁", headers={"Cache-Control": "no-store"})
+def request_authorized(request: Request, supplied: str = "") -> bool:
+    return request_is_device_authenticated(request) or brain_context.access_allowed(supplied)
+
+
+def require_access(request: Request, x_sanjian_brain_access: str = Header(default="")):
+    if not request_authorized(request, x_sanjian_brain_access):
+        raise HTTPException(401, "当前设备尚未绑定", headers={"Cache-Control": "no-store"})
 
 
 class BindingInput(BaseModel):

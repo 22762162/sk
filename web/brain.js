@@ -1,6 +1,6 @@
 /* Brain data stays in this page's memory, never in the offline cache. */
 window.createSanjianBrain = ({ $, $$, esc, api, state, options }) => {
-  let token = "", scopes = [], binding = null, preview = null, approval = null;
+  let authorized = false, scopes = [], binding = null, preview = null, approval = null;
   let generation = 0, bindingGeneration = 0;
   let expiryTimer = null;
   const currentMonth = () => {
@@ -9,9 +9,9 @@ window.createSanjianBrain = ({ $, $$, esc, api, state, options }) => {
   };
   const target = () => `${$("#question-scene").value}/${$("#question-company").value}/${$("#question-project").value}/${currentMonth()}`;
   const displayTime = value => new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-  const headers = () => token ? { "X-Sanjian-Brain-Access": token } : {};
+  const headers = () => ({});
   const request = (path, body) => api(`/api/app/brain/${path}`, {
-    method: body ? "POST" : "GET", headers: headers(), cache: "no-store",
+    method: body ? "POST" : "GET", cache: "no-store",
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const notice = text => { $("#brain-status").textContent = text; };
@@ -24,15 +24,14 @@ window.createSanjianBrain = ({ $, $$, esc, api, state, options }) => {
     $("#brain-external-confirm").checked = false;
     $("#brain-preview-status").textContent = "可选：先读取本月资料，再逐条确认。未确认时不带大脑资料。";
     $("#question-brain").hidden = $("#question-scene").value !== "company";
-    $("#brain-preview").disabled = !token || state.questionBusy;
+    $("#brain-preview").disabled = !authorized || state.questionBusy;
     $("#question-scope-confirm").checked = false;
   }
 
-  function lock() {
-    token = ""; scopes = []; binding = null; bindingGeneration += 1;
-    $("#brain-access").value = "";
+  function clearConnection() {
+    authorized = false; scopes = []; binding = null; bindingGeneration += 1;
     $("#brain-binding-area").hidden = true;
-    notice("未解锁 · 只读出口需先由管理员安全配置。");
+    notice("当前设备尚未绑定或安全会话已失效。");
     reset();
   }
 
@@ -40,7 +39,7 @@ window.createSanjianBrain = ({ $, $$, esc, api, state, options }) => {
     const serial = ++bindingGeneration;
     binding = null; $("#brain-bind").disabled = true;
     $("#brain-binding-status").textContent = "请选择公司及授权来源范围。";
-    if (!token || !state.companyId) return;
+    if (!authorized || !state.companyId) return;
     const companyId = state.companyId, projectId = $("#brain-project").value;
     try {
       const result = await request(`binding?company_id=${encodeURIComponent(companyId)}&project_id=${encodeURIComponent(projectId)}`);
@@ -57,20 +56,19 @@ window.createSanjianBrain = ({ $, $$, esc, api, state, options }) => {
     reset(); loadBinding();
   }
 
-  async function unlock() {
-    const candidate = $("#brain-access").value;
-    if (candidate.length < 32) { notice("请输入管理员提供的访问口令（至少 32 位），不是模型 API Key。"); return; }
-    token = candidate; $("#brain-access").value = "";
+  async function connect() {
     const serial = ++bindingGeneration;
-    const button = $("#brain-unlock"); button.disabled = true;
+    const button = $("#brain-reconnect"); button.disabled = true;
+    notice("正在验证此设备…");
     try {
       const result = await request("scopes");
       if (serial !== bindingGeneration) return;
+      authorized = true;
       scopes = result.scopes;
-      notice(`出口连接成功 · ${scopes.length} 个授权范围 · 口令仅在当前页面保留`);
+      notice(`设备连接成功 · ${scopes.length} 个授权范围 · 后续自动调用`);
       $("#brain-binding-area").hidden = false;
       companyChanged();
-    } catch (error) { if (serial === bindingGeneration) { lock(); notice(error.message); } }
+    } catch (error) { if (serial === bindingGeneration) { clearConnection(); notice(error.message); } }
     finally { button.disabled = false; }
   }
 
@@ -92,7 +90,7 @@ window.createSanjianBrain = ({ $, $$, esc, api, state, options }) => {
   async function readPreview() {
     reset();
     const serial = generation, key = target(), button = $("#brain-preview");
-    if (!token || !$("#question-company").value) { $("#brain-preview-status").textContent = "请先选择公司，并在公司页解锁和绑定大脑范围。"; return; }
+    if (!authorized || !$("#question-company").value) { $("#brain-preview-status").textContent = "请先选择公司，并确认当前设备已连接及绑定大脑范围。"; return; }
     button.disabled = true;
     $("#brain-preview-status").textContent = "正在读取已绑定范围…";
     try {
@@ -109,7 +107,7 @@ window.createSanjianBrain = ({ $, $$, esc, api, state, options }) => {
       }).join("") || '<p class="field-hint">此范围本月没有可用资料，不等于公司没有业务。</p>';
       $("#brain-confirm-area").hidden = !preview.items.some(i => ["L1", "L2"].includes(i.level) && i.kind === "knowledge");
     } catch (error) { if (serial === generation) $("#brain-preview-status").textContent = error.message; }
-    finally { if (serial === generation) button.disabled = !token || state.questionBusy; }
+    finally { if (serial === generation) button.disabled = !authorized || state.questionBusy; }
   }
 
   async function confirm() {
@@ -136,22 +134,23 @@ window.createSanjianBrain = ({ $, $$, esc, api, state, options }) => {
 
   function forQuestion() {
     if (!approval) return {};
-    if (!token || approval.key !== target() || Date.parse(approval.expires_at) <= Date.now()) {
+    if (!authorized || approval.key !== target() || Date.parse(approval.expires_at) <= Date.now()) {
       reset(); throw new Error("大脑确认已过期或范围变化，请重新预览确认，或不带大脑资料发问。");
     }
     return { brain_snapshot_id: approval.id };
   }
 
-  $("#brain-unlock").addEventListener("click", unlock);
-  $("#brain-lock").addEventListener("click", lock);
+  $("#brain-reconnect").addEventListener("click", connect);
   $("#brain-project").addEventListener("change", () => { reset(); loadBinding(); });
   $("#brain-bind").addEventListener("click", bind);
   $("#brain-preview").addEventListener("click", readPreview);
   $("#brain-confirm").addEventListener("click", confirm);
   $("#brain-clear").addEventListener("click", reset);
-  window.addEventListener("pagehide", lock);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) lock(); });
-  window.addEventListener("offline", lock);
-  lock();
-  return { reset, companyChanged, headers, forQuestion, lock };
+  window.addEventListener("pagehide", reset);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) reset(); });
+  window.addEventListener("offline", clearConnection);
+  window.addEventListener("online", connect);
+  clearConnection();
+  connect();
+  return { reset, companyChanged, headers, forQuestion, lock: clearConnection };
 };
