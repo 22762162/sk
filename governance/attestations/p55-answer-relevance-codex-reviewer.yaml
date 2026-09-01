@@ -1,0 +1,27 @@
+artifact_id: p55-answer-relevance-codex-reviewer-9a19a2f
+timestamp: "2026-09-01"
+timestamp_source: session_date
+provider: openai
+model_id: Codex (exact runtime model id unavailable)
+model_release: Codex session 2026-09-01
+agent_role: reviewer
+session_id: codex-main-repo-session(pr55-answer-relevance-review)
+run_manifest_id: not-applicable (offline synthetic source probe only)
+source_repository: https://github.com/22762162/sk
+source_commit: 9a19a2f
+generated_files:
+  - docs/reviews/pr55-codex-review.md
+  - governance/attestations/p55-answer-relevance-codex-reviewer.yaml
+reviewed_files:
+  - backend/app.py
+  - backend/tests/test_answer_relevance.py
+  - backend/tests/test_app_api.py
+  - docs/reviews/PR-41-question-relevance-risk.md
+  - governance/attestations/p21-answer-relevance-claude-implementer.yaml
+verdict: blocked
+human_signoff: pending
+notes: >-
+  独立静态源探针复现四项当前分支放行反例：泛泛结论词、单一指标词、财务题被合作答复、
+  工作考核题被学业答复。未调用模型，未读取密钥、真实数据、私有评测或参考实现；未修改
+  实现。完整pytest因FastAPI及锁定依赖不在离线环境而未执行。人工签署待定；本attestation
+  不构成人工批准、合入批准或上线批准。
