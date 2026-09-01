@@ -1,19 +1,22 @@
-# PR #54 独立安全审查 · Claude(Fable 5,审查方)
+# PR #54 独立安全审查 · Claude(审查方)
 
-- 审查对象:主仓 Draft PR #54,分支 `agent/device-bound-brain`,**固定 commit `282a14744b85782ac064e6da6b97965b351cb70f`**
+> **审查模型**:本次会话 UI 报告 Fable 5 safeguards 触发并自动切换为 **Opus 4.8** 执行审查
+> (exact model id / Claude Code 版本无法从会话内确认,详见 attestation,不猜测)。
+
+- **最终审查对象(v3 修复):固定 commit `97941de04c2fff622e0a668d36137a247755b173`**;
+  历史:v1/v2 审查对象为 `282a14744b85782ac064e6da6b97965b351cb70f`(修复前)。
 - 方式:独立只读审查(reviewer worktree `sk-p54-review` @ `agent/p54-claude-review`,未改作者工作树);
   仅合成 token;未读 .env/真实 token 文件内容/真实数据库/业务记录,未调用模型 API;未合并/部署/重启线上。
 - 作者测试:`test_device_auth.py` **7/7 通过**;独立探针 `test_device_auth_claude_probe.py` **10/10 通过**。
 
-## Verdict:**blocked**(增量复核发现两层拓扑兼容性阻断;详见文末"增量复核 v2")
+## Verdict:**approved**(修复提交 `97941de04c2fff622e0a668d36137a247755b173` 已解除 BLOCK-1/OBS-404;详见文末"增量复审 v3")
 
-**修订说明**:第一版(仅审 App→域名 HTTPS 直连 8788 单层路径)结论为 approved。增量复核补审
-**iOS 本地 Wi-Fi/USB fallback 两层路径**(App→8790 auth_proxy→8788),发现 PR#54 启用 8788 全站
-门禁后该路径必然 401 断连(合成两层探针证明)。据此 verdict 改为 **blocked**。
-
-device_auth.py 授权实现本身仍扎实、前端凭据清除彻底、所有失败模式 fail-closed(下方逐项核验有效);
-阻断项非代码缺陷,而是 PR#54 与既有 `auth_proxy.py` 凭据剥离设计的**跨组件不兼容**——因其会在上线后
-必然中断一条既有已支持的接入路径(且 PR 目标恰是"无感连接"),按审查职责判为阻断。
+**审查演进**:v1(仅审域名 HTTPS 直连单层)→ approved;v2(补审 iOS 本地 fallback 两层)→ **blocked**
+(BLOCK-1:旧 auth_proxy 剥离凭据致第二跳 401);**v3(审 97941de 修复)→ approved**——新增版本化
+`native_proxy.py`:剥离浏览器凭据后在 loopback 第二跳注入服务端 device token,剥离 8788 Set-Cookie,
+两层用不同 session_context;经 8 项独立两层合成探针证明 BLOCK-1/OBS-404 解除、无新 blocker。
+下方 v1 逐项核验、v2 阻断记录均保留为审计历史。**部署前必须完成:8790 launcher 从旧 auth_proxy
+切换到版本化 native_proxy**(见 v3;当前 launcher 仍指向旧 auth_proxy,未切换=BLOCK-1 现实仍在)。
 
 ## 逐项核验(按审查重点)
 
@@ -126,3 +129,50 @@ company/project/version/单次消费在 DB 层强隔离(P2 审查已确认),故�
 - 作者 `test_device_auth.py`:7/7
 - 独立单层探针 `test_device_auth_claude_probe.py`:10/10
 - 独立两层探针 `test_device_auth_twohop_probe.py`:4/4(BLOCK-1 证明 + 域名直连/404 核对)
+
+---
+
+## 增量复审 v3(BLOCK-1/OBS-404 修复验证;2026-09-01)
+
+**审查对象**:修复提交 `97941de04c2fff622e0a668d36137a247755b173`。只读审查,未改产品实现。
+独立两层探针 `test_native_proxy_claude_probe.py` **8/8 通过**(纯合成 token + ASGITransport
+两层直连,零真实/网络/重启);作者 `test_native_proxy.py`+`test_device_auth.py` 复核 **10/10 通过**。
+
+### BLOCK-1 → 已解除
+新增 `backend/native_proxy.py`(版本化 8790 代理),经探针逐条证明:
+- 第二跳注入服务端凭据(`native_proxy.py:130-138`):先剥浏览器 cookie 与 device header,**之后**注入
+  服务端 device token → 8788 门禁认得 → **200**(`test_local_fallback_end_to_end_200`)。
+- 注入顺序不可被浏览器覆盖(`test_browser_device_header_cannot_override_injection`)。
+- 浏览器 cookie 不进第二跳 + 8788 Set-Cookie 不回浏览器(`:133`/`:152`;双向探针证明)。
+- 两层会话 session_context 隔离,双向不可重放(`test_session_contexts_are_isolated`)。
+- 代理自身 `sanjian_proxy_session` 鉴权;错误 token/错误 proxy cookie 均 401。
+
+### OBS-404 → 已解除
+`app.py` 新增 `/__native_auth`→302;直连 8788 带 device token 时 middleware refresh 设 native cookie,
+302 即完成 cookie 交换(`test_native_auth_direct_backend_is_302_with_cookie`:302+cookie,非 404)。
+
+### 固定域名直连 8788 → 仍正常
+`test_direct_backend_token_then_cookie`:device token→200+native cookie,后续 cookie→200。
+
+### device_auth.py 重构核验
+session_context 参数化(空 context→DeviceAuthConfigError)、read_device_token_file 公共化(保留权限
+&0o077 检查)、issue_session/valid_session 公共方法;v1 的 10 项授权探针语义不变仍适用。
+
+### 其它(SSRF/压缩/body/安全头/token 泄漏)
+upstream client `follow_redirects=False`+`trust_env=False`+base_url 固定 loopback;压缩用
+`upstream.content` 重建并剥 content-encoding/length,自洽;请求 1MB 上限;异常响应带安全头、
+错误文案不含 token(`test_error_responses_have_security_headers_and_no_token_leak`)。低危观察:
+path 逃逸未证实可利用(需先持有效 proxy 会话,固定 base_url 下仍解析 loopback),建议作者补断言;
+上游响应体无显式上限(本地可信后端)。
+
+## 部署前必须完成(未部署,勿写成已上线)
+1. **【最高】8790 launcher 切换到版本化 native_proxy**:实测 `com.sanjian.auth-proxy.plist` 当前仍
+   指向旧 `RemoteAccess/auth_proxy.py`(剥离且不注入)。**不切换=8788 启用门禁后 BLOCK-1 现实仍在**。
+   切换后需一次两层合成冒烟确认第二跳 200。
+2. HTTPS 拓扑(Secure 全程 HTTPS,严禁为 http loopback 关闭)、SW 预缓存时序、
+   device token 轮换须同步 proxy 与 backend 并重启、proxy token 文件 &0o077 收紧。
+
+## 测试统计(v3 汇总)
+- 独立两层修复探针 `test_native_proxy_claude_probe.py`:8/8
+- 作者 `test_native_proxy.py`+`test_device_auth.py` 复核:10/10(作者声称全套 57 unittest + 32 bridge pytest 全绿)
+- v1 单层独立探针 10/10、v2 两层 blocked 证明 4/4:历史留痕,BLOCK-1 由本次修复解除。

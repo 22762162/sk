@@ -1,46 +1,57 @@
 artifact_id: device-bound-brain-claude-reviewer
-timestamp: "2026-09-01T17:16:01+0700"
+timestamp: "2026-09-01T17:40:00+0700"
 timestamp_source: host_clock(date 实读)
 provider: anthropic
-model_id: claude-fable-5
-model_release: Fable 5(Claude Code 2.1.207)
+model_id: "Opus 4.8 (exact model id unavailable)"
+model_note: >-
+  本次会话 UI 报告 Fable 5 safeguards 触发并自动切换为 Opus 4.8 执行本审查;完整 model id
+  与 Claude Code 版本无法从会话内自证,按实际执行模型如实记为 Opus 4.8,不猜精确值。
+claude_code_version: "unavailable(未能从会话确认;不猜测)"
 agent_role: independent_security_reviewer
 scope: 只读安全审查 PR#54(agent/device-bound-brain);未修改作者工作树;仅合成 token;未读 .env/真实 token/真实 DB/业务记录;未调模型 API;未合并/部署/重启
 session_id: claude-code-session(PR#54 设备绑定安全审查)
 source_repository: https://github.com/22762162/sk
-reviewed_commit: 282a14744b85782ac064e6da6b97965b351cb70f
+reviewed_commit: 97941de04c2fff622e0a668d36137a247755b173
+prior_reviewed_commit: 282a14744b85782ac064e6da6b97965b351cb70f(v1/v2 修复前对象)
+verdict: approved
 reviewed_files:
-  - backend/device_auth.py(fail-closed 配置/文件权限/compare_digest/HMAC 会话/30天到期/轮换)
-  - backend/app.py(全站中间件接线/request.state 注入/问事快照授权)
+  - backend/device_auth.py(session_context 参数化/read_device_token_file/公共 issue|valid_session/fail-closed 配置/文件权限/HMAC 会话/30天到期)
+  - backend/native_proxy.py(版本化 8790 代理:自有会话+第二跳注入服务端 token+剥浏览器 cookie 与 8788 Set-Cookie)
+  - backend/app.py(全站中间件接线/request.state 注入/问事快照授权/__native_auth 302 兼容握手)
   - backend/brain_routes.py(require_access 与 request_authorized 授权合流)
   - web/app.html + web/brain.js(可见口令与 JS 凭据移除)
   - web/sw.js(离线壳缓存版本)
-  - docs/specs/rfc-0003-brain-readonly.md + backend/README.md(HTTPS 拓扑声明)
+  - docs/specs/rfc-0003-brain-readonly.md + backend/README.md(HTTPS 拓扑/部署契约)
 tests:
   author_test_device_auth: "7/7 passed"
-  independent_probe_test_device_auth_claude_probe: "10/10 passed"
-  independent_twohop_probe_test_device_auth_twohop_probe: "4/4 passed(增量复核)"
-verdict: blocked
-blocking_findings:
+  author_test_native_proxy_and_device_auth_v3_recheck: "10/10 passed"
+  independent_v1_probe_test_device_auth_claude_probe: "10/10 passed"
+  independent_v2_twohop_probe_test_device_auth_twohop_probe: "4/4 passed(BLOCK-1 证明,历史留痕)"
+  independent_v3_fix_probe_test_native_proxy_claude_probe: "8/8 passed(BLOCK-1/OBS-404 解除)"
+blocking_findings_resolved:  # v2 发现,均由修复提交 97941de 解除(v3 验证);保留为审计历史
   - id: BLOCK-1
-    summary: "8790 auth_proxy 转发到 8788 时剥离 cookie 与 x-sanjian-device-token(auth_proxy.py:121-125);PR#54 启用 8788 全站门禁后,iOS 本地 Wi-Fi/USB fallback(App→8790→8788)必然 401 断连"
-    proof: "test_device_auth_twohop_probe.py::test_local_fallback_through_proxy_is_broken(合成两层,401)"
-    nature: "跨组件兼容性,非 device_auth 代码缺陷;方向 fail-closed 但中断既有已支持接入路径"
-    min_fix_options:
-      - "推荐:auth_proxy 转发前注入 8788 服务间 X-Sanjian-Device-Token(仍剥用户 cookie);需其侧改动+运维配置"
-      - "不推荐:8788 为本机 loopback proxy 开受信路径(弱化门禁)"
-      - "或产品放弃本地 fallback,仅域名 HTTPS,并从 iOS 候选移除 8790/__native_auth 分支"
+    summary: "旧 auth_proxy(8790)转发到 8788 剥离 cookie 与 device header,PR#54 启用门禁后本地 fallback 必然 401"
+    resolved_by: "97941de 新增 native_proxy.py:第二跳注入服务端 device token;探针 test_local_fallback_end_to_end_200 证明 200"
+    status: resolved
   - id: OBS-404
-    summary: "/__native_auth 在 8788 不存在,直连带 device token 过门禁后返 404(非 200+Set-Cookie);device token 失效且域名不可达时候选全断"
-    proof: "test_device_auth_twohop_probe.py::test_native_auth_route_404_on_direct_backend"
-pre_production_confirmations:
-  - "HTTPS 拓扑:Secure Cookie 要求全程 HTTPS;严禁为 http loopback 关闭 Secure(fail-closed 但会白屏)"
-  - "SW 预缓存时序:设备会话 Cookie 写入后再注册/更新 Service Worker,否则离线壳 install 401 失败"
-  - "轮换生效需重启后端进程;与出口 HUOHUO_EXPORT_TOKEN 轮换同步"
+    summary: "直连 8788 的 /__native_auth 返 404(非 200+Set-Cookie),device token 失效时候选全断"
+    resolved_by: "97941de:app.py /__native_auth→302 + middleware refresh cookie;探针 test_native_auth_direct_backend_is_302_with_cookie"
+    status: resolved
+open_findings: []
+pre_deployment_must_complete:
+  - "【最高】8790 launcher(com.sanjian.auth-proxy.plist)当前仍指向旧 auth_proxy;须切换到版本化 backend/native_proxy.py,否则 BLOCK-1 现实仍在。切换后需两层合成冒烟确认第二跳 200"
+  - "HTTPS 拓扑:Secure Cookie 全程 HTTPS,严禁为 http loopback 关闭 Secure"
+  - "device token 轮换:proxy 与 backend 用同一 token,须同步且重启双方生效"
+  - "proxy 读取 device token 文件须只读且 &0o077 收紧"
 design_tradeoffs:
   - "启用门禁后设备会话即全权 Brain(移除公司页二次解锁);数据仍由 brain_context.consume 在 DB 层强隔离,授权放宽不产生越权数据"
+low_risk_observations:
+  - "native_proxy path 逃逸未证实可利用(需先持有效 proxy 会话,固定 base_url 下仍解析 loopback);建议作者补'path 不改 upstream host'断言"
+  - "上游响应体无显式大小上限(本地可信后端,低危)"
+status_note: "PR#54 尚未合并/部署;approved 指代码层可合,上述部署前置未完成前不得视为已上线"
 notes: >-
-  核心授权边界经 10 项独立探针验证:轮换失效/伪造签名(他密钥)/篡改签名与时间戳/过期/未来签发
-  全部拒绝;配置与文件权限 fail-closed;关闭态不持密钥;整数解析怪癖不绕过。前端凭据清除彻底。
-  未发现可利用的授权绕过、凭据泄漏或 fail-open。approved;上线前确认项属部署契约,不阻断代码合并。
+  审查演进 v1(域名直连单层)approved → v2(补审 iOS 本地 fallback 两层)blocked(BLOCK-1)
+  → v3(审 97941de 修复)approved。修复经 8 项独立两层合成探针 + 作者核心 10/10 复核证明
+  BLOCK-1/OBS-404 解除、无新 blocker;device_auth 授权边界(轮换/伪造/篡改/过期/文件权限/
+  fail-closed)v1 的 10 项探针仍适用。前端凭据清除彻底,两层会话 session_context 隔离双向不可重放。
   人工签署仍待定:本 attestation 为独立审查方自述,合并/发布批准权在本人。
