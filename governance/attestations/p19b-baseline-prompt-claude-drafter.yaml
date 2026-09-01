@@ -1,0 +1,15 @@
+artifact_id: p19b-baseline-prompt-claude-drafter
+timestamp: "2026-09-01T16:27:16+0700"
+timestamp_source: host_clock(date 实读)
+provider: anthropic
+model_id: claude-fable-5
+model_release: Fable 5(Claude Code 2.1.207)
+agent_role: evaluator_asset_drafter
+scope: 仅 evals/change/baseline_prompts/facts-only-v1.md(评测器资产,INV-12 独立分拆)
+session_id: claude-code-session(p19b 基线提示词分拆)
+source_commit: bafdffe(main 分叉点;本次已同步至 #52 合并点)
+notes: >-
+  facts-only 消融基线提示词:仅事实无术数,输出走 combined_section_raw 契约同一校验器;
+  含注入忽略条款与锚点日期口径。评测线独立评审路径(Codex 审计→本人确认);
+  与指标代码/候选提示词永不同 PR。本人已于 2026-09-01 授权合并(决策记录 §6)。
+  人工签署仍待定字段以决策记录为准。
