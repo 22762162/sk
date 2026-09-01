@@ -5,11 +5,15 @@
   仅合成 token;未读 .env/真实 token 文件内容/真实数据库/业务记录,未调用模型 API;未合并/部署/重启线上。
 - 作者测试:`test_device_auth.py` **7/7 通过**;独立探针 `test_device_auth_claude_probe.py` **10/10 通过**。
 
-## Verdict:**approved**(无阻断项;含 3 项上线前必须确认、2 项建议)
+## Verdict:**blocked**(增量复核发现两层拓扑兼容性阻断;详见文末"增量复核 v2")
 
-核心授权实现扎实,前端凭据清除彻底,所有失败模式均 fail-closed,未发现可利用的授权绕过、
-凭据泄漏或 fail-open。批准合并;下列"上线前必须确认项"属部署/运维层面,不阻断代码合并,
-但需在启用生产设备门禁前逐条落实。
+**修订说明**:第一版(仅审 App→域名 HTTPS 直连 8788 单层路径)结论为 approved。增量复核补审
+**iOS 本地 Wi-Fi/USB fallback 两层路径**(App→8790 auth_proxy→8788),发现 PR#54 启用 8788 全站
+门禁后该路径必然 401 断连(合成两层探针证明)。据此 verdict 改为 **blocked**。
+
+device_auth.py 授权实现本身仍扎实、前端凭据清除彻底、所有失败模式 fail-closed(下方逐项核验有效);
+阻断项非代码缺陷,而是 PR#54 与既有 `auth_proxy.py` 凭据剥离设计的**跨组件不兼容**——因其会在上线后
+必然中断一条既有已支持的接入路径(且 PR 目标恰是"无感连接"),按审查职责判为阻断。
 
 ## 逐项核验(按审查重点)
 
@@ -63,3 +67,62 @@ company/project/version/单次消费在 DB 层强隔离(P2 审查已确认),故�
 
 - 确认项①/②/③均为部署契约,代码无需改;若要在代码侧加固:SW 注册门控(②)可在 app.js 加
   `navigator.serviceWorker.register` 前置"首个已认证响应"判断;其余写入 RFC/README 运维节即可。
+
+---
+
+## 增量复核 v2(两层拓扑兼容性;2026-09-01)
+
+**触发**:第一版遗漏 iOS 本地 Wi-Fi/USB fallback 的两层拓扑。补审 `sk-ios/RemoteAccess/auth_proxy.py`
+(只读源码,未 import、未读 token 内容)与 `sk-ios/SanjianIOS/ContentView.swift`(既有 iOS,不在本 PR diff)。
+独立探针 `test_device_auth_twohop_probe.py` **4/4 通过**(纯合成两层 ASGI,零真实/网络/重启)。
+
+### 阻断项 BLOCK-1:8790 auth_proxy → 8788 第二跳凭据被剥离,启用门禁后必然 401
+
+- **事实链**(源码依据):
+  1. `auth_proxy.py:20` UPSTREAM=`http://127.0.0.1:8788`;`:69` 用自有 `sanjian_native_session` cookie 鉴权;
+  2. `:121-125` 转发到 8788 时,请求头过滤集合含 `cookie` 与 `x-sanjian-device-token`——**两者都被剥离**;
+  3. PR#54 在 8788 启用 `SANJIAN_REQUIRE_DEVICE_AUTH=1` 后,`device_auth.middleware` 对全站要求
+     设备头或 8788 自签会话;proxy 转发来的请求二者皆无 → 401。
+- **iOS 侧证据**:`ContentView.swift:156` 本地候选 `http://skdeMac-Studio.local:8790/`;`:171` 仅经
+  `/__native_auth` 握手(不含 direct-root 例外),即本地接入**只能**经 8790 代理这一跳。
+- **合成证明**:`test_local_fallback_through_proxy_is_broken` —— 剥离后转发的请求对 8788 返回 **401**。
+- **影响**:上线启用门禁后,**iOS 本地 Wi-Fi/USB fallback 必然断连**(Mac 关机/域名不可达时的唯一本地路径)。
+  这是 fail-closed(安全方向),但中断既有已支持接入路径,与 PR"无感连接"目标冲突。
+- **附带**:两侧 cookie 同名 `sanjian_native_session` 但签名密钥不同(8790=其 device token / 8788=
+  `SANJIAN_DEVICE_TOKEN_FILE`),即便不剥离也会签名不匹配——剥离使其成为纯"无凭据 401"。
+
+### 核对①:固定域名直连 8788 路径 —— 正常(未受本阻断影响)
+
+- `ContentView.swift:138` 探测请求设 `X-Sanjian-Device-Token`;`:165` 固定域名先试 allow-listed root。
+- 合成证明:`test_direct_domain_with_device_token_passes` —— 带 device token 直连 → **200 + Set-Cookie**;
+  `test_direct_domain_with_session_cookie_passes` —— 带会话 cookie → **200**。
+- 结论:App→固定域名 HTTPS 直连 8788 的路径在门禁下正常(仍受第一版确认项①HTTPS/②SW 时序约束)。
+
+### 核对②:/__native_auth 在直连 8788 的 404 降级 —— 会导致该候选失败(非卡死循环,但断链)
+
+- 8788 无 `/__native_auth` 路由。合成证明:`test_native_auth_route_404_on_direct_backend` —— 带有效
+  device token 过门禁后,该路径返回 **404**(而非 App 期望的 200+Set-Cookie)。
+- iOS 候选注释(`:162-164`)预期"auth proxy 会以 401 前进握手";但直连 8788 时:root 直连带 device token
+  已 200 成功,不会前进到 /__native_auth;仅当 root 直连失败(device token 无效)才前进,此时得 404
+  → 该候选判失败 → 尝试下一候选(本地 8790,已被 BLOCK-1 断)→ **全部候选失败**。非无限卡死循环,
+  但在 device token 失效或域名不可达时无可用接入。
+
+## 最小修复建议(不改产品实现;跨组件协调,择一)
+
+1. **(推荐)auth_proxy 转发时注入 8788 服务间凭据**:8790 验证完自身会话后,转发前注入
+   `X-Sanjian-Device-Token: <8788 的设备 token>`(仍剥离用户 cookie 以保持隔离)。需 auth_proxy 侧改动
+   + 运维给其只读 8788 token 文件权限。此方案保留本地 fallback 且不弱化 8788 门禁。
+2. 或 8788 为**本机 loopback 的 auth_proxy**开受信内网路径——**不推荐**(弱化全站门禁,任何本机进程可绕过)。
+3. 或产品决策**放弃本地 fallback**,仅域名 HTTPS,并从 iOS 候选移除 8790 与 /__native_auth 分支
+   (牺牲 Mac 局域网/USB 离线接入)。
+- 附:若保留本地 fallback,建议 iOS 候选对"固定域名直连 8788"移除会导向 404 的 /__native_auth 分支,
+  或由 8788 提供兼容握手端点,避免 device token 失效时的候选断链。
+
+**解除阻断的验收**:采用方案后,需要一次合成两层探针证明"经 auth_proxy 转发的请求在 8788 门禁下通过",
+且固定域名直连与本地 fallback 两条路径同时 200;由独立审查复核。
+
+## 测试统计(增量后汇总)
+
+- 作者 `test_device_auth.py`:7/7
+- 独立单层探针 `test_device_auth_claude_probe.py`:10/10
+- 独立两层探针 `test_device_auth_twohop_probe.py`:4/4(BLOCK-1 证明 + 域名直连/404 核对)

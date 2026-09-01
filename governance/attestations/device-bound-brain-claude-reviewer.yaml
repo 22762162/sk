@@ -19,8 +19,20 @@ reviewed_files:
 tests:
   author_test_device_auth: "7/7 passed"
   independent_probe_test_device_auth_claude_probe: "10/10 passed"
-verdict: approved
-blocking_findings: []
+  independent_twohop_probe_test_device_auth_twohop_probe: "4/4 passed(增量复核)"
+verdict: blocked
+blocking_findings:
+  - id: BLOCK-1
+    summary: "8790 auth_proxy 转发到 8788 时剥离 cookie 与 x-sanjian-device-token(auth_proxy.py:121-125);PR#54 启用 8788 全站门禁后,iOS 本地 Wi-Fi/USB fallback(App→8790→8788)必然 401 断连"
+    proof: "test_device_auth_twohop_probe.py::test_local_fallback_through_proxy_is_broken(合成两层,401)"
+    nature: "跨组件兼容性,非 device_auth 代码缺陷;方向 fail-closed 但中断既有已支持接入路径"
+    min_fix_options:
+      - "推荐:auth_proxy 转发前注入 8788 服务间 X-Sanjian-Device-Token(仍剥用户 cookie);需其侧改动+运维配置"
+      - "不推荐:8788 为本机 loopback proxy 开受信路径(弱化门禁)"
+      - "或产品放弃本地 fallback,仅域名 HTTPS,并从 iOS 候选移除 8790/__native_auth 分支"
+  - id: OBS-404
+    summary: "/__native_auth 在 8788 不存在,直连带 device token 过门禁后返 404(非 200+Set-Cookie);device token 失效且域名不可达时候选全断"
+    proof: "test_device_auth_twohop_probe.py::test_native_auth_route_404_on_direct_backend"
 pre_production_confirmations:
   - "HTTPS 拓扑:Secure Cookie 要求全程 HTTPS;严禁为 http loopback 关闭 Secure(fail-closed 但会白屏)"
   - "SW 预缓存时序:设备会话 Cookie 写入后再注册/更新 Service Worker,否则离线壳 install 401 失败"
