@@ -1516,21 +1516,46 @@ def _app_ten_god_text_valid(text: str, day_stem: str) -> bool:
     return True
 
 
+# 结论性措辞:覆盖同义表达,避免只认「能/不能」而误伤「可以/难以/大概率」等(P21;跨模型稳健)
+_DECISION_TERMS = (
+    "能", "不能", "可以", "无法", "难以", "有望", "有机会", "机会大", "机会不大",
+    "较难", "偏难", "难度", "困难", "顺利", "不顺", "受阻", "利于", "不利",
+    "条件", "概率", "可能性", "大概率", "小概率", "倾向", "取决", "视乎",
+    "达标", "达成", "完成", "实现", "落地", "成事", "难成", "宜", "忌", "可成", "难",
+    "建议", "适合", "不适合", "把握",
+)
+# 经营指标类:回答应触及量化维度(同样放宽同义)
+_METRIC_TERMS = ("日均", "缺口", "剩余", "目标", "进度", "万", "达成率", "完成率",
+                 "增速", "增长", "百分", "%", "占比", "差距", "所需", "冲刺")
+
+
+# 主题类:问题落在某类 → 回答命中该类任一词即算切题(不再要求逐字复述,治跨模型措辞误伤)
+_TOPIC_GROUPS = {
+    "事业": ("事业", "工作", "业务", "职业", "岗位", "职位", "项目", "任务", "目标",
+             "推进", "落地", "达成", "达标", "进度", "业绩", "考核", "升职", "团队"),
+    "财务": ("财务", "回款", "资金", "收入", "成本", "预算", "流水", "分成", "钱",
+             "现金", "利润", "营收", "结算", "开支"),
+    "合作": ("合作", "伙伴", "合伙", "渠道", "签约", "谈判", "对方", "供应", "客户", "洽谈"),
+    "感情": ("感情", "关系", "对象", "婚", "恋", "家庭", "伴侣", "缘分", "复合", "缓和"),
+    "健康": ("健康", "身体", "病", "医", "手术", "康复"),
+    "学业": ("学习", "考试", "学业", "升学", "考", "录取", "论文"),
+    "出行": ("出行", "搬", "迁", "旅", "出差", "远行"),
+    "时机": ("时机", "机会", "风险", "启动", "发布", "变动", "择日", "择时"),
+}
+_TASK_TERMS = ("任务", "目标", "完成", "达标", "流水", "业绩", "进度", "项目")
+
+
 def _app_answer_relevant(answer: str, question: str, metrics: dict) -> bool:
     if len(answer.strip()) < 12:
         return False
-    task_terms = ("任务", "目标", "完成", "达标", "流水", "业绩", "进度", "项目")
-    topic_terms = [term for term in (*task_terms, "工作", "事业", "财务", "关系", "感情", "对方",
-                                      "家庭", "健康", "学习", "考试", "出行", "合作", "机会", "风险")
-                   if term in question]
-    if topic_terms and not any(term in answer for term in topic_terms):
+    # 主题闸:问题命中哪些类,回答须触及这些类中任一词(同类近义词均可)
+    hit_groups = [words for words in _TOPIC_GROUPS.values() if any(w in question for w in words)]
+    if hit_groups and not any(w in answer for words in hit_groups for w in words):
         return False
-    needs_decision = bool(metrics) or any(term in question for term in task_terms)
-    if needs_decision and not any(
-        term in answer for term in ("能", "不能", "有望", "较难", "难度", "条件", "概率", "达标", "完成")
-    ):
+    needs_decision = bool(metrics) or any(term in question for term in _TASK_TERMS)
+    if needs_decision and not any(term in answer for term in _DECISION_TERMS):
         return False
-    if metrics and not any(term in answer for term in ("日均", "缺口", "剩余", "目标", "进度", "万")):
+    if metrics and not any(term in answer for term in _METRIC_TERMS):
         return False
     return True
 
