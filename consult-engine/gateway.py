@@ -22,6 +22,7 @@ import httpx
 
 MANIFEST_DIR = Path(__file__).resolve().parent / "manifests"
 DAILY_CAP = int(os.environ.get("SANJIAN_DAILY_CALL_CAP", "50"))
+PROVIDER_IDLE_TIMEOUT_SECONDS = 180.0
 
 
 class GatewayError(RuntimeError):
@@ -105,19 +106,23 @@ def call(provider: str, model_id: str, system: str, user: str,
     if send_temp:
         payload["temperature"] = temperature
 
-    # 瞬时故障自动重试:供应商过载(529)/限流(429)/5xx/网络抖动,指数退避最多 3 次重试;
-    # 单次调用总时限 180s(过载时供应商可能响应极慢,不设上限会把整场会诊拖到十几分钟)
+    # 瞬时故障自动重试:供应商过载(529)/限流(429)/5xx/网络抖动,指数退避最多 3 次。
+    # 180s 是连续无响应数据的 read timeout,不是整次调用总时限:只要响应流仍持续收到数据,
+    # 即使总耗时超过 180s 也允许正常完成。连续 180s 无数据才停止该次调用。
     retryable = {429, 500, 502, 503, 504, 529}
     resp, last_err = None, ""
-    start = time.monotonic()
+    request_timeout = httpx.Timeout(
+        connect=15.0, read=PROVIDER_IDLE_TIMEOUT_SECONDS, write=30.0, pool=15.0,
+    )
     for attempt in range(4):
         if attempt:
-            if time.monotonic() - start > 180:
-                last_err = (last_err or f"{provider} 响应缓慢") + "(单次调用超 180s 上限,放弃)"
-                break
             time.sleep(2 ** attempt)  # 2s / 4s / 8s
         try:
-            resp = httpx.post(url, headers=headers, json=payload, timeout=75)
+            resp = httpx.post(url, headers=headers, json=payload, timeout=request_timeout)
+        except httpx.ReadTimeout as exc:
+            raise GatewayError(
+                f"{provider} 连续 {int(PROVIDER_IDLE_TIMEOUT_SECONDS)} 秒未收到响应数据,已停止本次调用"
+            ) from exc
         except httpx.HTTPError as exc:
             last_err = f"{provider} 网络错误:{exc.__class__.__name__}"
             resp = None
