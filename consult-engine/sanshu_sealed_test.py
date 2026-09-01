@@ -150,6 +150,7 @@ import liuyao as _ly
 CAST = _ly.cast([7, 6, 7, 8, 7, 8], "甲子", "申")  # 真实引擎装卦:水火既济,二爻动变水天需
 MATERIAL = "乾造:合成占位材料,身强财旺仅供测试"
 PROMPTS = {"bazi": "占位system-八字", "gua": "占位system-卦", "combined": "占位system-综合"}
+AS_OF = "2026-09-01"  # 合成事件窗口锚点；禁止测试随上海自然日跨午夜漂移
 
 
 def make_caller(script: dict, log: list):
@@ -166,7 +167,8 @@ def test_orchestrator_happy_path_and_isolation():
                           "combined": _combined_valid()}, log)
     r = so.run_provider_chain(caller, "anthropic", PROMPTS, "本月能否谈成新合作", "2026-09-30",
                               MATERIAL, CAST, "liuyao",
-                              facts_summary="上月完成率八成(合成)", facts_meta={"known_at": "2026-08-30"})
+                              facts_summary="上月完成率八成(合成)", facts_meta={"known_at": "2026-08-30"},
+                              as_of=AS_OF)
     assert r["combined_status"] == "ok" and r["bazi_seal"] and r["gua_seal"]
     # 物理隔离:bazi 调用不含卦快照;gua 调用不含八字材料;combined 只见封存段
     bazi_call = next(c for c in log if c["role"] == "bazi")
@@ -190,7 +192,7 @@ def test_orchestrator_pollution_refused():
     caller = make_caller({}, [])
     try:
         so.run_provider_chain(caller, "x", PROMPTS, "我八字甲子乙丑,问本卦吉凶", "2026-09-30",
-                              "材料", CAST, "liuyao")
+                              "材料", CAST, "liuyao", as_of=AS_OF)
         raise AssertionError("应拒绝")
     except so.OrchestrationError as e:
         assert "夹带" in str(e)
@@ -199,7 +201,8 @@ def test_orchestrator_pollution_refused():
 def test_orchestrator_absent_gua_stops_combined():
     log: list = []
     caller = make_caller({"bazi": ok_bazi()}, log)
-    r = so.run_provider_chain(caller, "x", PROMPTS, "问事", "2026-09-30", MATERIAL, None, None)
+    r = so.run_provider_chain(caller, "x", PROMPTS, "问事", "2026-09-30", MATERIAL, None, None,
+                              as_of=AS_OF)
     assert r["gua"] is None and r["combined_status"] == "not_run_missing_material"
     assert [c["role"] for c in log] == ["bazi"]  # 缺席由编排器判定,不发起 gua/combined
 
@@ -210,7 +213,8 @@ def test_orchestrator_abstain_counts_present_but_stops_combined():
     caller = make_caller({"bazi": ok_bazi(),
                           "gua": {"status": "abstain", "reason": "动爻信息不足以取定",
                                   "method": "liuyao", "cast_hash": ch}}, log)
-    r = so.run_provider_chain(caller, "x", PROMPTS, "问事", "2026-09-30", MATERIAL, CAST, "liuyao")
+    r = so.run_provider_chain(caller, "x", PROMPTS, "问事", "2026-09-30", MATERIAL, CAST, "liuyao",
+                              as_of=AS_OF)
     assert r["gua"]["status"] == "abstain"
     assert r["combined_status"] == "not_run_section_abstained"
 
@@ -227,7 +231,8 @@ def test_orchestrator_claiming_other_hexagram_rejected_with_retry():
             return json.dumps(bad, ensure_ascii=False), f"run-{calls['n']}"
         return json.dumps(ok_bazi(), ensure_ascii=False), "run-b"
     try:
-        so.run_provider_chain(caller, "x", PROMPTS, "问事", "2026-09-30", MATERIAL, CAST, "liuyao")
+        so.run_provider_chain(caller, "x", PROMPTS, "问事", "2026-09-30", MATERIAL, CAST, "liuyao",
+                              as_of=AS_OF)
         raise AssertionError("应失败")
     except so.OrchestrationError:
         assert calls["n"] == 2  # 同输入重试 1 次后 fail-closed

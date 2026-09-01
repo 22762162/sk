@@ -11,10 +11,12 @@ source_repository: https://github.com/22762162/sk
 source_commit: 902dbc9cd1699420538e61a6763981946fd2b607
 generated_files:
   - consult-engine/gateway.py
+  - consult-engine/sanshu_sealed_test.py
   - backend/tests/test_gateway.py
   - governance/attestations/gateway-idle-timeout-codex-implementer.yaml
 reviewed_files:
   - consult-engine/gateway.py
+  - consult-engine/sanshu_sealed_test.py
   - backend/tests/test_gateway.py
 notes: >-
   Replaces the provider gateway's 180-second cumulative wall-clock cutoff and 75-second
@@ -28,3 +30,6 @@ notes: >-
   governance-check, prompt-symmetry, Python syntax, and diff checks passed. No .env, secret,
   real database, consultation record, manifest, or live model API was accessed. Changes to
   consult-engine/gateway.py require cross-vendor review and human signoff before merge/deploy.
+  CI subsequently exposed a pre-existing Asia/Shanghai midnight-dependent synthetic test;
+  the test now passes its existing 2026-09-01 event anchor explicitly as as_of, without any
+  production orchestrator or divination-rule change.
