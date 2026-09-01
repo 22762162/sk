@@ -60,6 +60,38 @@
     el.hidden = !message;
   }
 
+  function renderQuestionDiscussion(events = []) {
+    const stream = $("#question-discussion");
+    if (!stream) return;
+    const priorCount = Number(stream.dataset.count || 0);
+    const items = Array.isArray(events) ? events : [];
+    if (!items.length) {
+      stream.innerHTML = `<article class="discussion-event" data-status="active">
+        <div class="discussion-event-head"><strong>正在建立讨论</strong><span>系统</span></div>
+        <p>原问题锁定后，三方的公开观点会依次出现在这里。</p>
+      </article>`;
+      stream.dataset.count = "0";
+      return;
+    }
+    if (items.length === priorCount) return;
+    const start = priorCount > items.length ? 0 : priorCount;
+    if (start === 0) stream.innerHTML = "";
+    const additions = items.slice(start).map((event, offset) => {
+      const index = start + offset;
+      const status = ["active", "done", "retry", "error"].includes(event.status)
+        ? event.status : "active";
+      const label = event.provider ? (event.provider_label || event.provider) :
+        (String(event.type || "").startsWith("judge") ? "盲评" : "系统");
+      return `<article class="discussion-event" data-status="${esc(status)}" data-seq="${esc(event.seq || index + 1)}">
+        <div class="discussion-event-head"><strong>${esc(event.title || "分析进行中")}</strong><span>${esc(label)}</span></div>
+        ${event.message ? `<p>${esc(event.message)}</p>` : ""}
+      </article>`;
+    }).join("");
+    stream.insertAdjacentHTML("beforeend", additions);
+    stream.dataset.count = String(items.length);
+    if (items.length > priorCount) stream.scrollTop = stream.scrollHeight;
+  }
+
   async function api(url, options = {}) {
     const response = await fetch(url, {
       ...options,
@@ -557,6 +589,8 @@
     const controls = $$("input,select,textarea,button", form).map(el => ({ el, disabled: el.disabled }));
     controls.forEach(({ el }) => { el.disabled = true; });
     progress.hidden = false;
+    progress.classList.remove("is-complete", "is-failed");
+    renderQuestionDiscussion([]);
     $("#prediction-result").innerHTML = "";
     const started = Date.now();
     try {
@@ -564,14 +598,16 @@
         headers: body.brain_snapshot_id ? brain.headers() : {}, cache: "no-store" });
       brain.reset();
       let final = null;
-      for (let i = 0; i < 240; i += 1) {
-        await new Promise(resolve => setTimeout(resolve, 3000));
+      for (let i = 0; i < 720; i += 1) {
         const elapsed = Math.round((Date.now() - started) / 1000);
         progressText.textContent = `原问题已锁定，三方命盘分析、原问题直答与盲评进行中 · ${elapsed} 秒`;
         const job = await api(`/api/consult/result?job_id=${encodeURIComponent(start.job_id)}`);
+        renderQuestionDiscussion(job.events);
         if (job.status !== "running") { final = job; break; }
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
       if (!final || final.status !== "done" || !final.result?.prediction) {
+        progress.classList.add("is-failed");
         throw new Error(final?.result?.error || "生成超时；服务端若仍在运行，可稍后到记录页刷新查看");
       }
       const prediction = final.result.prediction;
@@ -588,13 +624,15 @@
       renderRecords();
       form.reset();
       renderScope();
+      progress.classList.add("is-complete");
+      progressText.textContent = "三方公开观点、重试记录与匿名盲评已全部完成。";
       toast("预测已锁定，可在记录页随时查看");
       $("#prediction-result").scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) { setError("#question-error", error.message); }
     finally {
       state.questionBusy = false;
       controls.forEach(({ el, disabled }) => { el.disabled = disabled; });
-      button.disabled = state.offline || !state.activeProfile; progress.hidden = true;
+      button.disabled = state.offline || !state.activeProfile;
       renderScope();
     }
   }

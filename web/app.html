@@ -185,9 +185,13 @@
           <button id="question-submit" class="primary-action full" type="submit">启动三方会诊并锁定预测</button>
         </form>
 
-        <div id="question-progress" class="progress-card card" aria-live="polite" hidden>
-          <div class="orb" aria-hidden="true"></div>
-          <div><strong>Claude、Gemini、DeepSeek 正在独立分析</strong><p id="question-progress-text">已记录提问时间，三方完成后才会进入质证与盲评…</p></div>
+        <div id="question-progress" class="progress-card card" hidden>
+          <div class="progress-head">
+            <div class="orb" aria-hidden="true"></div>
+            <div><strong>三方 AI 讨论实况</strong><p id="question-progress-text" aria-live="polite">已记录提问时间，正在准备三方独立分析…</p></div>
+          </div>
+          <div id="question-discussion" class="discussion-stream" role="log" aria-live="polite" aria-relevant="additions text"></div>
+          <p class="discussion-note">这里实时展示可公开的观点、验证建议、重试和盲评结果；模型隐藏思维链、内部提示词及敏感原始资料不会展示。</p>
         </div>
         <div id="prediction-result" aria-live="polite"></div>
       </section>
