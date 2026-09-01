@@ -1,0 +1,29 @@
+artifact_id: p18-codex-recheck-033c7b9
+timestamp: "2026-08-31T20:10:54Z"
+timestamp_source: host_clock
+provider: openai
+model_id: Codex (exact runtime model id unavailable)
+model_release: Codex session 2026-09-01
+agent_role: reviewer
+session_id: codex-main-session-p18-cross-review
+run_manifest_id: not-applicable (offline synthetic tests only)
+source_repository: https://github.com/22762162/sk
+source_commit: 033c7b9a888c838ade55967ec30519064ba7b6f5
+generated_files:
+  - docs/reviews/pr50-codex-cross-review.md
+reviewed_files:
+  - consult-engine/sanshu_orchestrator.py
+  - consult-engine/sanshu_validator.py
+  - consult-engine/sanshu_schema_agreement_test.py
+  - consult-engine/sanshu_cross_review_test.py
+  - consult-engine/sanshu_sealed_test.py
+  - .github/workflows/ci.yml
+verdict: scoped-engineering-fixes-pass-release-pending
+notes: >-
+  Supersedes the initial engineering blocker status only, preserving the historical attestation.
+  58 synthetic tests pass (16 author, 17 independent reviewer, 25 schema agreement).
+  Additional missing-field, extra-reason and dissent-length schema/validator probes found no
+  mismatch. No keys, personal data, private evals or independent reference source accessed.
+  Reference PR6 results (178 passed, no xfail/skips) received as aggregate evidence only.
+  This does not approve final wiring, schema release, runtime prompts, real Change Eval,
+  merge or deployment. Required human decisions and signoffs remain outstanding.

@@ -17,6 +17,10 @@ jobs:
           python-version: "3.11"
       - run: python3 consult-engine/divination_selftest.py
       - run: python3 consult-engine/divination_hardening_test.py
+      - run: python3 consult-engine/sanshu_sealed_test.py
+      - run: python3 -m unittest discover -s consult-engine -p 'sanshu_cross_review_test.py' -v
+      - run: pip install jsonschema pytest
+      - run: python3 -m pytest consult-engine/sanshu_schema_agreement_test.py -q
 
   decision-desk:
     name: 决策台与大脑只读接口（合成数据）
@@ -58,7 +62,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install pytest
-      - run: cd sk-paipan-reference && python -m pytest -q tests
+      # Expected-failure annotations must not turn unresolved reference failures into a release pass.
+      - run: cd sk-paipan-reference && python -m pytest -q tests --runxfail
 
   duipai:
     name: 双实现对拍（黄金集 + 1 万随机时刻）
