@@ -1,0 +1,15 @@
+artifact_id: p21-answer-relevance-claude-implementer
+timestamp: "2026-09-01T17:30:03+0700"
+timestamp_source: host_clock(date 实读)
+provider: anthropic
+model_id: claude-fable-5
+agent_role: implementer
+scope: backend/app.py 的 _app_answer_relevant 放宽(结论/指标/主题三闸的同义词覆盖)+ 回归测试;不改运行态 prompt;不改会诊编排/三方闸门
+session_id: claude-code-session(答非所问闸门误伤修复)
+source_commit: 220a30b(main)
+notes: >-
+  现象:用户问事频报"三方回答未直接对应原问题或包含基础十神/生克矛盾"。诊断为 PR#41 答非所问闸的
+  死关键词匹配对跨模型措辞(尤其新换的 Gemini)误伤——只认「能/不能」「目标」等字面。修复:结论词
+  扩至同义集(可以/难以/大概率/取决/宜忌…),指标词扩同义,主题闸改为"命中主题类任一近义词即切题"
+  (不再逐字复述)。真跑题(天气/心情/气象)、过短、经营题不触量化、跨主题错答仍被拦(测试覆盖)。
+  未放宽十神/生克矛盾闸(命理硬伤仍拦)。回归:新测试4/4 + 后端50/50 全过。属放宽安全闸,请 Codex 交叉审防过松。

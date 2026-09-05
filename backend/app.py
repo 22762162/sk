@@ -1550,21 +1550,37 @@ def _app_ten_god_text_valid(text: str, day_stem: str) -> bool:
     return True
 
 
+# 结论性措辞:覆盖跨模型同义,但只收"事情能否成"的方向判断——不含"建议/适合/顺利"等
+# 泛场景/行动词(P21 v2:Codex 反例 B1 表明泛词会让撒词跑题蒙混)
+_DECISION_TERMS = (
+    "能", "不能", "可以", "无法", "难以", "有望", "有机会", "机会大", "机会不大",
+    "较难", "偏难", "难度", "困难", "不顺", "受阻", "利于", "不利", "延后", "延期",
+    "概率", "可能性", "大概率", "小概率",
+    "达标", "达成", "完成", "实现", "落地", "推进", "成事", "难成", "可成",
+)
+# 经营指标类:必须触及真实计算锚点(缺口/日均/完成率…),不接受"增长/万"等泛量化词
+# (P21 v2:Codex 反例 B2 表明泛量化词可替代真实量化回答)
+_METRIC_TERMS = ("日均", "缺口", "剩余", "目标值", "达成率", "完成率", "差距",
+                 "所需", "冲刺", "万元", "尚差", "还差", "距目标", "百分之")
+
+
+# 主题类硬匹配已按产品所有者结论移除(P21 v3):对命理咨询用精准主题字眼卡切题过于死板,
+# 且是跨模型措辞误伤的根源。切题是否达标交三方盲评;本粗筛不再依赖主题词表。
+_TASK_TERMS = ("任务", "目标", "完成", "达标", "流水", "业绩", "进度", "项目")
+
+
 def _app_answer_relevant(answer: str, question: str, metrics: dict) -> bool:
+    """切题粗筛(P21 v3;产品所有者 2026-09-01 明确结论:命理咨询本就不精准,
+    切题不做精准主题关键词匹配——那样太死板且误伤跨模型措辞)。
+
+    本函数只做**极粗粗筛**:拦住纯空洞/过短、以及决策类问题里毫无方向判断也无量化锚点的
+    彻底跑题;是否真正切题交由三方匿名盲评把关。命理硬伤(十神/生克说反)由
+    _app_ten_god_text_valid 另行拦截,不在此放宽。不再使用主题类硬匹配(去除 Codex 反例
+    B3/B4 依赖的主题字眼匹配面,同时消除对合格回答的误伤)。"""
     if len(answer.strip()) < 12:
         return False
-    task_terms = ("任务", "目标", "完成", "达标", "流水", "业绩", "进度", "项目")
-    topic_terms = [term for term in (*task_terms, "工作", "事业", "财务", "关系", "感情", "对方",
-                                      "家庭", "健康", "学习", "考试", "出行", "合作", "机会", "风险")
-                   if term in question]
-    if topic_terms and not any(term in answer for term in topic_terms):
-        return False
-    needs_decision = bool(metrics) or any(term in question for term in task_terms)
-    if needs_decision and not any(
-        term in answer for term in ("能", "不能", "有望", "较难", "难度", "条件", "概率", "达标", "完成")
-    ):
-        return False
-    if metrics and not any(term in answer for term in ("日均", "缺口", "剩余", "目标", "进度", "万")):
+    needs_decision = bool(metrics) or any(term in question for term in _TASK_TERMS)
+    if needs_decision and not any(term in answer for term in (*_DECISION_TERMS, *_METRIC_TERMS)):
         return False
     return True
 
